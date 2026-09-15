@@ -219,8 +219,8 @@ AI-Pharmacy-Management-System/
 |---|---|---|
 | 0 | Blueprint / Architecture | ✅ เสร็จสมบูรณ์ |
 | 1 | Foundation | ✅ เสร็จสมบูรณ์ |
-| 2 | Database / Medicine Model | ⏳ รอเริ่ม |
-| 3 | Backend API | ⏳ รอ |
+| 2 | Database / Medicine Model | ✅ เสร็จสมบูรณ์ |
+| 3 | Backend API | ⏳ รอเริ่ม |
 | 4 | Mobile App | ⏳ รอ |
 | 5 | Web Dashboard | ⏳ รอ |
 | 6 | AI Vision / Document AI | ⏳ รอ |
