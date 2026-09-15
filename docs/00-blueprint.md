@@ -198,15 +198,18 @@ flowchart LR
 ```
 AI-Pharmacy-Management-System/
 └── docs/
-    ├── 00-blueprint.md          ← เอกสารนี้ (Chat A)
-    ├── 01-database-schema.md    ← Chat E (Phase 2)
-    ├── 02-api-spec.md           ← Chat D (Phase 3)
-    ├── 03-ai-design.md          ← Chat F (Phase 6-7)
+    ├── 00-blueprint.md          ← Chat A (Phase 0) ✅
+    ├── 01-foundation-plan.md    ← Chat A (Phase 1) ✅
+    ├── 02-database-schema.md    ← Chat E (Phase 2)
+    ├── 03-api-spec.md           ← Chat D (Phase 3)
     ├── 04-mobile-spec.md        ← Chat B (Phase 4)
     ├── 05-web-spec.md           ← Chat C (Phase 5)
-    ├── 06-ui-design.md          ← Chat G
-    └── 07-test-plan.md          ← Chat H (Phase 10)
+    ├── 06-ai-design.md          ← Chat F (Phase 6-7)
+    ├── 07-ui-design.md          ← Chat G
+    └── 08-test-plan.md          ← Chat H (Phase 10)
 ```
+
+> **หมายเหตุ:** เลขไฟล์เรียงตามลำดับ Phase จริง ไม่ใช่ลำดับ Chat (ปรับจากฉบับ Phase 0 เดิม เนื่องจากพบว่าเลขชนกันตอนเริ่ม Phase 1 จริง)
 
 ---
 
@@ -215,8 +218,8 @@ AI-Pharmacy-Management-System/
 | Phase | ชื่อ | สถานะ |
 |---|---|---|
 | 0 | Blueprint / Architecture | ✅ เสร็จสมบูรณ์ |
-| 1 | Foundation | ⏳ รอเริ่ม |
-| 2 | Database / Medicine Model | ⏳ รอ |
+| 1 | Foundation | ✅ เสร็จสมบูรณ์ |
+| 2 | Database / Medicine Model | ⏳ รอเริ่ม |
 | 3 | Backend API | ⏳ รอ |
 | 4 | Mobile App | ⏳ รอ |
 | 5 | Web Dashboard | ⏳ รอ |
