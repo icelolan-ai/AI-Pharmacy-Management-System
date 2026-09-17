@@ -517,16 +517,18 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 
 ## 13. เกณฑ์ผ่าน Phase 3 (Gate)
 
+✅ **Phase 3 Complete — Chat A อนุมัติ 17 ก.ย. 2026 (241 unit + 41 integration tests)**
+
 - [x] D1–D6 ได้รับการอนุมัติและบันทึกไว้
 - [x] D7 เลือกทางเลือกแล้ว (A)
 - [x] Migration 003 รันสำเร็จและตรวจผลครบ
-- [ ] Endpoints ข้อ 9 ครบ และทำงานตาม Business Logic ข้อ 10
-- [ ] Tests ข้อ 11 ผ่านทั้งหมด
-- [ ] ไม่มีค่าลับใน Repository (ตรวจประวัติ commit)
-- [ ] Client เข้าถึงตารางตรงผ่าน Supabase Data API ไม่ได้ (ทดสอบจริง)
-- [ ] `backend/README.md` อธิบายวิธีติดตั้งและรันได้
-- [ ] อัปเดตสถานะใน README และ Blueprint **หลัง** Chat A อนุมัติเท่านั้น
-- [ ] Chat A ตรวจและอนุมัติ
+- [x] Endpoints ข้อ 9 ครบ และทำงานตาม Business Logic ข้อ 10
+- [x] Tests ข้อ 11 ผ่านทั้งหมด
+- [x] ไม่มีค่าลับใน Repository (ตรวจประวัติ commit)
+- [x] Client เข้าถึงตารางตรงผ่าน Supabase Data API ไม่ได้ (ทดสอบจริง)
+- [x] `backend/README.md` อธิบายวิธีติดตั้งและรันได้
+- [x] อัปเดตสถานะใน README และ Blueprint **หลัง** Chat A อนุมัติเท่านั้น
+- [x] Chat A ตรวจและอนุมัติ
 
 ---
 
