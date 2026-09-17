@@ -556,6 +556,8 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | D9 | 17 ก.ย. 2026 | เขตเวลาของ "วันนี้" | **A** — ใช้ Asia/Bangkok ผ่านค่า STORE_TIMEZONE; คำนวณใน SQL ไม่ใช้ CURRENT_DATE ของฐานข้อมูล (UTC) |
 | D10 | 17 ก.ย. 2026 | ขายยาในวัน EXP | **A** — ไม่ขาย และไม่รับเข้า: ขายได้/รับได้เฉพาะ expiry_date > วันนี้ |
 | D11 | 17 ก.ย. 2026 | staff เปลี่ยนราคา/ให้ส่วนลด | **A** — staff ต้องใช้ selling_price และ discount = 0 (ไม่งั้น 403); owner/pharmacist ปรับได้และบันทึก audit |
+| D12 | 17 ก.ย. 2026 | เครื่องมือ Mobile | ลงไดรฟ์ D:, ทดสอบด้วย Emulator (ไม่มีมือถือ Android) — ใช้เมื่อถึง Phase 4 |
+| D13 | 17 ก.ย. 2026 | ลำดับ Phase | สลับ: ทำ Phase 5 (Web) ก่อน Phase 4 (Mobile); Phase 6+ ไม่เปลี่ยน |
 
 ---
 

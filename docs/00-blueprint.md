@@ -221,14 +221,18 @@ AI-Pharmacy-Management-System/
 | 1 | Foundation | ✅ เสร็จสมบูรณ์ |
 | 2 | Database / Medicine Model | ✅ เสร็จสมบูรณ์ |
 | 3 | Backend API | ✅ เสร็จสมบูรณ์ |
-| 4 | Mobile App | ⏳ รอเริ่ม |
-| 5 | Web Dashboard | ⏳ รอ |
+| 4 | Mobile App | ⏳ เลื่อนไปหลัง Phase 5 (D13) |
+| 5 | Web Dashboard | 🔄 กำลังดำเนินการ (ลำดับถัดไป) |
 | 6 | AI Vision / Document AI | ⏳ รอ |
 | 7 | AI Assistant | ⏳ รอ |
 | 8 | Inventory Intelligence | ⏳ รอ |
 | 9 | Integration | ⏳ รอ |
 | 10 | Testing / Security | ⏳ รอ |
 | 11 | Production | ⏳ รอ |
+
+> **หมายเหตุ (D13 — 17 ก.ย. 2026):** ลำดับของ Phase 4 และ Phase 5 **สลับกัน** — ทำ **Phase 5 (Web Dashboard) ก่อน** แล้วค่อยทำ Phase 4 (Mobile App)
+> เหตุผล: ยังไม่มีมือถือ Android สำหรับทดสอบ และเว็บใช้งานจริงหน้าร้านบนคอมได้ทันที
+> เลขของ Phase ยังเหมือนเดิม เปลี่ยนเฉพาะลำดับการลงมือทำ ส่วน Phase 6 เป็นต้นไปไม่เปลี่ยน
 
 แต่ละ Phase ต้องผ่าน **Phase Gate**: Plan → Prerequisite Check → Dependency Check → User Approval → Implementation → Testing → Review → Chat A Approval → Phase Complete
 
