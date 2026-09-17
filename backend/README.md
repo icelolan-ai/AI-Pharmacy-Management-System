@@ -45,17 +45,43 @@ Copy-Item .env.example .env
 
 ## 3. รัน Server
 
+เครื่องพัฒนานี้ใช้ port **8001** (port 8000 ถูกโปรแกรมอื่นใช้อยู่):
+
 ```powershell
 .\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --port 8000
+uvicorn app.main:app --port 8001
 ```
 
 ตรวจการทำงาน:
 
 | URL | ผลที่ควรได้ |
 |---|---|
-| http://127.0.0.1:8000/health | `200 {"status": "ok", "database": "ok"}` (ต่อฐานข้อมูลไม่ได้ → `503`) |
-| http://127.0.0.1:8000/docs | เอกสาร API (เฉพาะ `APP_ENV=development`) |
+| http://127.0.0.1:8001/health | `200 {"status": "ok", "database": "ok"}` (ต่อฐานข้อมูลไม่ได้ → `503`) |
+| http://127.0.0.1:8001/docs | เอกสาร API (เฉพาะ `APP_ENV=development`) |
+
+## 4. การยืนยันตัวตน (Authentication)
+
+ทุก Endpoint ใต้ `/api/v1` (ยกเว้น `/health`) ต้องส่ง Access Token ของ Supabase Auth ใน Header:
+
+```
+Authorization: Bearer <access_token>
+```
+
+- Client Login กับ Supabase Auth (Email + Password) เพื่อรับ `access_token` แล้วส่งมากับทุก Request
+- Backend ตรวจลายเซ็นด้วย Public Key (JWKS) ของ Project — ไม่ต้องใช้ JWT secret หรือ `service_role` key
+- ไม่มี Token / Token ผิด / หมดอายุ → `401 UNAUTHENTICATED`
+- ไม่มีแถวใน `user_profiles`, บัญชีถูกปิด หรือ Role ไม่พอ → `403 FORBIDDEN`
+- ตรวจตัวเองได้ที่ `GET /api/v1/me`
+- ห้ามพิมพ์ Token ลง Log หรือส่งในแชท
+
+## 5. รัน Tests
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+pytest -q
+```
+
+Unit tests ไม่ต่อฐานข้อมูลจริงและไม่ต้อง Login จริง (`tests/conftest.py` ตั้งค่าทดสอบแทนค่าใน `.env`)
 
 ## โครงสร้าง
 
@@ -66,7 +92,8 @@ backend/
 │   ├── config.py      อ่าน Settings จาก .env
 │   ├── db.py          Connection pool + get_transaction()
 │   ├── errors.py      รูปแบบ Error กลาง
-│   ├── routers/       Endpoint (health)
+│   ├── auth.py        ตรวจ JWT, โหลด user_profiles, require_roles()
+│   ├── routers/       Endpoint (health, me)
 │   ├── schemas/       Pydantic models
 │   └── services/      Business Logic
 ├── migrations/        SQL Migration (รันแล้ว ห้ามแก้ไฟล์เดิม)

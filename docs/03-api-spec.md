@@ -493,7 +493,7 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 
 - [x] D1–D6 ได้รับการอนุมัติและบันทึกไว้
 - [ ] D7 เลือกทางเลือกแล้ว
-- [ ] Migration 003 รันสำเร็จและตรวจผลครบ
+- [x] Migration 003 รันสำเร็จและตรวจผลครบ
 - [ ] Endpoints ข้อ 9 ครบ และทำงานตาม Business Logic ข้อ 10
 - [ ] Tests ข้อ 11 ผ่านทั้งหมด
 - [ ] ไม่มีค่าลับใน Repository (ตรวจประวัติ commit)
@@ -523,3 +523,4 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | — | 16 ก.ย. 2026 | ปิด Smart App Control บนเครื่องพัฒนา | เพื่อให้ psycopg (binary) ทำงานได้ — D5/D6 ไม่เปลี่ยน |
 | — | 16 ก.ย. 2026 | ปิด "Allow new users to sign up" ใน Supabase Auth | ✅ ทำแล้ว |
 | — | 16 ก.ย. 2026 | รหัสผ่านฐานข้อมูล | User เลือกใช้รหัสเดิม — **ต้องเปลี่ยนก่อน Production (Phase 11)** |
+| — | 17 ก.ย. 2026 | Port ของ Server บนเครื่องพัฒนา | ใช้ **8001** เพราะ port 8000 ถูกโปรแกรม `splunkd` ใช้อยู่ |

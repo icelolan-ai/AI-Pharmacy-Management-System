@@ -12,7 +12,7 @@ from psycopg.conninfo import conninfo_to_dict
 from app import db
 from app.config import Settings, get_settings
 from app.errors import register_error_handlers
-from app.routers import health
+from app.routers import health, me
 
 logger = logging.getLogger("app")
 
@@ -94,3 +94,4 @@ app.add_middleware(
 )
 
 app.include_router(health.router)
+app.include_router(me.router)
