@@ -13,7 +13,17 @@ from app import db
 from app.business_date import ensure_store_timezone
 from app.config import Settings, get_settings
 from app.errors import register_error_handlers
-from app.routers import health, me, medicines, purchases, sales, suppliers
+from app.routers import (
+    audit_logs,
+    health,
+    lots,
+    me,
+    medicines,
+    purchases,
+    reports,
+    sales,
+    suppliers,
+)
 
 logger = logging.getLogger("app")
 
@@ -108,3 +118,6 @@ app.include_router(medicines.router)
 app.include_router(suppliers.router)
 app.include_router(purchases.router)
 app.include_router(sales.router)
+app.include_router(lots.router)
+app.include_router(reports.router)
+app.include_router(audit_logs.router)

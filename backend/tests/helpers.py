@@ -45,7 +45,45 @@ class FakeCursor:
         return self.fetchall_results.pop(0) if self.fetchall_results else []
 
 
-def fake_transaction(cursor: FakeCursor):
+class MatchCursor:
+    """Returns rows chosen by the first rule whose fragment appears in the SQL text.
+
+    rules: list of (fragment, rows) where rows is a list/dict/None or a callable(params).
+    Every executed (sql_text, params) is recorded in `executed`.
+    """
+
+    def __init__(self, rules):
+        self.rules = rules
+        self.executed: list[tuple[str, object]] = []
+        self._rows: list = []
+
+    def execute(self, query, params=None):
+        text = query if isinstance(query, str) else query.as_string()
+        self.executed.append((text, params))
+        self._rows = []
+        for fragment, result in self.rules:
+            if fragment in text:
+                rows = result(params) if callable(result) else result
+                self._rows = [] if rows is None else (rows if isinstance(rows, list) else [rows])
+                break
+
+    def fetchone(self):
+        return self._rows[0] if self._rows else None
+
+    def fetchall(self):
+        return list(self._rows)
+
+    def queries(self, fragment):
+        return [(q, p) for q, p in self.executed if fragment in q]
+
+    def writes(self):
+        return [
+            (q, p) for q, p in self.executed
+            if q.lstrip().upper().startswith(("INSERT", "UPDATE", "DELETE"))
+        ]
+
+
+def fake_transaction(cursor):
     @contextmanager
     def _tx():
         yield cursor

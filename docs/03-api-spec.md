@@ -481,7 +481,7 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | 3.6 | Medicines + Suppliers | |
 | 3.7 | Purchases + Confirm | 🛑 |
 | 3.8 | Sales (FEFO) + FEFO preview (`/medicines/{id}/fefo-preview` — ใช้ logic เดียวกับการขาย) | 🛑 |
-| 3.9 | Adjustments + Lots (ยกเว้น fefo-preview) + Reports + Audit endpoint | |
+| 3.9 | Adjustments + Lots + Reports + Audit endpoint (fefo-preview ย้ายไป 3.8 แล้ว) | |
 | 3.10 | Tests ครบข้อ 11 + อัปเดต `backend/README.md` (วิธีติดตั้ง/รัน) | 🛑 Final |
 
 **กฎระหว่างทำ:**
@@ -531,3 +531,27 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | D9 | 17 ก.ย. 2026 | เขตเวลาของ "วันนี้" | **A** — ใช้ Asia/Bangkok ผ่านค่า STORE_TIMEZONE; คำนวณใน SQL ไม่ใช้ CURRENT_DATE ของฐานข้อมูล (UTC) |
 | D10 | 17 ก.ย. 2026 | ขายยาในวัน EXP | **A** — ไม่ขาย และไม่รับเข้า: ขายได้/รับได้เฉพาะ expiry_date > วันนี้ |
 | D11 | 17 ก.ย. 2026 | staff เปลี่ยนราคา/ให้ส่วนลด | **A** — staff ต้องใช้ selling_price และ discount = 0 (ไม่งั้น 403); owner/pharmacist ปรับได้และบันทึก audit |
+
+---
+
+## 16. มาตรฐานที่อนุมัติระหว่างพัฒนา
+
+| งาน | ข้อตกลง |
+|---|---|
+| 3.6 | ข้อความว่าง (`""`) ทุกช่องเก็บเป็น `NULL` |
+| 3.6 | ฟิลด์ที่ไม่รู้จักใน Request → `400` |
+| 3.6 | `PATCH` ที่ไม่มีค่าใดเปลี่ยนจริง → `400` |
+| 3.7 | ตรวจยอดเงินไม่เกินขนาดคอลัมน์ `numeric(10,2)` (≤ 99,999,999.99) → เกิน `400` |
+| 3.7 | รายการซ้ำในใบรับสินค้า เทียบ `lot_number` แบบไม่สนตัวพิมพ์และช่องว่างหัวท้าย |
+| 3.7 | `DELETE` ตอบ `{"id": ..., "deleted": true}` |
+| 3.7 | ฐานข้อมูลล่มตอนเริ่มแอป → แอปยังเริ่มได้ และข้ามการตรวจ `STORE_TIMEZONE` (log warning) |
+| 3.8 | `GET /sales` (รายการ) ส่งเฉพาะ `id, sale_date, discount_amount, tax_amount, total_amount` |
+| 3.8 | staff ส่ง `unit_price` ให้ยาที่ยังไม่ตั้งราคาขาย → `403`; ไม่ส่งราคา → `400` "ยังไม่ได้ตั้งราคาขาย" |
+| 3.8 | fefo-preview ของยาที่ `is_active=false` ดูได้ (`200`) แต่ขายไม่ได้ (`400`) |
+| 3.8 | ป้องกันเพิ่ม: `UPDATE` lot ตรวจจำนวนตรงกับที่ล็อก / กรอง-เรียง lot ซ้ำใน Python ให้ตรงกับ SQL |
+| 3.8 | ลำดับ items ใน Response การขาย: ชื่อยา → EXP |
+| 3.9 | Adjustment: `damage` / `expired` ต้องติดลบเท่านั้น; `\|quantity_change\|` ≤ 100000; `reason` ≤ 500 ตัวอักษร |
+| 3.9 | Adjustment เพิ่มจำนวน: Lot ที่ EXP ≤ วันนี้ → `400`; status `damaged`/`expired` → `409`; `depleted` → กลับเป็น `active` |
+| 3.9 | staff ไม่เห็นฟิลด์ต้นทุน/มูลค่า (`cost_per_unit`, `*_value`, `stock_value`) ในทุก Endpoint — ฟิลด์ไม่มีใน Response เลย |
+| 3.9 | รายงานทั้งหมดใช้ "วันนี้" ตาม D9 และตัดยาที่ `is_active=false` ออก; category ที่เป็น `NULL` แสดงเป็น "ไม่ระบุหมวดหมู่" |
+| 3.9 | `GET /audit-logs` เฉพาะ owner; `table_name` ต้องเป็นชื่อตารางที่มีอยู่จริง ไม่งั้น `400` |
