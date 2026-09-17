@@ -176,6 +176,7 @@ APP_ENV=development
 DATABASE_URL=
 SUPABASE_URL=
 CORS_ORIGINS=http://localhost:3000
+STORE_TIMEZONE=Asia/Bangkok
 ```
 
 | ตัวแปร | ใช้ทำอะไร | ความลับ? |
@@ -183,6 +184,7 @@ CORS_ORIGINS=http://localhost:3000
 | `DATABASE_URL` | Connection string แบบ **Session Pooler** (Supabase Dashboard → Connect) — มีรหัสผ่านฐานข้อมูลอยู่ในนี้ | 🔴 ลับ |
 | `SUPABASE_URL` | URL ของ Project — ใช้ดึง Public Key สำหรับตรวจ JWT | ไม่ลับ |
 | `CORS_ORIGINS` | โดเมน Web ที่อนุญาตให้เรียก API | ไม่ลับ |
+| `STORE_TIMEZONE` | เขตเวลาของร้าน ใช้คำนวณ "วันนี้" (D9) — ค่าเริ่มต้น `Asia/Bangkok` | ไม่ลับ |
 
 **กฎ:**
 1. ค่าจริงอยู่ใน `backend/.env` บนเครื่อง User เท่านั้น — User เป็นผู้กรอกเอง
@@ -387,7 +389,7 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 ### 10.1 ยืนยันรับสินค้า (`POST /purchases/{id}/confirm`)
 1. ล็อกแถว Purchase (`SELECT ... FOR UPDATE`) — ต้องเป็น `draft` ไม่เช่นนั้น `409 INVALID_STATE` (กันการยืนยันซ้ำ)
 2. Validate ทุกรายการ: จำนวน ≥ 0, `unit_cost` ≥ 0, `expiry_date` เป็นวันที่ถูกต้อง, ยามีอยู่จริงและ `is_active`
-   - ถ้า `expiry_date` ผ่านมาแล้ว → ปฏิเสธ `400`
+   - ถ้า `expiry_date` <= วันนี้ (ตาม D9) → ปฏิเสธ `400`
 3. สำหรับแต่ละรายการ:
    - จำนวนที่รับจริง = `quantity_actual` ถ้ามี ไม่เช่นนั้นใช้ `quantity_invoiced`
    - ถ้าจำนวนจริง > 0 → สร้าง `medicine_lots` (`quantity_received = quantity_remaining =` จำนวนจริง, `cost_per_unit = unit_cost`, `supplier_id`, `purchase_item_id`)
@@ -405,7 +407,7 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
    ```sql
    SELECT ... FROM medicine_lots
    WHERE medicine_id = %s AND status = 'active'
-     AND quantity_remaining > 0 AND expiry_date >= CURRENT_DATE
+     AND quantity_remaining > 0 AND expiry_date > business_today  -- ตาม D9, D10
    ORDER BY expiry_date ASC, received_date ASC, id
    FOR UPDATE
    ```
@@ -510,7 +512,6 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 |---|---|
 | การคิด VAT ในการขาย | Phase 4 (Mobile ขายจริง) |
 | การยกเลิกบิลขาย (Void) แบบเต็มรูปแบบ | Phase 4 |
-| ขายยาในวันหมดอายุพอดี (`expiry_date = วันนี้`) — ตอนนี้ **ขายได้** ตาม Query ใน Schema | ก่อนใช้งานจริง |
 | หน่วยขาย (กล่อง/แผง/เม็ด) — ตอนนี้ระบบนับเป็นหน่วยเดียว | Phase 4 |
 | ที่ Deploy Backend | Phase 11 |
 | เริ่มรองรับหลายร้าน (Multi-tenant: ตาราง `stores`, สมาชิกร้าน, Role ต่อร้าน) — ต้องผ่าน Change Control | ก่อน Phase 5 |
@@ -525,3 +526,5 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | — | 16 ก.ย. 2026 | รหัสผ่านฐานข้อมูล | User เลือกใช้รหัสเดิม — **ต้องเปลี่ยนก่อน Production (Phase 11)** |
 | — | 17 ก.ย. 2026 | Port ของ Server บนเครื่องพัฒนา | ใช้ **8001** เพราะ port 8000 ถูกโปรแกรม `splunkd` ใช้อยู่ |
 | D7 | 17 ก.ย. 2026 | ฐานข้อมูลสำหรับ Automated Tests | เลือก **A** — สร้าง Supabase Project แยก (`ai-pharmacy-test`, Free plan) ก่อนงาน 3.10 |
+| D9 | 17 ก.ย. 2026 | เขตเวลาของ "วันนี้" | **A** — ใช้ Asia/Bangkok ผ่านค่า STORE_TIMEZONE; คำนวณใน SQL ไม่ใช้ CURRENT_DATE ของฐานข้อมูล (UTC) |
+| D10 | 17 ก.ย. 2026 | ขายยาในวัน EXP | **A** — ไม่ขาย และไม่รับเข้า: ขายได้/รับได้เฉพาะ expiry_date > วันนี้ |

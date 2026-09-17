@@ -24,8 +24,10 @@ class Settings(BaseSettings):
     database_url: SecretStr
     supabase_url: str
     cors_origins: str = ""
+    # D9: "today" is computed in this timezone (verified against PostgreSQL at startup).
+    store_timezone: str = "Asia/Bangkok"
 
-    @field_validator("database_url", "supabase_url", mode="before")
+    @field_validator("database_url", "supabase_url", "store_timezone", mode="before")
     @classmethod
     def _not_blank(cls, value):
         if value is None or not str(value).strip():

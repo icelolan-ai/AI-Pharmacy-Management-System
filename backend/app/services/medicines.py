@@ -8,6 +8,7 @@ from psycopg.errors import UniqueViolation
 
 from app import db
 from app.audit import write_audit
+from app.business_date import business_today_sql
 from app.errors import AppError
 from app.schemas.common import escape_like
 from app.schemas.medicine import MedicineCreate, MedicineUpdate
@@ -29,23 +30,29 @@ CREATE_COLUMNS = (
 )
 UPDATE_COLUMNS = (*CREATE_COLUMNS, "is_active")
 
-# Sellable stock: active lots with quantity left that have not expired.
-_SELECT_MEDICINE = sql.SQL(
+
+def _select_medicine() -> sql.Composed:
+    """Medicine columns + sellable stock.
+
+    Sellable = active lots with quantity left and expiry_date > business today
+    (D9 store timezone, D10 a lot expiring today is not sellable).
     """
-    SELECT m.id, m.name, m.generic_name, m.strength, m.dosage_form, m.manufacturer,
-           m.category, m.barcode, m.active_ingredient, m.reorder_point,
-           m.selling_price, m.is_active, m.created_at, m.updated_at,
-           COALESCE((
-               SELECT SUM(l.quantity_remaining)
-               FROM public.medicine_lots l
-               WHERE l.medicine_id = m.id
-                 AND l.status = 'active'
-                 AND l.quantity_remaining > 0
-                 AND l.expiry_date >= CURRENT_DATE
-           ), 0) AS available_quantity
-    FROM public.medicines m
-    """
-)
+    return sql.SQL(
+        """
+        SELECT m.id, m.name, m.generic_name, m.strength, m.dosage_form, m.manufacturer,
+               m.category, m.barcode, m.active_ingredient, m.reorder_point,
+               m.selling_price, m.is_active, m.created_at, m.updated_at,
+               COALESCE((
+                   SELECT SUM(l.quantity_remaining)
+                   FROM public.medicine_lots l
+                   WHERE l.medicine_id = m.id
+                     AND l.status = 'active'
+                     AND l.quantity_remaining > 0
+                     AND l.expiry_date > {today}
+               ), 0) AS available_quantity
+        FROM public.medicines m
+        """
+    ).format(today=business_today_sql())
 
 
 def _not_found() -> AppError:
@@ -67,7 +74,7 @@ def compute_changes(current: dict[str, Any], updates: dict[str, Any]) -> dict[st
 
 
 def _fetch_medicine(cur, medicine_id: UUID) -> dict[str, Any] | None:
-    cur.execute(_SELECT_MEDICINE + sql.SQL(" WHERE m.id = %s"), (medicine_id,))
+    cur.execute(_select_medicine() + sql.SQL(" WHERE m.id = %s"), (medicine_id,))
     return cur.fetchone()
 
 
@@ -103,7 +110,7 @@ def list_medicines(
         cur.execute(sql.SQL("SELECT count(*) AS total FROM public.medicines m") + where, params)
         total = cur.fetchone()["total"]
         cur.execute(
-            _SELECT_MEDICINE + where + sql.SQL(" ORDER BY m.name, m.id LIMIT %s OFFSET %s"),
+            _select_medicine() + where + sql.SQL(" ORDER BY m.name, m.id LIMIT %s OFFSET %s"),
             [*params, limit, offset],
         )
         items = cur.fetchall()
@@ -124,7 +131,7 @@ def get_medicine_by_barcode(barcode: str) -> dict[str, Any]:
     if not code:
         raise _not_found()
     with db.get_transaction() as cur:
-        cur.execute(_SELECT_MEDICINE + sql.SQL(" WHERE m.barcode = %s"), (code,))
+        cur.execute(_select_medicine() + sql.SQL(" WHERE m.barcode = %s"), (code,))
         row = cur.fetchone()
     if row is None:
         raise _not_found()

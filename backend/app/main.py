@@ -10,9 +10,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from psycopg.conninfo import conninfo_to_dict
 
 from app import db
+from app.business_date import ensure_store_timezone
 from app.config import Settings, get_settings
 from app.errors import register_error_handlers
-from app.routers import health, me, medicines, suppliers
+from app.routers import health, me, medicines, purchases, suppliers
 
 logger = logging.getLogger("app")
 
@@ -66,8 +67,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     db.open_pool(settings)
     if db.check_database(timeout=5.0):
         logger.info("Database reachable at startup")
+        # Unknown STORE_TIMEZONE stops startup (ConfigError propagates).
+        try:
+            ensure_store_timezone()
+        except Exception:
+            db.close_pool()
+            raise
+        logger.info("STORE_TIMEZONE verified: %s", settings.store_timezone)
     else:
         logger.warning("Database unavailable at startup; pool keeps retrying in background")
+        logger.warning("STORE_TIMEZONE not verified (database unavailable)")
     try:
         yield
     finally:
@@ -97,3 +106,4 @@ app.include_router(health.router)
 app.include_router(me.router)
 app.include_router(medicines.router)
 app.include_router(suppliers.router)
+app.include_router(purchases.router)

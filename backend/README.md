@@ -37,6 +37,7 @@ Copy-Item .env.example .env
 | `DATABASE_URL` | Supabase Dashboard → **Connect** → **Session pooler** → URI (แทน `[YOUR-PASSWORD]` ด้วยรหัสผ่านฐานข้อมูล) |
 | `SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `CORS_ORIGINS` | โดเมนของ Web ที่อนุญาต คั่นด้วย comma เช่น `http://localhost:3000` |
+| `STORE_TIMEZONE` | เขตเวลาของร้าน ใช้คำนวณ "วันนี้" (D9) — ไม่ใส่ก็ได้ ค่าเริ่มต้น `Asia/Bangkok` แอปจะไม่เริ่มถ้า PostgreSQL ไม่รู้จักชื่อนี้ |
 
 **กฎ:**
 - ห้าม commit `.env` (อยู่ใน `.gitignore` แล้ว) และห้ามส่งค่าลับในแชท

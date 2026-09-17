@@ -9,7 +9,7 @@ from uuid import UUID
 from psycopg import Cursor
 from psycopg.types.json import Jsonb
 
-AuditAction = Literal["insert", "update"]
+AuditAction = Literal["insert", "update", "delete"]
 
 
 def _json_default(value: Any) -> Any:
@@ -36,7 +36,7 @@ def write_audit(
     changed_by: UUID,
     reason: str | None = None,
 ) -> None:
-    if action not in ("insert", "update"):
+    if action not in ("insert", "update", "delete"):
         raise ValueError(f"Unsupported audit action: {action}")
     cur.execute(
         """
