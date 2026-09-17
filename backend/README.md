@@ -77,12 +77,38 @@ Authorization: Bearer <access_token>
 
 ## 5. รัน Tests
 
+มี 2 ชุด แยกด้วย marker `db`:
+
 ```powershell
 .\.venv\Scripts\Activate.ps1
-pytest -q
+pytest -m "not db"   # Unit tests — ไม่ต่อฐานข้อมูล ใช้ได้เสมอ
+pytest -m db         # Integration tests — ต้องมี backend/.env.test
+pytest               # ทั้งหมด (ข้ามชุด db อัตโนมัติถ้าไม่มี .env.test)
 ```
 
-Unit tests ไม่ต่อฐานข้อมูลจริงและไม่ต้อง Login จริง (`tests/conftest.py` ตั้งค่าทดสอบแทนค่าใน `.env`)
+- **Unit tests** ไม่ต่อฐานข้อมูลจริงและไม่ต้อง Login จริง (`tests/conftest.py` ตั้งค่าทดสอบแทนค่าใน `.env`)
+- **Integration tests** (`tests/integration/`) รันบน Supabase Project **ทดสอบ** เท่านั้น เซ็น Token เองและ mock JWKS จึงไม่ต้องใช้รหัสผ่านของผู้ใช้ทดสอบ
+- ระหว่างเทสต์จะ `TRUNCATE` เฉพาะตารางข้อมูลธุรกิจ **ไม่แตะ** `auth.users` และ `user_profiles`
+
+### 5.1 ตั้งค่า Project ทดสอบ
+
+1. สร้าง Supabase Project แยกสำหรับทดสอบ (Free plan ก็พอ) แล้วรัน `migrations/001` → `002` → `003` ตามลำดับ
+2. สร้างผู้ใช้ทดสอบใน Authentication แล้วเพิ่มแถวใน `user_profiles` ให้ครบ role ที่ต้องใช้
+3. คัดลอกไฟล์ตัวอย่างแล้วกรอกค่าของ Project ทดสอบ:
+
+```powershell
+Copy-Item .env.test.example .env.test
+```
+
+| ตัวแปรใน `.env.test` | ค่า |
+|---|---|
+| `TEST_DATABASE_URL` | Connection string แบบ Session pooler ของ Project **ทดสอบ** |
+| `TEST_SUPABASE_URL` | `https://<project-ref>.supabase.co` ของ Project ทดสอบ |
+| `TEST_SUPABASE_PUBLISHABLE_KEY` | Publishable key ของ Project ทดสอบ |
+
+> 🛡️ **ตัวกันพลาด:** `tests/db_guard.py` จะหยุด pytest ทันทีถ้า `.env.test` ไม่ได้ชี้ไปที่ Project ทดสอบ
+> (เช่น เผลอใส่ค่าของ Project จริง หรือ URL กับ Connection string เป็นคนละ Project)
+> `.env.test` อยู่ใน `.gitignore` แล้ว ห้าม commit
 
 ## โครงสร้าง
 
