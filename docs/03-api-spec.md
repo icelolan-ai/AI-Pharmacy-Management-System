@@ -344,6 +344,8 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | GET | `/api/v1/sales` | ทุก Role | รายการขาย `?date_from=`, `?date_to=` |
 | GET | `/api/v1/sales/{id}` | ทุก Role | รายละเอียด + Lot ที่ถูกตัด |
 
+> **D11:** `staff` ต้องขายตาม `medicines.selling_price` — ส่ง `unit_price` ที่ต่างจากราคาขาย → `403` และให้ส่วนลดไม่ได้ (`discount_amount` > 0 → `403`); `owner` / `pharmacist` ปรับราคาและให้ส่วนลดได้ โดยบันทึก `price_override` ใน Audit
+
 ตัวอย่าง Request:
 ```json
 {
@@ -478,8 +480,8 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | 3.5 | Auth + `/me` + ตรวจ Role | 🛑 |
 | 3.6 | Medicines + Suppliers | |
 | 3.7 | Purchases + Confirm | 🛑 |
-| 3.8 | Sales (FEFO) | 🛑 |
-| 3.9 | Adjustments + Lots + Reports + Audit endpoint | |
+| 3.8 | Sales (FEFO) + FEFO preview (`/medicines/{id}/fefo-preview` — ใช้ logic เดียวกับการขาย) | 🛑 |
+| 3.9 | Adjustments + Lots (ยกเว้น fefo-preview) + Reports + Audit endpoint | |
 | 3.10 | Tests ครบข้อ 11 + อัปเดต `backend/README.md` (วิธีติดตั้ง/รัน) | 🛑 Final |
 
 **กฎระหว่างทำ:**
@@ -528,3 +530,4 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | D7 | 17 ก.ย. 2026 | ฐานข้อมูลสำหรับ Automated Tests | เลือก **A** — สร้าง Supabase Project แยก (`ai-pharmacy-test`, Free plan) ก่อนงาน 3.10 |
 | D9 | 17 ก.ย. 2026 | เขตเวลาของ "วันนี้" | **A** — ใช้ Asia/Bangkok ผ่านค่า STORE_TIMEZONE; คำนวณใน SQL ไม่ใช้ CURRENT_DATE ของฐานข้อมูล (UTC) |
 | D10 | 17 ก.ย. 2026 | ขายยาในวัน EXP | **A** — ไม่ขาย และไม่รับเข้า: ขายได้/รับได้เฉพาะ expiry_date > วันนี้ |
+| D11 | 17 ก.ย. 2026 | staff เปลี่ยนราคา/ให้ส่วนลด | **A** — staff ต้องใช้ selling_price และ discount = 0 (ไม่งั้น 403); owner/pharmacist ปรับได้และบันทึก audit |

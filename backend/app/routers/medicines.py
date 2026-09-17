@@ -8,6 +8,8 @@ from fastapi import APIRouter, Depends, Query
 from app.auth import CurrentUser, get_current_user, require_roles
 from app.schemas.common import Page
 from app.schemas.medicine import MedicineCreate, MedicineOut, MedicineUpdate
+from app.schemas.sale import FefoPreviewOut
+from app.services import fefo as fefo_service
 from app.services import medicines as medicine_service
 
 router = APIRouter(prefix="/api/v1/medicines", tags=["medicines"])
@@ -38,6 +40,16 @@ def get_medicine_by_barcode(barcode: str, user: AnyRole):
 @router.get("/{medicine_id}", response_model=MedicineOut)
 def get_medicine(medicine_id: UUID, user: AnyRole):
     return medicine_service.get_medicine(medicine_id)
+
+
+@router.get("/{medicine_id}/fefo-preview", response_model=FefoPreviewOut)
+def fefo_preview(
+    medicine_id: UUID,
+    user: AnyRole,
+    quantity: Annotated[int, Query(gt=0, le=100000)],
+):
+    """Read-only: which lots a sale of `quantity` would cut (no locks, nothing saved)."""
+    return fefo_service.preview(medicine_id, quantity)
 
 
 @router.post("", response_model=MedicineOut, status_code=201)

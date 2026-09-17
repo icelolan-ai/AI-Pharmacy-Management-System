@@ -5,7 +5,7 @@ All SQL is parameterized.
 """
 
 from datetime import date
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -15,10 +15,8 @@ from app import db
 from app.audit import write_audit
 from app.business_date import fetch_business_today
 from app.errors import AppError
+from app.money import MAX_AMOUNT, money
 from app.schemas.purchase import PurchaseIn
-
-CENT = Decimal("0.01")
-MAX_AMOUNT = Decimal("99999999.99")  # numeric(10, 2)
 
 MSG_EXPIRED = "ยาหมดอายุหรือหมดอายุวันนี้ ไม่สามารถรับเข้าได้"
 
@@ -44,10 +42,6 @@ def _invalid_state(status: str) -> AppError:
 
 
 # --- pure calculations ------------------------------------------------------------------
-
-
-def money(value: Decimal) -> Decimal:
-    return value.quantize(CENT, rounding=ROUND_HALF_UP)
 
 
 def compute_totals(

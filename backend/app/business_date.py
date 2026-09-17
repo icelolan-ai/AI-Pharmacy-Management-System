@@ -25,6 +25,14 @@ def business_today_sql(at: sql.Composable | None = None) -> sql.Composed:
     )
 
 
+def store_day_start_sql() -> sql.Composed:
+    """SQL (one %s placeholder = a calendar date) -> timestamptz at 00:00 of that
+    date in the store timezone. Use for date_from/date_to filters on timestamptz."""
+    return sql.SQL("((%s::date)::timestamp AT TIME ZONE {tz})").format(
+        tz=sql.Literal(get_settings().store_timezone)
+    )
+
+
 def fetch_business_today(cur: Cursor) -> date:
     cur.execute(sql.SQL("SELECT {} AS today").format(business_today_sql()))
     return cur.fetchone()["today"]
