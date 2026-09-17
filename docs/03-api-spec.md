@@ -194,6 +194,20 @@ STORE_TIMEZONE=Asia/Bangkok
 5. ใช้ Session Pooler แทน Direct connection เพราะ Direct connection ของ Supabase อาจต้องใช้ IPv6 ซึ่งเครือข่ายบ้านหลายแห่งไม่รองรับ
 6. ถ้าค่าลับหลุด (เช่นเผลอ commit) ต้อง **Reset รหัสผ่านฐานข้อมูลทันที** และแจ้ง Chat A
 
+### 6.1 `backend/.env.test` — ฐานข้อมูลสำหรับ Automated Tests (D7 = A)
+
+ไฟล์แยกจาก `.env` ชี้ไปที่ Supabase Project ทดสอบ (`ai-pharmacy-test`) เท่านั้น
+Template ที่ commit ได้: `backend/.env.test.example` (มีแต่ชื่อตัวแปร)
+
+| ตัวแปร | ใช้ทำอะไร | ความลับ? |
+|---|---|---|
+| `TEST_DATABASE_URL` | Connection string แบบ Session Pooler ของ Project **ทดสอบ** — มีรหัสผ่านอยู่ในนี้ | 🔴 ลับ |
+| `TEST_SUPABASE_URL` | URL ของ Project ทดสอบ — ใช้ตรวจ JWT | ไม่ลับ |
+| `TEST_SUPABASE_PUBLISHABLE_KEY` | Publishable key ของ Project ทดสอบ — ใช้ Login ผู้ใช้ทดสอบเพื่อขอ Token | 🔴 ลับ (ไม่ commit) |
+
+- `.gitignore` ข้าม `.env` และ `.env.*` ทั้งหมด ยกเว้น `.env.example` และ `.env.test.example`
+- Test ที่แตะฐานข้อมูล **ห้ามรันบน Project จริง** — ถ้า `.env.test` ไม่มีค่า ให้ข้าม Test กลุ่มนั้น
+
 ---
 
 ## 7. Authentication & Authorization
@@ -450,6 +464,14 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 
 รันด้วย `pytest` บนฐานข้อมูลทดสอบ (ตาม D7) — ห้ามรันบนข้อมูลจริง
 
+**วิธีรัน** (ในโฟลเดอร์ `backend/` และเปิด `.venv`):
+
+| คำสั่ง | ใช้ทำอะไร |
+|---|---|
+| `pytest -m "not db"` | Unit tests อย่างเดียว ไม่ต่อฐานข้อมูล (ใช้ได้เสมอ) |
+| `pytest -m db` | Integration tests บน Project ทดสอบ ต้องมี `backend/.env.test` ครบ (ดูข้อ 6.1) |
+| `pytest` | ทั้งหมด — กลุ่ม `db` จะถูกข้ามอัตโนมัติถ้าไม่มี `.env.test` |
+
 **ต้องมี Test อย่างน้อย:**
 1. Health check ทำงาน
 2. ไม่มี Token → 401 / Token ผิด → 401 / Role ไม่พอ → 403
@@ -527,6 +549,7 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | — | 16 ก.ย. 2026 | ปิด "Allow new users to sign up" ใน Supabase Auth | ✅ ทำแล้ว |
 | — | 16 ก.ย. 2026 | รหัสผ่านฐานข้อมูล | User เลือกใช้รหัสเดิม — **ต้องเปลี่ยนก่อน Production (Phase 11)** |
 | — | 17 ก.ย. 2026 | Port ของ Server บนเครื่องพัฒนา | ใช้ **8001** เพราะ port 8000 ถูกโปรแกรม `splunkd` ใช้อยู่ |
+| — | 17 ก.ย. 2026 | Project ทดสอบ | `ai-pharmacy-test` ref `ftulvwmjyowcnyhkobzx` (Chat A สร้างและรัน migration 001–003 + ผู้ใช้ทดสอบให้แล้ว) |
 | D7 | 17 ก.ย. 2026 | ฐานข้อมูลสำหรับ Automated Tests | เลือก **A** — สร้าง Supabase Project แยก (`ai-pharmacy-test`, Free plan) ก่อนงาน 3.10 |
 | D9 | 17 ก.ย. 2026 | เขตเวลาของ "วันนี้" | **A** — ใช้ Asia/Bangkok ผ่านค่า STORE_TIMEZONE; คำนวณใน SQL ไม่ใช้ CURRENT_DATE ของฐานข้อมูล (UTC) |
 | D10 | 17 ก.ย. 2026 | ขายยาในวัน EXP | **A** — ไม่ขาย และไม่รับเข้า: ขายได้/รับได้เฉพาะ expiry_date > วันนี้ |
@@ -555,3 +578,9 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | 3.9 | staff ไม่เห็นฟิลด์ต้นทุน/มูลค่า (`cost_per_unit`, `*_value`, `stock_value`) ในทุก Endpoint — ฟิลด์ไม่มีใน Response เลย |
 | 3.9 | รายงานทั้งหมดใช้ "วันนี้" ตาม D9 และตัดยาที่ `is_active=false` ออก; category ที่เป็น `NULL` แสดงเป็น "ไม่ระบุหมวดหมู่" |
 | 3.9 | `GET /audit-logs` เฉพาะ owner; `table_name` ต้องเป็นชื่อตารางที่มีอยู่จริง ไม่งั้น `400` |
+| 3.9 | รายงาน `expiring` / `expired` มี `lot_id` และ `medicine_id` ด้วย (ต้องใช้เรียก Adjustment ตามข้อ 10.4) |
+| 3.9 | ใช้รูปแบบแบ่งหน้าตามข้อ 8 (`items/total/limit/offset`) กับ `/medicines/{id}/lots`, `/reports/expired`, `/reports/low-stock` |
+| 3.9 | `/reports/stock?q=` ค้นเหมือน `GET /medicines` (ชื่อ / ชื่อสามัญ แบบ ILIKE + barcode ตรงตัว) |
+| 3.9 | `inventory-value` → `by_medicine` มีฟิลด์ `medicine_id, name, total_value, sellable_value, expired_value` |
+| 3.9 | `/reports/expired` เรียงจาก EXP เก่าสุดไปใหม่สุด |
+| 3.9 | ข้อความ `409` ของ Adjustment: "ไม่สามารถเพิ่มจำนวนให้ Lot ที่ถูกตัดออกจาก Stock แล้ว" |
