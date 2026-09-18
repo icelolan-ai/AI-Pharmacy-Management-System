@@ -71,8 +71,7 @@ export default function ExpiredReportPage() {
       key: "quantity",
       header: "จำนวน",
       align: "right",
-      // /reports/expired does not carry a unit, so the number stands alone here.
-      cell: (row) => <QtyText value={row.quantity_remaining} />,
+      cell: (row) => <QtyText value={row.quantity_remaining} unit={row.unit} />,
     },
   ];
 
@@ -97,7 +96,7 @@ export default function ExpiredReportPage() {
           disabled={adjust.busy}
           onClick={(event) => {
             event.stopPropagation();
-            void adjust.openFor(row.lot_id);
+            void adjust.openFor(row.lot_id, row.unit);
           }}
         >
           ปรับ Stock

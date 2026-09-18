@@ -185,8 +185,8 @@ def expired_report(*, limit: int, offset: int) -> dict[str, Any]:
         cur.execute(
             sql.SQL(
                 """
-                SELECT l.id AS lot_id, l.medicine_id, m.name AS medicine_name, l.lot_number,
-                       l.quantity_remaining, l.expiry_date,
+                SELECT l.id AS lot_id, l.medicine_id, m.name AS medicine_name, m.unit,
+                       l.lot_number, l.quantity_remaining, l.expiry_date,
                        ({today} - l.expiry_date) AS days_expired,
                        (l.quantity_remaining * l.cost_per_unit) AS stock_value
                 """
@@ -203,14 +203,14 @@ def _low_stock_cte() -> sql.Composed:
     return sql.SQL(
         """
         WITH stock AS (
-            SELECT m.id AS medicine_id, m.name, m.reorder_point,
+            SELECT m.id AS medicine_id, m.name, m.unit, m.reorder_point,
                    COALESCE(SUM(l.quantity_remaining) FILTER (
                        WHERE l.status = 'active' AND l.quantity_remaining > 0
                          AND l.expiry_date > {today}), 0) AS available_quantity
             FROM public.medicines m
             LEFT JOIN public.medicine_lots l ON l.medicine_id = m.id
             WHERE m.is_active = true AND m.reorder_point IS NOT NULL
-            GROUP BY m.id, m.name, m.reorder_point
+            GROUP BY m.id, m.name, m.unit, m.reorder_point
         )
         """
     ).format(today=business_today_sql())
@@ -226,7 +226,7 @@ def low_stock_report(*, limit: int, offset: int) -> dict[str, Any]:
         cur.execute(
             _low_stock_cte()
             + sql.SQL(
-                "SELECT medicine_id, name, available_quantity, reorder_point,"
+                "SELECT medicine_id, name, unit, available_quantity, reorder_point,"
                 " (reorder_point - available_quantity) AS shortage"
                 " FROM stock WHERE available_quantity <= reorder_point"
                 " ORDER BY shortage DESC, name ASC, medicine_id ASC LIMIT %s OFFSET %s"

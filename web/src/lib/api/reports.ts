@@ -98,6 +98,7 @@ export type ExpiredRow = {
   lot_id: string;
   medicine_id: string;
   medicine_name: string;
+  unit: string;
   lot_number: string;
   quantity_remaining: number;
   expiry_date: string;
@@ -117,6 +118,7 @@ export function listExpiredReport({
 export type LowStockRow = {
   medicine_id: string;
   name: string;
+  unit: string;
   available_quantity: number;
   reorder_point: number;
   shortage: number;

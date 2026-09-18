@@ -246,8 +246,8 @@ export default function DashboardPage() {
           <ul className="space-y-1">
             {topLowStock.map((row) => (
               <li key={row.medicine_id} className="text-sm text-slate-700">
-                {row.name} — เหลือ <QtyText value={row.available_quantity} /> จากจุดสั่งซื้อ{" "}
-                {row.reorder_point} (ขาดอีก {row.shortage})
+                {row.name} — เหลือ <QtyText value={row.available_quantity} unit={row.unit} /> จากจุดสั่งซื้อ{" "}
+                {row.reorder_point} (ขาดอีก {row.shortage} {row.unit})
               </li>
             ))}
           </ul>

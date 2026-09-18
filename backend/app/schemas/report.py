@@ -66,6 +66,7 @@ class ExpiredLotOut(BaseModel):
     lot_id: UUID
     medicine_id: UUID
     medicine_name: str
+    unit: str
     lot_number: str
     quantity_remaining: int
     expiry_date: date
@@ -79,6 +80,7 @@ class ExpiredLotWithValueOut(ExpiredLotOut):
 class LowStockRowOut(BaseModel):
     medicine_id: UUID
     name: str
+    unit: str
     available_quantity: int
     reorder_point: int
     shortage: int

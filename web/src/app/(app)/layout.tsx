@@ -13,6 +13,7 @@ import { StoreProvider } from "@/lib/store/store-provider";
 
 const MENU: { href: string; label: string; ability?: Ability }[] = [
   { href: "/", label: "หน้าแรก" },
+  { href: "/sell", label: "ขายยา" },
   { href: "/dashboard", label: "ภาพรวมร้าน", ability: ABILITIES.viewReports },
   { href: "/stock", label: "คลังยา" },
   { href: "/expiry", label: "ใกล้หมดอายุ", ability: ABILITIES.viewReports },

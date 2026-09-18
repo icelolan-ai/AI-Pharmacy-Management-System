@@ -1,0 +1,147 @@
+/* A5 portrait receipt (Q1). Plain black on white: no solid background blocks,
+   which waste toner and photocopy badly. */
+
+@page {
+  size: A5 portrait;
+  margin: 10mm;
+}
+
+.receipt {
+  width: 100%;
+  max-width: 128mm; /* A5 width minus the 10mm margins */
+  margin: 0 auto;
+  color: #000;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.receipt .head {
+  text-align: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #000;
+}
+
+.receipt .shop-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.receipt .shop-line {
+  font-size: 11px;
+  white-space: pre-line;
+}
+
+.receipt .shop-small {
+  font-size: 10px;
+}
+
+.receipt .title {
+  margin-top: 8px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.receipt .copy {
+  margin-top: 2px;
+  text-align: center;
+  font-size: 11px;
+}
+
+.receipt .meta {
+  margin-top: 8px;
+  font-size: 11px;
+}
+
+.receipt .meta > div {
+  display: flex;
+  gap: 6px;
+}
+
+.receipt .meta dt {
+  min-width: 60px;
+}
+
+.receipt .meta dd {
+  word-break: break-all;
+}
+
+.receipt .items {
+  width: 100%;
+  margin-top: 8px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.receipt .items th,
+.receipt .items td {
+  padding: 3px 0;
+  vertical-align: top;
+  border-bottom: 1px dotted #999;
+}
+
+.receipt .items th {
+  border-bottom: 1px solid #000;
+  font-weight: 600;
+}
+
+.receipt .left {
+  text-align: left;
+}
+
+.receipt .right {
+  text-align: right;
+}
+
+.receipt .nowrap {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.receipt .medicine {
+  display: block;
+}
+
+/* Q4: every line states the lot and expiry it came from. */
+.receipt .lot {
+  display: block;
+  font-size: 10px;
+  color: #555;
+}
+
+.receipt .count {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.receipt .total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #000;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.receipt .foot {
+  margin-top: 10px;
+  font-size: 10px;
+  text-align: center;
+}
+
+.receipt .foot .sign {
+  margin-top: 16px;
+  text-align: right;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff;
+  }
+}

@@ -731,27 +731,36 @@ export interface AdjustmentRequest {
 ## TypeScript type
 
 ```ts
-export interface FefoPreviewLine { lot_id: string; lot_number: string; expiry_date: string; quantity: number; }
-export interface FefoPreview {
-  medicine_id: string; requested_quantity: number; available_quantity: number;
-  lines: FefoPreviewLine[]; is_sufficient: boolean;
+export interface FefoAllocation { lot_id: string; lot_number: string; expiry_date: string; quantity: number; }
+export interface FefoPreview {                   // GET /medicines/{id}/fefo-preview?quantity=
+  medicine_id: string; requested: number; available: number;
+  allocations: FefoAllocation[]; sufficient: boolean;
 }
+// ★ ชื่อจริงคือ requested / available / allocations / sufficient
+//   (ไม่ใช่ requested_quantity / available_quantity / lines / is_sufficient)
 export interface CartItem {
   key: string; medicine: Medicine; quantity: number;
   preview?: FefoPreview; previewState: 'idle'|'loading'|'ok'|'error'; errorMessage?: string;
 }
 export interface SaleCreateInput { items: { medicine_id: string; quantity: number }[]; }
 
-export interface Sale {
-  id: string; sale_no: string; sold_at: string;
-  total_amount: Money; sold_by_name: string; items: SaleItem[];
+export interface Sale {                          // POST /sales · GET /sales/{id}
+  id: string; sale_date: string;
+  discount_amount: Money; tax_amount: Money; total_amount: Money;
+  items: SaleItem[];
 }
-export interface SaleItem {
-  medicine_id: string; medicine_name: string;
-  strength: string | null; dosage_form: string | null;
-  quantity: number; unit_price: Money; line_total: Money;
-  lots: { lot_number: string; expiry_date: string; quantity: number }[];   // B-8 · Q4
+export interface SaleItem {       // ★ หนึ่งแถวต่อหนึ่ง LOT ไม่ใช่ยาที่มี lots ซ้อนข้างใน
+  medicine_id: string; medicine_name: string | null;
+  lot_id: string; lot_number: string; expiry_date: string;
+  quantity: number; unit_price: Money; subtotal: Money;
 }
+// ★ ไม่มี sale_no · sold_by_name · strength · dosage_form · line_total · items[].lots
+//   เว็บจับกลุ่มเป็น 1 บรรทัดต่อยาเองด้วย groupSaleItems() แล้วเก็บทุก Lot ไว้ให้ใบเสร็จ (Q4)
+//   B-8 จึงไม่จำเป็นในทางปฏิบัติ แต่ยังมีทางสำรอง: ถ้าแถวไหนไม่มี lot_number
+//   ให้เรียก GET /sales/{id} ซ้ำ
+
+// ★ INSUFFICIENT_STOCK: details เป็น ARRAY ของ { medicine_id, requested, available }
+//   (หนึ่งรายการต่อยาที่ไม่พอ) ไม่ใช่ object เดี่ยว
 ```
 
 ## ลำดับการเรียก API
@@ -1011,21 +1020,23 @@ export interface ExpiringRow {                   // GET /reports/expiring?days=
 
 export interface ExpiredRow {                    // GET /reports/expired
   lot_id: string; medicine_id: string; medicine_name: string;
+  unit: string;                     // D25
   lot_number: string;
   quantity_remaining: number;
   expiry_date: string;
   days_expired: number;             // ★ ชื่อจริงใน API (ไม่ใช่ days_since_expiry)
   stock_value?: Money;              // 🔒 owner/pharmacist (B-5)
 }
-// ★ /reports/expired ไม่คืน unit และไม่คืน risk_level
+// ★ /reports/expired ไม่คืน risk_level (แต่คืน unit แล้วตาม D25)
 
 export interface LowStockRow {                   // ★ ตัด last_supplier_name / last_unit_cost แล้ว
   medicine_id: string; name: string;
+  unit: string;                     // D25
   available_quantity: number;
   reorder_point: number;            // ไม่มี null เพราะ API ตัดยาที่ยังไม่ตั้งค่าออกแล้ว (B-14)
   shortage: number;
 }
-// ★ /reports/low-stock ไม่คืน strength และไม่คืน unit
+// ★ /reports/low-stock ไม่คืน strength (แต่คืน unit แล้วตาม D25)
 
 export interface InventoryValueReport {          // GET /reports/inventory-value (owner, D20)
   total_value: Money; sellable_value: Money; expired_value: Money;

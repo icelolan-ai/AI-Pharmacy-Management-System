@@ -419,12 +419,17 @@
           "stock_value": {
             "title": "Stock Value",
             "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
           }
         },
         "required": [
           "lot_id",
           "medicine_id",
           "medicine_name",
+          "unit",
           "lot_number",
           "quantity_remaining",
           "expiry_date",
@@ -867,11 +872,16 @@
           "shortage": {
             "title": "Shortage",
             "type": "integer"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
           }
         },
         "required": [
           "medicine_id",
           "name",
+          "unit",
           "available_quantity",
           "reorder_point",
           "shortage"

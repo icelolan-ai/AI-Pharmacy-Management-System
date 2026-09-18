@@ -207,8 +207,8 @@ def test_only_owner_can_view_inventory_value(client, role):
 def test_low_stock_sorted_by_shortage_desc(client, monkeypatch):
     login_as("staff")
     rows = [
-        {"medicine_id": uuid.uuid4(), "name": "B", "available_quantity": 0, "reorder_point": 10, "shortage": 10},
-        {"medicine_id": uuid.uuid4(), "name": "A", "available_quantity": 3, "reorder_point": 5, "shortage": 2},
+        {"medicine_id": uuid.uuid4(), "name": "B", "unit": "กล่อง", "available_quantity": 0, "reorder_point": 10, "shortage": 10},
+        {"medicine_id": uuid.uuid4(), "name": "A", "unit": "ขวด", "available_quantity": 3, "reorder_point": 5, "shortage": 2},
     ]
     cursor = use_rules(monkeypatch, [("count(*) AS total", {"total": 2}), ("ORDER BY shortage", rows)])
     body = client.get("/api/v1/reports/low-stock").json()
@@ -311,3 +311,53 @@ def test_stock_risk_level_uses_the_same_thresholds_as_expiring(client, monkeypat
     use_rules(monkeypatch, [("count(*) AS total", {"total": 1}),
                             ("GROUP BY m.id", [stock_row(days_remaining=days)])])
     assert client.get("/api/v1/reports/stock").json()["items"][0]["risk_level"] == level
+
+
+# --- D25: unit in /reports/expired and /reports/low-stock ----------------------------------------
+
+
+@pytest.mark.parametrize("role", ["owner", "staff"])
+def test_expired_report_returns_the_unit(client, monkeypatch, role):
+    login_as(role)
+    cursor = use_rules(monkeypatch, [
+        ("count(*) AS total", {"total": 1}),
+        ("days_expired", [{**lot_row(0, unit="ซอง"), "days_expired": 0}]),
+    ])
+    body = client.get("/api/v1/reports/expired").json()
+    assert body["items"][0]["unit"] == "ซอง"
+    assert "m.unit" in cursor.queries("days_expired")[0][0]
+
+
+@pytest.mark.parametrize("role", ["owner", "staff"])
+def test_low_stock_report_returns_the_unit(client, monkeypatch, role):
+    login_as(role)
+    cursor = use_rules(monkeypatch, [
+        ("count(*) AS total", {"total": 1}),
+        ("ORDER BY shortage", [{"medicine_id": MED, "name": "TEST", "unit": "แผง",
+                                "available_quantity": 0, "reorder_point": 10, "shortage": 10}]),
+    ])
+    body = client.get("/api/v1/reports/low-stock").json()
+    assert body["items"][0]["unit"] == "แผง"
+    rows_sql = cursor.queries("ORDER BY shortage")[0][0]
+    assert "m.unit" in rows_sql and "unit," in rows_sql
+
+
+def test_staff_still_sees_no_values_after_adding_unit(client, monkeypatch):
+    """D25 adds a field; it must not open a hole in the staff visibility rule."""
+    login_as("staff")
+    use_rules(monkeypatch, [
+        ("count(*) AS total", {"total": 1}),
+        ("days_expired", [{**lot_row(0, unit="ซอง"), "days_expired": 0}]),
+    ])
+    resp = client.get("/api/v1/reports/expired")
+    assert resp.status_code == 200 and resp.json()["items"][0]["unit"] == "ซอง"
+    assert_no_value_fields(resp.text)
+
+    use_rules(monkeypatch, [
+        ("count(*) AS total", {"total": 1}),
+        ("ORDER BY shortage", [{"medicine_id": MED, "name": "TEST", "unit": "แผง",
+                                "available_quantity": 0, "reorder_point": 10, "shortage": 10}]),
+    ])
+    resp = client.get("/api/v1/reports/low-stock")
+    assert resp.status_code == 200 and resp.json()["items"][0]["unit"] == "แผง"
+    assert_no_value_fields(resp.text)
