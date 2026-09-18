@@ -14,6 +14,7 @@ class StockRowOut(BaseModel):
     name: str
     strength: str | None
     category: str | None
+    unit: str
     available_quantity: int
     expired_quantity: int
     reorder_point: int | None
@@ -28,6 +29,7 @@ class ExpiringLotOut(BaseModel):
     lot_id: UUID
     medicine_id: UUID
     medicine_name: str
+    unit: str
     lot_number: str
     quantity_remaining: int
     expiry_date: date

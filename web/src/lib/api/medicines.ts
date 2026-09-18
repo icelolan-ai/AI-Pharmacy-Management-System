@@ -13,6 +13,8 @@ export type Medicine = {
   category: string | null;
   barcode: string | null;
   active_ingredient: string | null;
+  /** หน่วยนับ — always present; the column defaults to 'กล่อง'. */
+  unit: string;
   reorder_point: number | null;
   selling_price: string | null;
   is_active: boolean;
@@ -78,6 +80,7 @@ export type MedicinePayload = {
   category?: string | null;
   barcode?: string | null;
   active_ingredient?: string | null;
+  unit?: string;
   reorder_point?: number | null;
   selling_price?: string | null;
 };

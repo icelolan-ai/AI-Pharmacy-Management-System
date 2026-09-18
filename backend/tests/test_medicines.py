@@ -33,6 +33,7 @@ def medicine_row(**overrides):
         "category": "Analgesic",
         "barcode": "8850000000001",
         "active_ingredient": None,
+        "unit": "กล่อง",
         "reorder_point": 10,
         "selling_price": Decimal("95.00"),
         "is_active": True,
@@ -304,3 +305,68 @@ def test_audit_json_handles_decimal_uuid_dates():
         "t": NOW.isoformat(),
         "name": "ยา",
     }
+
+
+# --- unit of count (หน่วยนับ, migration 004) ---------------------------------------------------
+
+
+def test_create_without_unit_leaves_the_column_to_its_default(monkeypatch):
+    """No unit sent -> the column is left out of the INSERT, so the DB default 'กล่อง' wins."""
+    inserted = {k: v for k, v in medicine_row().items() if k != "available_quantity"}
+    cursor = FakeCursor(fetchone=[inserted, medicine_row()])
+    monkeypatch.setattr(db, "get_transaction", fake_transaction(cursor))
+
+    row = medicine_service.create_medicine(MedicineCreate(name="Paracetamol 500 mg"), uuid.uuid4())
+
+    insert_sql, params = cursor.executed[0]
+    assert '"unit"' not in insert_sql.as_string()
+    assert len(params) == insert_sql.as_string().count("%s")
+    assert row["unit"] == "กล่อง"
+
+
+def test_create_with_unit_stores_and_returns_it(monkeypatch):
+    inserted = {
+        k: v for k, v in medicine_row(unit="ขวด").items() if k != "available_quantity"
+    }
+    cursor = FakeCursor(fetchone=[inserted, medicine_row(unit="ขวด")])
+    monkeypatch.setattr(db, "get_transaction", fake_transaction(cursor))
+
+    row = medicine_service.create_medicine(
+        MedicineCreate(name="Paracetamol 500 mg", unit="  ขวด  "), uuid.uuid4()
+    )
+
+    insert_sql, params = cursor.executed[0]
+    assert '"unit"' in insert_sql.as_string()
+    assert "ขวด" in params
+    assert row["unit"] == "ขวด"
+
+
+def test_unit_is_returned_by_the_api(client, monkeypatch):
+    login_as("staff")
+    monkeypatch.setattr(
+        medicine_service, "get_medicine", lambda medicine_id: medicine_row(unit="ขวด")
+    )
+    assert client.get(f"/api/v1/medicines/{MED_ID}").json()["unit"] == "ขวด"
+
+
+def test_patch_can_change_unit(client, monkeypatch):
+    login_as("owner")
+    captured = {}
+
+    def fake_update(medicine_id, data, actor_id):
+        captured["unit"] = data.unit
+        return medicine_row(unit=data.unit)
+
+    monkeypatch.setattr(medicine_service, "update_medicine", fake_update)
+    resp = client.patch(f"/api/v1/medicines/{MED_ID}", json={"unit": "แผง"})
+    assert resp.status_code == 200, resp.text
+    assert captured["unit"] == "แผง" and resp.json()["unit"] == "แผง"
+
+
+@pytest.mark.parametrize("value", [None, "", "   "])
+def test_patch_cannot_clear_unit(client, value):
+    """unit is NOT NULL in the database, so it may be changed but never emptied."""
+    login_as("owner")
+    assert_error(
+        client.patch(f"/api/v1/medicines/{MED_ID}", json={"unit": value}), 400, "VALIDATION_ERROR"
+    )

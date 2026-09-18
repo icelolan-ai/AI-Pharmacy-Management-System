@@ -14,6 +14,7 @@ _OPTIONAL_TEXT = (
     "category",
     "barcode",
     "active_ingredient",
+    "unit",
 )
 
 
@@ -29,6 +30,8 @@ class MedicineCreate(BaseModel):
     category: str | None = None
     barcode: str | None = None
     active_ingredient: str | None = None
+    # หน่วยนับ: omitted (or blank) -> the column default 'กล่อง' applies.
+    unit: str | None = None
     reorder_point: Annotated[int, Field(ge=0)] | None = None
     selling_price: MoneyIn | None = None
 
@@ -54,6 +57,7 @@ class MedicineUpdate(BaseModel):
     category: str | None = None
     barcode: str | None = None
     active_ingredient: str | None = None
+    unit: str | None = None
     reorder_point: Annotated[int, Field(ge=0)] | None = None
     selling_price: MoneyIn | None = None
     is_active: bool | None = None
@@ -70,7 +74,8 @@ class MedicineUpdate(BaseModel):
 
     @model_validator(mode="after")
     def _required_fields_not_null(self):
-        for field in ("name", "is_active"):
+        # unit is NOT NULL in the database: it may be changed, never cleared.
+        for field in ("name", "unit", "is_active"):
             if field in self.model_fields_set and getattr(self, field) is None:
                 raise ValueError(f"{field} must not be null")
         return self
@@ -86,6 +91,7 @@ class MedicineOut(BaseModel):
     category: str | None
     barcode: str | None
     active_ingredient: str | None
+    unit: str
     reorder_point: int | None
     selling_price: MoneyOut | None
     is_active: bool

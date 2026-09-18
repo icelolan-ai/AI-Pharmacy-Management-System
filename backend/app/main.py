@@ -22,6 +22,7 @@ from app.routers import (
     purchases,
     reports,
     sales,
+    store,
     suppliers,
 )
 
@@ -121,3 +122,4 @@ app.include_router(sales.router)
 app.include_router(lots.router)
 app.include_router(reports.router)
 app.include_router(audit_logs.router)
+app.include_router(store.router)

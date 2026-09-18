@@ -462,12 +462,17 @@
           "stock_value": {
             "title": "Stock Value",
             "type": "string"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
           }
         },
         "required": [
           "lot_id",
           "medicine_id",
           "medicine_name",
+          "unit",
           "lot_number",
           "quantity_remaining",
           "expiry_date",
@@ -1022,6 +1027,17 @@
               }
             ],
             "title": "Strength"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
           }
         },
         "required": [
@@ -1153,6 +1169,10 @@
             ],
             "title": "Strength"
           },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          },
           "updated_at": {
             "format": "date-time",
             "title": "Updated At",
@@ -1169,6 +1189,7 @@
           "category",
           "barcode",
           "active_ingredient",
+          "unit",
           "reorder_point",
           "selling_price",
           "is_active",
@@ -1309,6 +1330,17 @@
               }
             ],
             "title": "Strength"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
           }
         },
         "title": "MedicineUpdate",
@@ -2405,6 +2437,10 @@
               }
             ],
             "title": "Strength"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
           }
         },
         "required": [
@@ -2412,6 +2448,7 @@
           "name",
           "strength",
           "category",
+          "unit",
           "available_quantity",
           "expired_quantity",
           "reorder_point",
@@ -2419,6 +2456,189 @@
           "expired_value"
         ],
         "title": "StockRowWithValueOut",
+        "type": "object"
+      },
+      "StoreProfileOut": {
+        "description": "Every field is nullable: before the first save the profile does not exist yet.",
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "license_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License No"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "tax_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Id"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "updated_by": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By"
+          },
+          "updated_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated By Name"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "address",
+          "phone",
+          "license_no",
+          "tax_id",
+          "updated_at",
+          "updated_by",
+          "updated_by_name"
+        ],
+        "title": "StoreProfileOut",
+        "type": "object"
+      },
+      "StoreProfileUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Address"
+          },
+          "license_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "License No"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "phone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phone"
+          },
+          "tax_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tax Id"
+          }
+        },
+        "title": "StoreProfileUpdate",
         "type": "object"
       },
       "SupplierCreate": {
@@ -4430,6 +4650,78 @@
         "summary": "Get Sale",
         "tags": [
           "sales"
+        ]
+      }
+    },
+    "/api/v1/store": {
+      "get": {
+        "description": "Every signed-in role may read it. Never 404: an unsaved profile is all null.",
+        "operationId": "get_store_api_v1_store_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Get Store",
+        "tags": [
+          "store"
+        ]
+      },
+      "patch": {
+        "description": "Owner only. The first save creates the row and requires a shop name.",
+        "operationId": "update_store_api_v1_store_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StoreProfileUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StoreProfileOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
+        "summary": "Update Store",
+        "tags": [
+          "store"
         ]
       }
     },

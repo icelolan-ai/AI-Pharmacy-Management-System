@@ -39,14 +39,15 @@ def use_rules(monkeypatch, rules):
 
 def stock_row(**overrides):
     row = {"medicine_id": MED, "name": "TEST", "strength": "500 mg", "category": None,
-           "reorder_point": 5, "available_quantity": 3, "expired_quantity": 2,
+           "unit": "กล่อง", "reorder_point": 5, "available_quantity": 3, "expired_quantity": 2,
            "available_value": Decimal("24.75"), "expired_value": Decimal("25")}
     row.update(overrides)
     return row
 
 
 def lot_row(days, **overrides):
-    row = {"lot_id": uuid.uuid4(), "medicine_id": MED, "medicine_name": "TEST", "lot_number": f"L{days}",
+    row = {"lot_id": uuid.uuid4(), "medicine_id": MED, "medicine_name": "TEST", "unit": "กล่อง",
+           "lot_number": f"L{days}",
            "quantity_remaining": 3, "expiry_date": TODAY + timedelta(days=days), "received_date": TODAY,
            "days_remaining": days, "stock_value": Decimal("24.75")}
     row.update(overrides)
@@ -244,3 +245,29 @@ def test_category_label_helper():
 
 def test_reports_require_login(client):
     assert_error(client.get("/api/v1/reports/stock"), 401, "UNAUTHENTICATED")
+
+
+# --- unit of count (หน่วยนับ, migration 004) ---------------------------------------------------
+
+
+@pytest.mark.parametrize("role", ["owner", "staff"])
+def test_stock_report_returns_the_unit(client, monkeypatch, role):
+    login_as(role)
+    cursor = use_rules(monkeypatch, [("count(*) AS total", {"total": 1}),
+                                     ("GROUP BY m.id", [stock_row(unit="ขวด")])])
+    body = client.get("/api/v1/reports/stock").json()
+    assert body["items"][0]["unit"] == "ขวด"
+    rows_sql = cursor.queries("GROUP BY m.id")[0][0]
+    assert "m.unit" in rows_sql
+
+
+@pytest.mark.parametrize("role", ["owner", "staff"])
+def test_expiring_report_returns_the_unit(client, monkeypatch, role):
+    login_as(role)
+    cursor = use_rules(monkeypatch, [
+        ("GROUP BY 1", [{"risk_level": "critical", "lot_count": 1, "stock_value": Decimal("24.75")}]),
+        ("SELECT * FROM expiring", [lot_row(20, unit="ขวด")]),
+    ])
+    body = client.get("/api/v1/reports/expiring").json()
+    assert body["items"][0]["unit"] == "ขวด"
+    assert "m.unit" in cursor.queries("SELECT * FROM expiring")[0][0]

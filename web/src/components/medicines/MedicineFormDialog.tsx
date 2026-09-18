@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { ErrorState } from "@/components/common/ErrorState";
+import { DEFAULT_UNIT, UnitSelect } from "@/components/common/UnitSelect";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -26,6 +27,7 @@ type FormState = {
   manufacturer: string;
   category: string;
   barcode: string;
+  unit: string;
   selling_price: string;
   reorder_point: string;
 };
@@ -37,6 +39,7 @@ const EMPTY: FormState = {
   manufacturer: "",
   category: "",
   barcode: "",
+  unit: DEFAULT_UNIT,
   selling_price: "",
   reorder_point: "",
 };
@@ -49,6 +52,7 @@ function fromMedicine(medicine: Medicine): FormState {
     manufacturer: medicine.manufacturer ?? "",
     category: medicine.category ?? "",
     barcode: medicine.barcode ?? "",
+    unit: medicine.unit,
     selling_price: medicine.selling_price ?? "",
     reorder_point: medicine.reorder_point === null ? "" : String(medicine.reorder_point),
   };
@@ -91,6 +95,9 @@ export function MedicineFormDialog({
     const name = form.name.trim();
     if (!name) errors.name = "กรุณากรอกชื่อยา";
 
+    const unit = form.unit.trim();
+    if (!unit) errors.unit = "กรุณาเลือกหรือระบุหน่วยนับ";
+
     if (canSetPrice) {
       const price = form.selling_price.trim();
       if (!price) errors.selling_price = "กรุณากรอกราคาขาย";
@@ -111,6 +118,7 @@ export function MedicineFormDialog({
       manufacturer: form.manufacturer.trim() || null,
       category: form.category.trim() || null,
       barcode: form.barcode.trim() || null,
+      unit,
       reorder_point: parseOptionalInteger(form.reorder_point),
     };
     if (canSetPrice) {
@@ -179,6 +187,24 @@ export function MedicineFormDialog({
                 ) : null}
               </div>
             ))}
+
+            <div>
+              <Label htmlFor="unit">หน่วยนับ *</Label>
+              <UnitSelect
+                // Remount per medicine so "อื่น ๆ" does not stick to the next one.
+                key={medicine?.id ?? "new"}
+                id="unit"
+                value={form.unit}
+                onChange={(value) => setField("unit", value)}
+                disabled={saving}
+                invalid={Boolean(fieldError.unit)}
+              />
+              {fieldError.unit ? (
+                <p className="mt-1 text-xs text-red-600">{fieldError.unit}</p>
+              ) : (
+                <p className="mt-1 text-xs text-slate-500">หน่วยที่ใช้ขายและนับสต็อก</p>
+              )}
+            </div>
 
             {canSetPrice ? (
               <div>

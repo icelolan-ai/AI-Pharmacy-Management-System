@@ -25,10 +25,15 @@ CREATE_COLUMNS = (
     "category",
     "barcode",
     "active_ingredient",
+    "unit",
     "reorder_point",
     "selling_price",
 )
 UPDATE_COLUMNS = (*CREATE_COLUMNS, "is_active")
+
+# NOT NULL columns with a database default: left out of the INSERT when the
+# request omits them, so the default ('กล่อง' for unit) is what gets stored.
+DEFAULTED_COLUMNS = ("unit",)
 
 
 def _select_medicine() -> sql.Composed:
@@ -40,7 +45,7 @@ def _select_medicine() -> sql.Composed:
     return sql.SQL(
         """
         SELECT m.id, m.name, m.generic_name, m.strength, m.dosage_form, m.manufacturer,
-               m.category, m.barcode, m.active_ingredient, m.reorder_point,
+               m.category, m.barcode, m.active_ingredient, m.unit, m.reorder_point,
                m.selling_price, m.is_active, m.created_at, m.updated_at,
                COALESCE((
                    SELECT SUM(l.quantity_remaining)
@@ -140,13 +145,16 @@ def get_medicine_by_barcode(barcode: str) -> dict[str, Any]:
 
 def create_medicine(data: MedicineCreate, actor_id: UUID) -> dict[str, Any]:
     values = data.model_dump()
+    columns = [
+        c for c in CREATE_COLUMNS if c not in DEFAULTED_COLUMNS or values[c] is not None
+    ]
     query = sql.SQL("INSERT INTO public.medicines ({cols}) VALUES ({vals}) RETURNING *").format(
-        cols=sql.SQL(", ").join(sql.Identifier(c) for c in CREATE_COLUMNS),
-        vals=sql.SQL(", ").join([sql.Placeholder()] * len(CREATE_COLUMNS)),
+        cols=sql.SQL(", ").join(sql.Identifier(c) for c in columns),
+        vals=sql.SQL(", ").join([sql.Placeholder()] * len(columns)),
     )
     try:
         with db.get_transaction() as cur:
-            cur.execute(query, [values[c] for c in CREATE_COLUMNS])
+            cur.execute(query, [values[c] for c in columns])
             inserted = cur.fetchone()
             write_audit(cur, "medicines", inserted["id"], "insert", None, inserted, actor_id)
             return _fetch_medicine(cur, inserted["id"])

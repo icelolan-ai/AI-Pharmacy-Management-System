@@ -9,10 +9,10 @@ from tests.integration.conftest import BUSINESS_TABLES, api
 
 pytestmark = pytest.mark.db
 
-EXPECTED_TABLES = 11
+EXPECTED_TABLES = 12
 
 
-def test_test_project_has_migrations_001_to_003_applied():
+def test_test_project_has_migrations_001_to_005_applied():
     with db.get_transaction() as cur:
         cur.execute(
             "SELECT count(*) AS n FROM information_schema.tables"
@@ -31,9 +31,9 @@ def test_test_project_has_migrations_001_to_003_applied():
         cur.execute("SELECT count(*) AS n FROM auth.users")
         users = cur.fetchone()["n"]
 
-    assert tables == EXPECTED_TABLES, f"expected 11 tables, found {tables}"
+    assert tables == EXPECTED_TABLES, f"expected {EXPECTED_TABLES} tables, found {tables}"
     assert policies == 0, f"expected 0 RLS policies, found {policies}"
-    assert rls == EXPECTED_TABLES, f"expected RLS on 11 tables, found {rls}"
+    assert rls == EXPECTED_TABLES, f"expected RLS on {EXPECTED_TABLES} tables, found {rls}"
     assert profiles == 4, f"expected 4 user_profiles, found {profiles}"
     assert users >= 5, f"expected at least 5 auth users, found {users}"
 

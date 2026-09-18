@@ -67,7 +67,7 @@ def stock_report(*, q: str | None, category: str | None, limit: int, offset: int
     rows_sql = (
         sql.SQL(
             """
-            SELECT m.id AS medicine_id, m.name, m.strength, m.category, m.reorder_point,
+            SELECT m.id AS medicine_id, m.name, m.strength, m.category, m.unit, m.reorder_point,
                    COALESCE(SUM(l.quantity_remaining) FILTER (WHERE l.expiry_date > {today}), 0)
                        AS available_quantity,
                    COALESCE(SUM(l.quantity_remaining) FILTER (WHERE l.expiry_date <= {today}), 0)
@@ -83,7 +83,7 @@ def stock_report(*, q: str | None, category: str | None, limit: int, offset: int
         ).format(today=business_today_sql())
         + where
         + sql.SQL(
-            " GROUP BY m.id, m.name, m.strength, m.category, m.reorder_point"
+            " GROUP BY m.id, m.name, m.strength, m.category, m.unit, m.reorder_point"
             " ORDER BY m.name, m.id LIMIT %s OFFSET %s"
         )
     )
@@ -100,7 +100,7 @@ def _expiring_cte() -> sql.Composed:
     return sql.SQL(
         """
         WITH expiring AS (
-            SELECT l.id AS lot_id, l.medicine_id, m.name AS medicine_name, l.lot_number,
+            SELECT l.id AS lot_id, l.medicine_id, m.name AS medicine_name, m.unit, l.lot_number,
                    l.quantity_remaining, l.expiry_date, l.received_date,
                    (l.expiry_date - {today}) AS days_remaining,
                    (l.quantity_remaining * l.cost_per_unit) AS stock_value

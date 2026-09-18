@@ -55,6 +55,7 @@ BUSINESS_TABLES = (
     "audit_logs",
     "medicines",
     "suppliers",
+    "store_profile",
 )
 
 

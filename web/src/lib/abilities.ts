@@ -12,6 +12,7 @@ export const ABILITIES = {
   adjustStock: "adjustStock",
   viewInventoryValue: "viewInventoryValue",
   viewAuditLog: "viewAuditLog",
+  manageStoreProfile: "manageStoreProfile",
 } as const;
 
 export type Ability = (typeof ABILITIES)[keyof typeof ABILITIES];
@@ -28,6 +29,7 @@ const ABILITY_ROLES: Record<Ability, readonly Role[]> = {
   adjustStock: MANAGERS,
   viewInventoryValue: OWNER_ONLY, // D20
   viewAuditLog: OWNER_ONLY,
+  manageStoreProfile: OWNER_ONLY, // everyone may read it; only the owner may edit
 };
 
 export function can(role: string | null | undefined, ability: Ability): boolean {
