@@ -44,10 +44,14 @@ export type SaleItem = {
 
 export type Sale = {
   id: string;
+  /** D26 — the human-readable bill number, e.g. "S-690918-001". */
+  sale_no: string;
   sale_date: string;
   discount_amount: string;
   tax_amount: string;
   total_amount: string;
+  /** D27 — who rang the sale, from sales.created_by. Null when unknown. */
+  sold_by_name: string | null;
   items: SaleItem[];
 };
 

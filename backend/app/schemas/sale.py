@@ -37,15 +37,21 @@ class SaleItemOut(BaseModel):
 
 class SaleOut(BaseModel):
     id: UUID
+    # D26: เลขที่บิล S-YYMMDD-NNN (Buddhist year, running per business day).
+    sale_no: str
     sale_date: datetime
     discount_amount: MoneyOut
     tax_amount: MoneyOut
     total_amount: MoneyOut
+    # D27: who rang the sale, read from sales.created_by — never the person
+    # who happens to be printing. null when that account has no profile.
+    sold_by_name: str | None
     items: list[SaleItemOut]
 
 
 class SaleSummaryOut(BaseModel):
     id: UUID
+    sale_no: str
     sale_date: datetime
     discount_amount: MoneyOut
     tax_amount: MoneyOut

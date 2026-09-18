@@ -29,7 +29,7 @@ export function SaleSuccessBanner({
         ) : null}
       </div>
 
-      <p className="text-xs text-green-900">เลขที่บิล {sale.id}</p>
+      <p className="text-sm font-medium text-green-900">เลขที่บิล {sale.sale_no}</p>
 
       <div className="space-y-0.5">
         {lines.map((line) =>
@@ -43,7 +43,7 @@ export function SaleSuccessBanner({
       </div>
 
       <Button type="button" onClick={onPrint} disabled={printing}>
-        {printing ? "กำลังเตรียมพิมพ์..." : "🖨 พิมพ์ใบเสร็จ"}
+        {printing ? "กำลังเตรียมพิมพ์..." : `🖨 พิมพ์ใบเสร็จ ${sale.sale_no}`}
       </Button>
     </div>
   );

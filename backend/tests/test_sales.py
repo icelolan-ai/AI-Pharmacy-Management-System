@@ -4,12 +4,15 @@ import uuid
 from contextlib import contextmanager
 from datetime import date, timedelta
 from decimal import Decimal
+from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from psycopg.errors import UniqueViolation
 
 from app import db
 from app.auth import get_current_user
+from app.errors import AppError
 from app.main import app
 from app.services import sales as sale_service
 from tests.helpers import NOW, assert_error, make_user
@@ -20,6 +23,12 @@ MED_B = uuid.UUID("00000000-0000-0000-0000-00000000000b")
 MED_NO_PRICE = uuid.uuid4()
 MED_INACTIVE = uuid.uuid4()
 SALE_ID = uuid.uuid4()
+
+
+class DuplicateSaleNo(UniqueViolation):
+    @property
+    def diag(self):
+        return SimpleNamespace(constraint_name=sale_service.SALE_NO_UNIQUE_CONSTRAINT)
 
 MEDICINES = {
     MED_A: {"id": MED_A, "name": "A", "selling_price": Decimal("95.00"), "is_active": True},
@@ -38,7 +47,8 @@ def lot(medicine_id, lot_number, exp_days, remaining, received_days_ago=10):
 
 
 class SalesCursor:
-    def __init__(self, lots_by_medicine):
+    def __init__(self, lots_by_medicine, last_running=0):
+        self.last_running = last_running
         self.lots_by_medicine = lots_by_medicine
         self.lots_by_id = {l["id"]: l for lots in lots_by_medicine.values() for l in lots}
         self.executed: list[tuple[str, tuple]] = []
@@ -52,13 +62,17 @@ class SalesCursor:
         self._one, self._all = None, []
         if "AS today" in text:
             self._one = {"today": TODAY}
+        elif "last_running" in text:
+            # D26: highest running number issued for this business day so far
+            self._one = {"last_running": self.last_running}
         elif "selling_price, is_active FROM public.medicines" in text:
             self._all = [MEDICINES[m] for m in params[0] if m in MEDICINES]
         elif "FROM public.medicine_lots" in text:
             self._all = self.lots_by_medicine.get(params[0], [])
         elif "INSERT INTO public.sales" in text:
-            self._one = {"id": SALE_ID, "sale_date": NOW, "discount_amount": params[0],
-                         "tax_amount": Decimal("0"), "total_amount": params[1], "created_by": params[2]}
+            self._one = {"id": SALE_ID, "sale_no": params[0], "sale_date": NOW,
+                         "discount_amount": params[1], "tax_amount": Decimal("0"),
+                         "total_amount": params[2], "created_by": params[3]}
         elif "INSERT INTO public.sale_items" in text:
             keys = ("sale_id", "medicine_id", "medicine_lot_id", "quantity", "unit_price", "subtotal")
             row = {"id": uuid.uuid4(), **dict(zip(keys, params))}
@@ -94,8 +108,8 @@ def login_as(role):
     return user
 
 
-def use_db(monkeypatch, lots_by_medicine):
-    cursor = SalesCursor(lots_by_medicine)
+def use_db(monkeypatch, lots_by_medicine, last_running=0):
+    cursor = SalesCursor(lots_by_medicine, last_running)
 
     @contextmanager
     def tx():
@@ -105,8 +119,9 @@ def use_db(monkeypatch, lots_by_medicine):
 
     def fake_fetch(cur, sale_id):
         return {
-            "id": SALE_ID, "sale_date": NOW, "discount_amount": Decimal("0.00"),
-            "tax_amount": Decimal("0"), "total_amount": Decimal("0.00"),
+            "id": SALE_ID, "sale_no": "S-690917-001", "sale_date": NOW,
+            "discount_amount": Decimal("0.00"), "tax_amount": Decimal("0"),
+            "total_amount": Decimal("0.00"), "sold_by_name": "ผู้ขายทดสอบ",
             "items": [
                 {"medicine_id": i["medicine_id"], "medicine_name": MEDICINES[i["medicine_id"]]["name"],
                  "lot_id": i["medicine_lot_id"], "lot_number": cursor.lots_by_id[i["medicine_lot_id"]]["lot_number"],
@@ -144,7 +159,8 @@ def test_sale_spans_two_lots_creates_two_sale_items_and_transactions(client, mon
     assert [i["subtotal"] for i in items] == ["1235.00", "190.00"]
 
     sale_insert = cursor.queries("INSERT INTO public.sales")[0][1]
-    assert sale_insert == (Decimal("0.00"), Decimal("1425.00"), user.id)
+    # D26: the number is issued first, inside this same transaction
+    assert sale_insert == ("S-690917-001", Decimal("0.00"), Decimal("1425.00"), user.id)
 
     txs = [p for _, p in cursor.queries("INSERT INTO public.inventory_transactions")]
     assert [(t[1], t[2], t[3]) for t in txs] == [(-13, 13, 0), (-2, 10, 8)]
@@ -253,7 +269,7 @@ def test_pharmacist_price_override_is_allowed_and_audited(client, monkeypatch):
     assert audit["items"][0]["price_override"] is True
     assert audit["items"][0]["selling_price"] == Decimal("95.00") and audit["items"][0]["unit_price"] == Decimal("90.00")
     assert audit["discount_amount"] == Decimal("5.00")
-    assert cursor.queries("INSERT INTO public.sales")[0][1][:2] == (Decimal("5.00"), Decimal("175.00"))
+    assert cursor.queries("INSERT INTO public.sales")[0][1][1:3] == (Decimal("5.00"), Decimal("175.00"))
 
 
 def test_no_override_audit_flag_false(client, monkeypatch):
@@ -428,3 +444,101 @@ def test_list_invalid_date_range_returns_400(client):
 def test_sales_require_login(client):
     assert_error(client.post("/api/v1/sales", json=sale({"medicine_id": str(MED_A), "quantity": 1})), 401, "UNAUTHENTICATED")
     assert_error(client.get("/api/v1/sales"), 401, "UNAUTHENTICATED")
+
+
+# --- D26: เลขที่บิล ------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "business_date,expected",
+    [
+        (date(2026, 9, 18), "S-690918"),   # 18 ก.ย. 2569
+        (date(2026, 1, 1), "S-690101"),
+        (date(2026, 12, 31), "S-691231"),
+        (date(2027, 6, 30), "S-700630"),   # ปี พ.ศ. ขึ้นหลักใหม่
+        (date(2057, 3, 4), "S-000304"),    # 2600 -> "00", ไม่ใช่ค่าว่าง
+    ],
+)
+def test_sale_no_prefix_uses_buddhist_year(business_date, expected):
+    assert sale_service.sale_no_prefix(business_date) == expected
+
+
+@pytest.mark.parametrize(
+    "last_running,expected",
+    [(0, "S-690917-001"), (1, "S-690917-002"), (9, "S-690917-010"), (998, "S-690917-999")],
+)
+def test_running_number_starts_at_one_and_pads_to_three(monkeypatch, last_running, expected):
+    cursor = SalesCursor({}, last_running=last_running)
+    assert sale_service.next_sale_no(cursor, TODAY) == expected
+
+
+def test_running_number_widens_past_999_instead_of_wrapping():
+    cursor = SalesCursor({}, last_running=999)
+    assert sale_service.next_sale_no(cursor, TODAY) == "S-690917-1000"
+
+
+def test_running_number_is_read_inside_the_sale_transaction(client, monkeypatch):
+    """The lookup must be one of this transaction's own queries, not an earlier one."""
+    login_as("owner")
+    cursor = use_db(monkeypatch, {MED_A: [lot(MED_A, "L1", 30, 5)]})
+    resp = client.post("/api/v1/sales", json=sale({"medicine_id": str(MED_A), "quantity": 1}))
+    assert resp.status_code == 201, resp.text
+
+    texts = [text for text, _ in cursor.executed]
+    lookup = next(i for i, text in enumerate(texts) if "last_running" in text)
+    insert = next(i for i, text in enumerate(texts) if "INSERT INTO public.sales" in text)
+    assert lookup < insert  # issued first, then written, same transaction
+
+
+def test_sale_no_and_seller_are_returned(client, monkeypatch):
+    login_as("owner")
+    use_db(monkeypatch, {MED_A: [lot(MED_A, "L1", 30, 5)]})
+    body = client.post("/api/v1/sales", json=sale({"medicine_id": str(MED_A), "quantity": 1})).json()
+    assert body["sale_no"] == "S-690917-001"
+    assert body["sold_by_name"] == "ผู้ขายทดสอบ"  # D27: from created_by, not the caller
+
+
+def test_clash_on_the_number_retries_the_whole_sale(monkeypatch):
+    """Two tills can read the same running number; the unique index rejects the
+    loser and the sale is replayed rather than saved without a number."""
+    attempts = {"count": 0}
+
+    def flaky(data, user):
+        attempts["count"] += 1
+        if attempts["count"] < 3:
+            raise DuplicateSaleNo("duplicate key")
+        return {"id": SALE_ID, "sale_no": f"S-690917-00{attempts['count']}"}
+
+    monkeypatch.setattr(sale_service, "_create_sale_once", flaky)
+    result = sale_service.create_sale(None, None)
+    assert attempts["count"] == 3
+    assert result["sale_no"] == "S-690917-003"
+
+
+def test_giving_up_after_five_clashes_raises_instead_of_saving_without_a_number(monkeypatch):
+    attempts = {"count": 0}
+
+    def always_clashing(data, user):
+        attempts["count"] += 1
+        raise DuplicateSaleNo("duplicate key")
+
+    monkeypatch.setattr(sale_service, "_create_sale_once", always_clashing)
+    with pytest.raises(AppError) as error:
+        sale_service.create_sale(None, None)
+    assert attempts["count"] == sale_service.MAX_SALE_NO_ATTEMPTS == 5
+    assert error.value.code == "INVALID_STATE"
+    assert error.value.http_status == 409
+
+
+def test_a_different_unique_violation_is_not_swallowed(monkeypatch):
+    class OtherViolation(UniqueViolation):
+        @property
+        def diag(self):
+            return SimpleNamespace(constraint_name="some_other_key")
+
+    def other(data, user):
+        raise OtherViolation("duplicate key")
+
+    monkeypatch.setattr(sale_service, "_create_sale_once", other)
+    with pytest.raises(UniqueViolation):
+        sale_service.create_sale(None, None)

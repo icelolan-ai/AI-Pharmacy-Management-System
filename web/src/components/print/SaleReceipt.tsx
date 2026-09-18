@@ -45,12 +45,20 @@ export function SaleReceipt({
       <dl className="meta">
         <div>
           <dt>เลขที่บิล</dt>
-          <dd>{sale.id}</dd>
+          <dd className="sale-no">{sale.sale_no}</dd>
         </div>
         <div>
           <dt>วันเวลา</dt>
           <dd>{formatDateTimeBE(sale.sale_date)} น.</dd>
         </div>
+        {/* D27: no seller on record means no line at all — never a dash,
+            never "ไม่ระบุ", and never whoever happens to be printing. */}
+        {sale.sold_by_name ? (
+          <div>
+            <dt>ผู้ขาย</dt>
+            <dd>{sale.sold_by_name}</dd>
+          </div>
+        ) : null}
       </dl>
 
       <table className="items">

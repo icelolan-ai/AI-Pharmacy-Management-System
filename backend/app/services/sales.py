@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from psycopg import sql
+from psycopg.errors import UniqueViolation
 
 from app import db
 from app.audit import write_audit
@@ -19,6 +20,36 @@ from app.errors import AppError
 from app.money import MAX_AMOUNT, money
 from app.schemas.sale import SaleIn
 from app.services import fefo
+
+
+# D26: เลขที่บิล S-YYMMDD-NNN. The unique index is the real guard against two
+# sales claiming the same number; on a clash the whole transaction is retried.
+SALE_NO_UNIQUE_CONSTRAINT = "sales_sale_no_key"
+MAX_SALE_NO_ATTEMPTS = 5
+BE_OFFSET = 543
+
+
+def sale_no_prefix(business_today: date) -> str:
+    """S-690918 for 18 ก.ย. 2569 — Buddhist year, last two digits."""
+    buddhist_year = business_today.year + BE_OFFSET
+    return f"S-{buddhist_year % 100:02d}{business_today.month:02d}{business_today.day:02d}"
+
+
+def next_sale_no(cur, business_today: date) -> str:
+    """The next running number for this business day, read inside the sale's
+    own transaction so it cannot be stale by the time the row is written."""
+    prefix = sale_no_prefix(business_today)
+    cur.execute(
+        """
+        SELECT COALESCE(MAX(split_part(sale_no, '-', 3)::bigint), 0) AS last_running
+        FROM public.sales
+        WHERE sale_no LIKE %s AND split_part(sale_no, '-', 3) ~ '^[0-9]+$'
+        """,
+        (f"{prefix}-%",),
+    )
+    running = cur.fetchone()["last_running"] + 1
+    # At least three digits; past 999 it simply grows rather than wrapping.
+    return f"{prefix}-{running:03d}"
 
 
 def _validation_error(message: str, details: Any = None) -> AppError:
@@ -110,7 +141,13 @@ def compute_total(lines: list[dict[str, Any]], discount_amount: Decimal) -> tupl
 
 def _fetch_sale(cur, sale_id: UUID) -> dict[str, Any] | None:
     cur.execute(
-        "SELECT id, sale_date, discount_amount, tax_amount, total_amount FROM public.sales WHERE id = %s",
+        """
+        SELECT s.id, s.sale_no, s.sale_date, s.discount_amount, s.tax_amount, s.total_amount,
+               p.full_name AS sold_by_name
+        FROM public.sales s
+        LEFT JOIN public.user_profiles p ON p.id = s.created_by
+        WHERE s.id = %s
+        """,
         (sale_id,),
     )
     sale = cur.fetchone()
@@ -131,7 +168,7 @@ def _fetch_sale(cur, sale_id: UUID) -> dict[str, Any] | None:
     return {**sale, "items": cur.fetchall()}
 
 
-def create_sale(data: SaleIn, user: CurrentUser) -> dict[str, Any]:
+def _create_sale_once(data: SaleIn, user: CurrentUser) -> dict[str, Any]:
     # D11: staff cannot give discounts.
     if user.role == "staff" and data.discount_amount > 0:
         raise AppError("FORBIDDEN", "คุณไม่มีสิทธิ์ให้ส่วนลด", 403)
@@ -157,11 +194,12 @@ def create_sale(data: SaleIn, user: CurrentUser) -> dict[str, Any]:
 
         cur.execute(
             """
-            INSERT INTO public.sales (sale_date, discount_amount, tax_amount, total_amount, created_by)
-            VALUES (now(), %s, 0, %s, %s)
+            INSERT INTO public.sales
+                (sale_no, sale_date, discount_amount, tax_amount, total_amount, created_by)
+            VALUES (%s, now(), %s, 0, %s, %s)
             RETURNING *
             """,
-            (money(data.discount_amount), total, user.id),
+            (next_sale_no(cur, today), money(data.discount_amount), total, user.id),
         )
         sale = cur.fetchone()
 
@@ -239,6 +277,30 @@ def create_sale(data: SaleIn, user: CurrentUser) -> dict[str, Any]:
         return _fetch_sale(cur, sale["id"])
 
 
+def _is_sale_no_clash(exc: UniqueViolation) -> bool:
+    return getattr(exc.diag, "constraint_name", None) == SALE_NO_UNIQUE_CONSTRAINT
+
+
+def create_sale(data: SaleIn, user: CurrentUser) -> dict[str, Any]:
+    """Two tills can read the same running number at the same instant; the unique
+    index catches it and the whole sale is replayed on a clean transaction."""
+    for attempt in range(1, MAX_SALE_NO_ATTEMPTS + 1):
+        try:
+            return _create_sale_once(data, user)
+        except UniqueViolation as exc:
+            if not _is_sale_no_clash(exc):
+                raise
+            if attempt == MAX_SALE_NO_ATTEMPTS:
+                # Never save a sale without a number: say so instead.
+                raise AppError(
+                    "INVALID_STATE",
+                    "ออกเลขที่บิลไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+                    409,
+                    {"attempts": attempt},
+                ) from None
+    raise RuntimeError("unreachable")
+
+
 def get_sale(sale_id: UUID) -> dict[str, Any]:
     with db.get_transaction() as cur:
         sale = _fetch_sale(cur, sale_id)
@@ -271,7 +333,7 @@ def list_sales(*, date_from: date | None, date_to: date | None, limit: int, offs
         total = cur.fetchone()["total"]
         cur.execute(
             sql.SQL(
-                "SELECT s.id, s.sale_date, s.discount_amount, s.tax_amount, s.total_amount "
+                "SELECT s.id, s.sale_no, s.sale_date, s.discount_amount, s.tax_amount, s.total_amount "
                 "FROM public.sales s"
             )
             + where

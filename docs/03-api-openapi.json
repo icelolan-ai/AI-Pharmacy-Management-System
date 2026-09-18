@@ -2345,6 +2345,21 @@
             "title": "Sale Date",
             "type": "string"
           },
+          "sale_no": {
+            "title": "Sale No",
+            "type": "string"
+          },
+          "sold_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sold By Name"
+          },
           "tax_amount": {
             "title": "Tax Amount",
             "type": "string"
@@ -2356,10 +2371,12 @@
         },
         "required": [
           "id",
+          "sale_no",
           "sale_date",
           "discount_amount",
           "tax_amount",
           "total_amount",
+          "sold_by_name",
           "items"
         ],
         "title": "SaleOut",
@@ -2381,6 +2398,10 @@
             "title": "Sale Date",
             "type": "string"
           },
+          "sale_no": {
+            "title": "Sale No",
+            "type": "string"
+          },
           "tax_amount": {
             "title": "Tax Amount",
             "type": "string"
@@ -2392,6 +2413,7 @@
         },
         "required": [
           "id",
+          "sale_no",
           "sale_date",
           "discount_amount",
           "tax_amount",

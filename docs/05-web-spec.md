@@ -745,8 +745,11 @@ export interface CartItem {
 export interface SaleCreateInput { items: { medicine_id: string; quantity: number }[]; }
 
 export interface Sale {                          // POST /sales · GET /sales/{id}
-  id: string; sale_date: string;
+  id: string;
+  sale_no: string;                  // D26 — 'S-690918-001'
+  sale_date: string;
   discount_amount: Money; tax_amount: Money; total_amount: Money;
+  sold_by_name: string | null;      // D27 — จาก sales.created_by · null ได้
   items: SaleItem[];
 }
 export interface SaleItem {       // ★ หนึ่งแถวต่อหนึ่ง LOT ไม่ใช่ยาที่มี lots ซ้อนข้างใน
@@ -754,7 +757,8 @@ export interface SaleItem {       // ★ หนึ่งแถวต่อหน
   lot_id: string; lot_number: string; expiry_date: string;
   quantity: number; unit_price: Money; subtotal: Money;
 }
-// ★ ไม่มี sale_no · sold_by_name · strength · dosage_form · line_total · items[].lots
+// ★ ไม่มี strength · dosage_form · line_total · items[].lots
+//   (sale_no และ sold_by_name เพิ่มแล้วตาม D26/D27)
 //   เว็บจับกลุ่มเป็น 1 บรรทัดต่อยาเองด้วย groupSaleItems() แล้วเก็บทุก Lot ไว้ให้ใบเสร็จ (Q4)
 //   B-8 จึงไม่จำเป็นในทางปฏิบัติ แต่ยังมีทางสำรอง: ถ้าแถวไหนไม่มี lot_number
 //   ให้เรียก GET /sales/{id} ซ้ำ
@@ -828,7 +832,7 @@ F2 / Ctrl+Enter → กล่องยืนยัน → Enter → POST /sales
 | ขนาด | `@page { size: A5 portrait; margin: 10mm }` |
 | ชื่อเอกสาร | **"ใบเสร็จรับเงิน" เท่านั้น** — ห้ามคำว่า ใบกำกับภาษี / VAT / ภาษีมูลค่าเพิ่ม ทุกที่ (Q2) |
 | หัวกระดาษ | ชื่อร้าน 18px หนา · ที่อยู่ 11px · โทร · เลขที่ใบอนุญาต 10px — **จาก `GET /store`** |
-| เนื้อหา | เลขที่บิล · วันเวลา พ.ศ. · ชื่อผู้ขาย · รายการยา 12px · **`Lot A-2410 · EXP 06/2570` ใต้ชื่อยาทุกบรรทัด 10px เทา (Q4)** · `2 กล่อง × 45.00 = 90.00` · รวม N รายการ · **รวมทั้งสิ้น 16px หนา** |
+| เนื้อหา | เลขที่บิล (`sale_no` — D26) · ผู้ขาย (`sold_by_name` — D27 · เป็น null ให้ซ่อนทั้งบรรทัด) · วันเวลา พ.ศ. · ชื่อผู้ขาย · รายการยา 12px · **`Lot A-2410 · EXP 06/2570` ใต้ชื่อยาทุกบรรทัด 10px เทา (Q4)** · `2 กล่อง × 45.00 = 90.00` · รวม N รายการ · **รวมทั้งสิ้น 16px หนา** |
 | ท้ายกระดาษ | `ขอบคุณที่ใช้บริการ` · `กรุณาเก็บใบเสร็จไว้เป็นหลักฐาน` · `ยาที่ซื้อแล้วไม่รับคืนหรือเปลี่ยน ยกเว้นกรณีสินค้าชำรุดหรือผิดรายการ` · ช่องลงชื่อผู้รับเงิน |
 | **ห้ามมี** | ต้นทุน (ทุก role) · ช่องเงินสดรับ/เงินทอน · พื้นหลังสีทึบ |
 | สำเนา | พิมพ์จากประวัติการขาย = **สำเนาเสมอ** (`?copy=1`) → ใต้หัวเรื่อง `( สำเนา — พิมพ์ซ้ำ 18 ก.ย. 2569 )` |

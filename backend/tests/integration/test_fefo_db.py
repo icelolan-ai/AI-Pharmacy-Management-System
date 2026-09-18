@@ -157,3 +157,91 @@ def test_ten_concurrent_sales_on_stock_of_three(client):
         )
         row = cur.fetchone()
     assert row["ok"] is True and row["lowest"] >= 0
+
+
+# --- D26: เลขที่บิลต้องไม่ซ้ำแม้ขายพร้อมกัน ------------------------------------------------------
+
+
+def test_concurrent_sales_never_share_a_sale_no(client):
+    """Ten tills ring a sale at the same instant. Each one must come back with
+    its own number, and the rows saved must match the numbers issued."""
+    medicine_id = insert_medicine("Sale number med", selling_price="10.00")
+    insert_lot(medicine_id, lot_number="SN-1", quantity=20, exp_offset_days=90)
+
+    workers = 10
+    barrier = threading.Barrier(workers)
+    auth_header = headers("owner")
+    payload = {"items": [{"medicine_id": str(medicine_id), "quantity": 1}]}
+    results: list[tuple[int, str | None]] = []
+    lock = threading.Lock()
+
+    def worker():
+        local = TestClient(app)
+        barrier.wait()
+        resp = local.post("/api/v1/sales", json=payload, headers=auth_header)
+        body = resp.json() if resp.status_code == 201 else {}
+        with lock:
+            results.append((resp.status_code, body.get("sale_no")))
+
+    threads = [threading.Thread(target=worker) for _ in range(workers)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    statuses = [status for status, _ in results]
+    numbers = [sale_no for status, sale_no in results if status == 201]
+
+    assert statuses == [201] * workers, results       # stock was plentiful
+    assert all(numbers), "every saved sale must carry a number"
+    assert len(set(numbers)) == workers, numbers      # no two alike
+
+    # The rows in the table match the numbers handed back, one for one.
+    assert count_rows("sales") == workers
+    with db.get_transaction() as cur:
+        cur.execute("SELECT sale_no FROM public.sales ORDER BY sale_no")
+        stored = [row["sale_no"] for row in cur.fetchall()]
+    assert sorted(numbers) == stored
+    assert len(set(stored)) == len(stored)
+
+    # Same business day, same prefix, running numbers with no gaps.
+    prefixes = {sale_no.rsplit("-", 1)[0] for sale_no in stored}
+    assert len(prefixes) == 1, prefixes
+    runnings = sorted(int(sale_no.rsplit("-", 1)[1]) for sale_no in stored)
+    assert runnings == list(range(1, workers + 1)), runnings
+
+
+def test_sale_no_follows_the_bangkok_business_date(client):
+    medicine_id = insert_medicine("Prefix med", selling_price="10.00")
+    insert_lot(medicine_id, lot_number="PX-1", quantity=2, exp_offset_days=90)
+
+    resp = api(client, "post", "/api/v1/sales", "owner",
+               json={"items": [{"medicine_id": str(medicine_id), "quantity": 1}]})
+    assert resp.status_code == 201, resp.text
+
+    with db.get_transaction() as cur:
+        cur.execute(
+            "SELECT 'S-' || to_char(((now() AT TIME ZONE 'Asia/Bangkok')::date"
+            " + interval '543 years'), 'YYMMDD') AS prefix"
+        )
+        prefix = cur.fetchone()["prefix"]
+
+    assert resp.json()["sale_no"].startswith(f"{prefix}-")
+    assert resp.json()["sale_no"].endswith("-001")  # first sale of the day
+
+
+def test_sold_by_name_comes_from_created_by_not_the_reader(client):
+    """D27: staff rings the sale; the owner reading it back still sees staff."""
+    medicine_id = insert_medicine("Seller med", selling_price="10.00")
+    insert_lot(medicine_id, lot_number="SB-1", quantity=2, exp_offset_days=90)
+
+    created = api(client, "post", "/api/v1/sales", "staff",
+                  json={"items": [{"medicine_id": str(medicine_id), "quantity": 1}]})
+    assert created.status_code == 201, created.text
+    seller = created.json()["sold_by_name"]
+    assert seller  # staff has a profile in the test project
+
+    read_back = api(client, "get", f"/api/v1/sales/{created.json()['id']}", "owner")
+    assert read_back.status_code == 200
+    assert read_back.json()["sold_by_name"] == seller
+    assert read_back.json()["sale_no"] == created.json()["sale_no"]

@@ -67,6 +67,13 @@
   word-break: break-all;
 }
 
+/* D26: the bill number is what people quote back, so give it weight. */
+.receipt .meta .sale-no {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
 .receipt .items {
   width: 100%;
   margin-top: 8px;
