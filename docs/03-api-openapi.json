@@ -4,6 +4,18 @@
       "AdjustmentIn": {
         "additionalProperties": false,
         "properties": {
+          "quantity_before": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity Before"
+          },
           "quantity_change": {
             "title": "Quantity Change",
             "type": "integer"
@@ -2399,6 +2411,17 @@
             ],
             "title": "Category"
           },
+          "days_remaining": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Days Remaining"
+          },
           "expired_quantity": {
             "title": "Expired Quantity",
             "type": "integer"
@@ -2406,6 +2429,10 @@
           "expired_value": {
             "title": "Expired Value",
             "type": "string"
+          },
+          "lot_count": {
+            "title": "Lot Count",
+            "type": "integer"
           },
           "medicine_id": {
             "format": "uuid",
@@ -2415,6 +2442,18 @@
           "name": {
             "title": "Name",
             "type": "string"
+          },
+          "nearest_expiry": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nearest Expiry"
           },
           "reorder_point": {
             "anyOf": [
@@ -2426,6 +2465,17 @@
               }
             ],
             "title": "Reorder Point"
+          },
+          "risk_level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Risk Level"
           },
           "strength": {
             "anyOf": [
@@ -2452,6 +2502,10 @@
           "available_quantity",
           "expired_quantity",
           "reorder_point",
+          "lot_count",
+          "nearest_expiry",
+          "days_remaining",
+          "risk_level",
           "available_value",
           "expired_value"
         ],

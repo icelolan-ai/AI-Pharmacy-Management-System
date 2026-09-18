@@ -24,12 +24,14 @@ export function DataTable<T>({
   rows,
   rowKey,
   onRowClick,
+  rowClassName,
   caption,
 }: {
   columns: Column<T>[];
   rows: T[];
   rowKey: (row: T) => string;
   onRowClick?: (row: T) => void;
+  rowClassName?: (row: T) => string | undefined;
   caption?: string;
 }) {
   return (
@@ -53,7 +55,7 @@ export function DataTable<T>({
             <TableRow
               key={rowKey(row)}
               onClick={onRowClick ? () => onRowClick(row) : undefined}
-              className={cn(onRowClick && "cursor-pointer")}
+              className={cn(onRowClick && "cursor-pointer", rowClassName?.(row))}
             >
               {columns.map((column) => (
                 <TableCell

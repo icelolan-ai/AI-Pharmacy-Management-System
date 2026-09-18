@@ -1,6 +1,7 @@
 "use client";
 
 import { useAuth } from "@/components/auth-provider";
+import { AccessDenied } from "@/components/common/AccessDenied";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SkeletonTable } from "@/components/common/SkeletonTable";
@@ -18,7 +19,7 @@ export default function StoreSettingsPage() {
     return (
       <div className="space-y-4">
         <PageHeader title="ข้อมูลร้าน" />
-        <ErrorState message="เฉพาะเจ้าของร้านเท่านั้นที่แก้ไขข้อมูลร้านได้" />
+        <AccessDenied />
       </div>
     );
   }

@@ -122,6 +122,18 @@ def adjust_lot(lot_id: UUID, data: AdjustmentIn, user: CurrentUser) -> dict[str,
             raise _lot_not_found()
 
         before = lot["quantity_remaining"]
+
+        # D23: the client adjusts by a difference, so a sale in another window
+        # would silently shift the result. Checked inside this transaction,
+        # after the row lock, so the value cannot change underneath us.
+        if data.quantity_before is not None and data.quantity_before != before:
+            raise AppError(
+                "INVALID_STATE",
+                "จำนวนคงเหลือเปลี่ยนไป กรุณาตรวจนับใหม่",
+                409,
+                {"quantity_before": data.quantity_before, "quantity_remaining": before},
+            )
+
         change = data.quantity_change
         after = before + change
 

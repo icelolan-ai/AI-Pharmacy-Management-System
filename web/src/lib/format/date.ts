@@ -3,6 +3,9 @@
 
 export const BE_OFFSET = 543;
 
+/** The shop's timezone. "Today" is always this one, never the browser's (D9). */
+export const TZ = "Asia/Bangkok";
+
 const THAI_MONTHS_SHORT = [
   "ม.ค.", "ก.พ.", "มี.ค.", "เม.ย.", "พ.ค.", "มิ.ย.",
   "ก.ค.", "ส.ค.", "ก.ย.", "ต.ค.", "พ.ย.", "ธ.ค.",
@@ -73,6 +76,52 @@ export function monthYearBEToISO(month: number, yearBE: number): string {
   if (!Number.isInteger(yearBE)) throw new Error(`invalid Buddhist year: ${yearBE}`);
   const yearAD = yearBE - BE_OFFSET;
   return `${yearAD}-${pad(month)}-${pad(daysInMonth(month, yearAD))}`;
+}
+
+/** "2027-06-30" -> "06/2570" — how an expiry is printed on the box (D16). */
+export function formatExpiryBE(iso: string | null | undefined, placeholder = "-"): string {
+  if (!iso) return placeholder;
+  const parts = parseISODate(iso);
+  if (!parts) return placeholder;
+  return `${pad(parts.month)}/${parts.year + BE_OFFSET}`;
+}
+
+/** Today in the shop's timezone as "YYYY-MM-DD" (D9).
+ *  Components must never read the clock themselves. */
+export function todayBangkokISO(): string {
+  // en-CA formats as YYYY-MM-DD, so no manual assembly is needed.
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+}
+
+export function todayBangkok(): { year: number; month: number; day: number } {
+  return parseISODate(todayBangkokISO())!;
+}
+
+const MS_PER_DAY = 86_400_000;
+
+function toUTC(parts: { year: number; month: number; day: number }): number {
+  return Date.UTC(parts.year, parts.month - 1, parts.day);
+}
+
+/** Whole days from `fromISO` to `toISO`; null when either date is unparseable. */
+export function daysBetween(fromISO: string, toISO: string): number | null {
+  const from = parseISODate(fromISO);
+  const to = parseISODate(toISO);
+  if (!from || !to) return null;
+  return Math.round((toUTC(to) - toUTC(from)) / MS_PER_DAY);
+}
+
+/** Shift an ISO date by whole days: addDays("2026-09-30", -1) === "2026-09-29" */
+export function addDays(iso: string, days: number): string | null {
+  const parts = parseISODate(iso);
+  if (!parts) return null;
+  const shifted = new Date(toUTC(parts) + days * MS_PER_DAY);
+  return `${shifted.getUTCFullYear()}-${pad(shifted.getUTCMonth() + 1)}-${pad(shifted.getUTCDate())}`;
 }
 
 export function isoToMonthYearBE(iso: string): { month: number; yearBE: number } | null {

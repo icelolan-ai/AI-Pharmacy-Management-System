@@ -4,6 +4,7 @@ import { use, useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
+import { AccessDenied } from "@/components/common/AccessDenied";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageHeader } from "@/components/common/PageHeader";
 import { SkeletonTable } from "@/components/common/SkeletonTable";
@@ -51,7 +52,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     return (
       <div className="space-y-4">
         <PageHeader title="ผู้จำหน่าย" />
-        <ErrorState message="คุณไม่มีสิทธิ์ใช้งานส่วนนี้" />
+        <AccessDenied />
       </div>
     );
   }

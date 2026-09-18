@@ -18,6 +18,11 @@ class StockRowOut(BaseModel):
     available_quantity: int
     expired_quantity: int
     reorder_point: int | None
+    lot_count: int
+    # The sellable lot that expires first; null when nothing sellable is left.
+    nearest_expiry: date | None
+    days_remaining: int | None  # raw value (D19): the web shows this minus 1
+    risk_level: str | None
 
 
 class StockRowWithValueOut(StockRowOut):

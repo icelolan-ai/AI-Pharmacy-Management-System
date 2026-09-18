@@ -75,7 +75,11 @@ def stock_report(*, q: str | None, category: str | None, limit: int, offset: int
                    COALESCE(SUM(l.quantity_remaining * l.cost_per_unit)
                             FILTER (WHERE l.expiry_date > {today}), 0) AS available_value,
                    COALESCE(SUM(l.quantity_remaining * l.cost_per_unit)
-                            FILTER (WHERE l.expiry_date <= {today}), 0) AS expired_value
+                            FILTER (WHERE l.expiry_date <= {today}), 0) AS expired_value,
+                   count(l.id) AS lot_count,
+                   MIN(l.expiry_date) FILTER (WHERE l.expiry_date > {today}) AS nearest_expiry,
+                   (MIN(l.expiry_date) FILTER (WHERE l.expiry_date > {today}) - {today})
+                       AS days_remaining
             FROM public.medicines m
             LEFT JOIN public.medicine_lots l
                    ON l.medicine_id = m.id AND l.status = 'active' AND l.quantity_remaining > 0
@@ -92,7 +96,19 @@ def stock_report(*, q: str | None, category: str | None, limit: int, offset: int
         cur.execute(sql.SQL("SELECT count(*) AS total FROM public.medicines m") + where, params)
         total = cur.fetchone()["total"]
         cur.execute(rows_sql, [*params, limit, offset])
-        items = cur.fetchall()
+        rows = cur.fetchall()
+
+    # risk_level follows the nearest sellable lot, from the same thresholds as
+    # /reports/expiring. No sellable lot left -> no risk level to show.
+    items = [
+        {
+            **row,
+            "risk_level": None
+            if row["days_remaining"] is None
+            else risk_level(row["days_remaining"]),
+        }
+        for row in rows
+    ]
     return _page(items, total, limit, offset)
 
 

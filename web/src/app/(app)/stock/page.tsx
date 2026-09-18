@@ -1,36 +1,35 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
-import { DataTable, type Column } from "@/components/common/DataTable";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
-import { MedicineSearchInput } from "@/components/common/MedicineSearchInput";
-import { MoneyText } from "@/components/common/MoneyText";
 import { PageHeader } from "@/components/common/PageHeader";
-import { QtyText } from "@/components/common/QtyText";
 import { RequireAbility } from "@/components/common/RequireAbility";
 import { SkeletonTable } from "@/components/common/SkeletonTable";
 import { MedicineFormDialog } from "@/components/medicines/MedicineFormDialog";
-import { Badge } from "@/components/ui/badge";
+import { StockFilters, type StockFilter } from "@/components/stock/StockFilters";
+import { StockTable } from "@/components/stock/StockTable";
 import { Button } from "@/components/ui/button";
 import { ApiError, isAbortError } from "@/lib/api/client";
-import { searchMedicines, type Medicine } from "@/lib/api/medicines";
+import { isExpiringSoon, isLowStock, listStockReport, type StockRow } from "@/lib/api/reports";
 import { ABILITIES, can } from "@/lib/abilities";
 
 export default function StockPage() {
+  const router = useRouter();
   const { me } = useAuth();
-  const canSeeCost = can(me?.role, ABILITIES.viewCost);
+  const canSeeValue = can(me?.role, ABILITIES.viewCost);
   const canManage = can(me?.role, ABILITIES.manageMedicines);
 
   const [term, setTerm] = useState("");
-  const [medicines, setMedicines] = useState<Medicine[]>([]);
+  const [filter, setFilter] = useState<StockFilter>("all");
+  const [rows, setRows] = useState<StockRow[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Medicine | null>(null);
   const abortRef = useRef<AbortController | null>(null);
 
   const load = useCallback(async (searchTerm: string) => {
@@ -41,14 +40,14 @@ export default function StockPage() {
     setLoading(true);
     setError(null);
     try {
-      const page = await searchMedicines({ q: searchTerm, limit: 50, signal: controller.signal });
-      setMedicines(page.items);
+      const page = await listStockReport({ q: searchTerm, signal: controller.signal });
+      setRows(page.items);
       setTotal(page.total);
     } catch (loadError) {
       if (isAbortError(loadError)) return; // a newer search is already running
-      setMedicines([]);
+      setRows([]);
       setTotal(0);
-      setError(loadError instanceof ApiError ? loadError.message : "โหลดข้อมูลยาไม่สำเร็จ");
+      setError(loadError instanceof ApiError ? loadError.message : "โหลดข้อมูลสต็อกไม่สำเร็จ");
     } finally {
       if (!controller.signal.aborted) setLoading(false);
     }
@@ -59,135 +58,75 @@ export default function StockPage() {
     return () => abortRef.current?.abort();
   }, [term, load]);
 
-  const columns: Column<Medicine>[] = [
-    {
-      key: "name",
-      header: "ชื่อยา",
-      cell: (row) => (
-        <div>
-          <p className="font-medium text-slate-900">{row.name}</p>
-          <p className="text-xs text-slate-500">
-            {[row.strength, row.dosage_form].filter(Boolean).join(" · ") || "-"}
-          </p>
-        </div>
-      ),
-    },
-    { key: "category", header: "หมวดหมู่", cell: (row) => row.category ?? "-" },
-    {
-      key: "barcode",
-      header: "บาร์โค้ด",
-      cell: (row) => <span className="tabular-nums text-slate-600">{row.barcode ?? "-"}</span>,
-    },
-    {
-      key: "available",
-      header: "คงเหลือ",
-      align: "right",
-      cell: (row) => (
-        <QtyText
-          value={row.available_quantity}
-          low={row.reorder_point !== null && row.available_quantity <= row.reorder_point}
-        />
-      ),
-    },
-    {
-      key: "reorder",
-      header: "จุดสั่งซื้อ",
-      align: "right",
-      cell: (row) =>
-        row.reorder_point === null ? (
-          <span className="text-slate-400">ไม่เตือน</span>
-        ) : (
-          <QtyText value={row.reorder_point} />
-        ),
-    },
-  ];
-
-  if (canSeeCost) {
-    columns.push({
-      key: "price",
-      header: "ราคาขาย",
-      align: "right",
-      cell: (row) => <MoneyText value={row.selling_price} />,
-    });
-  }
-
-  if (canManage) {
-    columns.push({
-      key: "actions",
-      header: "",
-      align: "right",
-      cell: (row) => (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => {
-            setEditing(row);
-            setDialogOpen(true);
-          }}
-        >
-          แก้ไข
-        </Button>
-      ),
-    });
-  }
+  // Both toggles work on the rows already loaded — no extra request.
+  const shown = useMemo(() => {
+    if (filter === "low") return rows.filter(isLowStock);
+    if (filter === "expiring") return rows.filter(isExpiringSoon);
+    return rows;
+  }, [rows, filter]);
 
   return (
     <div className="space-y-4">
       <PageHeader
-        title="สต็อกยา"
-        description="รายการยาทั้งหมดและจำนวนคงเหลือที่ขายได้"
+        title="คลังยา"
+        description="จำนวนที่ขายได้ ล็อต และวันหมดอายุของยาแต่ละรายการ"
         action={
           <RequireAbility ability={ABILITIES.manageMedicines}>
-            <Button
-              onClick={() => {
-                setEditing(null);
-                setDialogOpen(true);
-              }}
-            >
-              เพิ่มยาใหม่
-            </Button>
+            <Button onClick={() => setDialogOpen(true)}>เพิ่มยาใหม่</Button>
           </RequireAbility>
         }
       />
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <MedicineSearchInput value={term} onDebouncedChange={setTerm} />
-        {!loading && !error ? (
-          <Badge variant="secondary">ทั้งหมด {total} รายการ</Badge>
-        ) : null}
-      </div>
+      <StockFilters
+        term={term}
+        onTermChange={setTerm}
+        filter={filter}
+        onFilterChange={setFilter}
+        shownCount={shown.length}
+        totalCount={total}
+        busy={loading || Boolean(error)}
+      />
 
       {error ? <ErrorState message={error} onRetry={() => void load(term)} retrying={loading} /> : null}
 
       {loading ? (
-        <SkeletonTable rows={6} columns={canSeeCost ? 6 : 5} />
-      ) : !error && medicines.length === 0 ? (
+        <SkeletonTable rows={6} columns={canSeeValue ? 5 : 4} />
+      ) : !error && shown.length === 0 ? (
         <EmptyState
-          title={term ? "ไม่พบยาที่ค้นหา" : "ยังไม่มีข้อมูลยา"}
-          description={term ? "ลองค้นด้วยชื่อ ชื่อสามัญ หรือบาร์โค้ดอีกครั้ง" : undefined}
+          title={
+            rows.length > 0
+              ? "ไม่มียาที่ตรงกับตัวกรอง"
+              : term
+                ? "ไม่พบยาที่ค้นหา"
+                : "ยังไม่มีข้อมูลยา"
+          }
+          description={
+            rows.length > 0
+              ? "ลองเลือก “ทั้งหมด” เพื่อดูรายการทั้งหมด"
+              : term
+                ? "ลองค้นด้วยชื่อ ชื่อสามัญ หรือบาร์โค้ดอีกครั้ง"
+                : undefined
+          }
           action={
-            canManage && !term ? (
-              <Button
-                onClick={() => {
-                  setEditing(null);
-                  setDialogOpen(true);
-                }}
-              >
-                เพิ่มยาใหม่
-              </Button>
+            canManage && !term && rows.length === 0 ? (
+              <Button onClick={() => setDialogOpen(true)}>เพิ่มยาใหม่</Button>
             ) : null
           }
         />
       ) : !error ? (
-        <DataTable columns={columns} rows={medicines} rowKey={(row) => row.id} caption="รายการยา" />
+        <StockTable
+          rows={shown}
+          canSeeValue={canSeeValue}
+          onRowClick={(row) => router.push(`/stock/${row.medicine_id}`)}
+        />
       ) : null}
 
       {canManage ? (
         <MedicineFormDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          medicine={editing}
-          canSetPrice={canSeeCost}
+          medicine={null}
+          canSetPrice={canSeeValue}
           onSaved={() => void load(term)}
         />
       ) : null}

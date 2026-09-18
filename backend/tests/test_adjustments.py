@@ -190,3 +190,41 @@ def test_transaction_before_change_after_and_audit_reason(client, monkeypatch):
     body = resp.json()
     assert body["transaction_id"] == str(TX_ID)
     assert body["quantity_remaining"] == 2 and body["cost_per_unit"] == "8.25"
+
+
+# --- D23: quantity_before guards against a concurrent change -------------------------------------
+
+
+def test_matching_quantity_before_is_accepted(client, monkeypatch):
+    """The screen saw 3 and the lot still holds 3, so the adjustment goes through."""
+    login_as("owner")
+    cursor = use_lot(monkeypatch, remaining=3)
+    resp = adjust(client, quantity_change=-1, quantity_before=3)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["quantity_remaining"] == 2
+    sent = cursor.queries("INSERT INTO public.inventory_transactions")[0][1]
+    assert sent[3] == 3 and sent[4] == 2  # quantity_before / quantity_after from the DB
+
+
+def test_stale_quantity_before_returns_409_and_writes_nothing(client, monkeypatch):
+    """Someone sold from the lot while the dialog was open: 3 on screen, 2 in the database."""
+    login_as("owner")
+    cursor = use_lot(monkeypatch, remaining=2)
+    body = assert_error(adjust(client, quantity_change=-1, quantity_before=3), 409, "INVALID_STATE")
+    assert body["error"]["message"] == "จำนวนคงเหลือเปลี่ยนไป กรุณาตรวจนับใหม่"
+    assert body["error"]["details"] == {"quantity_before": 3, "quantity_remaining": 2}
+    assert cursor.writes() == []
+
+
+def test_omitting_quantity_before_keeps_the_old_behaviour(client, monkeypatch):
+    """Optional field: a client that does not send it still adjusts normally."""
+    login_as("owner")
+    use_lot(monkeypatch, remaining=3)
+    resp = adjust(client, quantity_change=-1)
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["quantity_remaining"] == 2
+
+
+def test_negative_quantity_before_returns_400(client):
+    login_as("owner")
+    assert_error(adjust(client, quantity_before=-1), 400, "VALIDATION_ERROR")

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/components/auth-provider";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { EmptyState } from "@/components/common/EmptyState";
+import { AccessDenied } from "@/components/common/AccessDenied";
 import { ErrorState } from "@/components/common/ErrorState";
 import { MedicineSearchInput } from "@/components/common/MedicineSearchInput";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -64,7 +65,7 @@ export default function SuppliersPage() {
     return (
       <div className="space-y-4">
         <PageHeader title="ผู้จำหน่าย" />
-        <ErrorState message="คุณไม่มีสิทธิ์ใช้งานส่วนนี้" />
+        <AccessDenied />
       </div>
     );
   }

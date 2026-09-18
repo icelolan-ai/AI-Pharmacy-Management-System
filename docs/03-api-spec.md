@@ -563,7 +563,7 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | D20 | 18 ก.ย. 2026 | สิทธิ์ดูรายงานมูลค่าคลังรวม | `GET /reports/inventory-value` เป็นของ **owner เท่านั้น** (pharmacist / staff → `403`) — ต่างจากการดูต้นทุนรายรายการที่ pharmacist ยังดูได้ |
 | D21 | 19 ก.ย. 2026 | ใบเสร็จกับข้อมูลร้าน | ใบเสร็จใช้ข้อมูลร้าน **ปัจจุบัน** เสมอ ไม่เก็บสำเนา ณ วันขาย — แก้ที่อยู่แล้วพิมพ์ใบเสร็จเก่าซ้ำจะขึ้นที่อยู่ใหม่ (พฤติกรรมที่ตั้งใจของ MVP). เก็บที่ตาราง `store_profile` **ระเบียนเดียว** (Migration 005) — `GET /api/v1/store` ทุก Role ที่ล็อกอินอ่านได้ และตอบ `200` พร้อมค่า `null` เมื่อยังไม่เคยบันทึก (**ไม่ตอบ `404`**); `PATCH /api/v1/store` เฉพาะ **owner** (ครั้งแรกต้องมี `name`) และบันทึก `audit_logs` ด้วย `table_name = 'store_profile'` |
 | D22 | 19 ก.ย. 2026 | การบังคับเปลี่ยนรหัสผ่านครั้งแรก | **ไม่ทำใน Phase 5** · มีเฉพาะ U-6 (`POST /api/v1/me/change-password`) ให้ผู้ใช้เปลี่ยนรหัสผ่านของตัวเอง · **ห้ามมีข้อความบังคับเปลี่ยนรหัสผ่านบนหน้าจอใด ๆ** และไม่มีฟิลด์ `must_change_password` · ยกนโยบายรหัสผ่านทั้งชุดไป Phase 10 |
-| D23 | 19 ก.ย. 2026 | กันปรับ Stock ทับกัน | `POST /lots/{id}/adjustments` รับฟิลด์ใหม่ **`quantity_before`** (ไม่บังคับ เพื่อไม่ให้ของเดิมพัง) — ถ้าค่าที่ส่งมาไม่ตรงกับ `quantity_remaining` จริงใน transaction เดียวกัน → **`409 INVALID_STATE`** ข้อความ "จำนวนคงเหลือเปลี่ยนไป กรุณาตรวจนับใหม่"; ไม่ส่งมา = ทำงานแบบเดิม. รายละเอียดที่ `docs/05-web-spec.md` ภาคผนวก 2 — **ยังไม่ได้ทำ รอสั่งงาน** |
+| D23 | 19 ก.ย. 2026 | กันปรับ Stock ทับกัน | `POST /lots/{id}/adjustments` รับฟิลด์ใหม่ **`quantity_before`** (ไม่บังคับ เพื่อไม่ให้ของเดิมพัง) — ถ้าค่าที่ส่งมาไม่ตรงกับ `quantity_remaining` จริงใน transaction เดียวกัน → **`409 INVALID_STATE`** ข้อความ "จำนวนคงเหลือเปลี่ยนไป กรุณาตรวจนับใหม่"; ไม่ส่งมา = ทำงานแบบเดิม. รายละเอียดที่ `docs/05-web-spec.md` ภาคผนวก 2 — ✅ **ทำแล้ว** (งาน 5.3 ขั้นที่ 1) |
 | — | 19 ก.ย. 2026 | หน่วยนับของยา | เพิ่มคอลัมน์ `medicines.unit` (Migration 004) — `text NOT NULL DEFAULT 'กล่อง'`; ไม่ส่งมาใน `POST` → ได้ค่า Default; ส่งเป็น `null`/ว่างใน `PATCH` → `400`; `GET /reports/stock` และ `GET /reports/expiring` ส่ง `unit` กลับด้วย |
 
 ---
@@ -595,3 +595,4 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | 3.9 | `inventory-value` → `by_medicine` มีฟิลด์ `medicine_id, name, total_value, sellable_value, expired_value` |
 | 3.9 | `/reports/expired` เรียงจาก EXP เก่าสุดไปใหม่สุด |
 | 3.9 | ข้อความ `409` ของ Adjustment: "ไม่สามารถเพิ่มจำนวนให้ Lot ที่ถูกตัดออกจาก Stock แล้ว" |
+| 5.3 | `GET /reports/stock` คืน `lot_count`, `nearest_expiry`, `days_remaining` (ค่าดิบ) และ `risk_level` เพิ่ม — ใช้ทำคอลัมน์ "ล็อต" และ "ล็อตที่หมดอายุก่อน" ในหน้า `/stock`; `nearest_expiry` นับเฉพาะ Lot ที่ยังขายได้ (`expiry_date > วันนี้`) ไม่มีเลย = `null` |

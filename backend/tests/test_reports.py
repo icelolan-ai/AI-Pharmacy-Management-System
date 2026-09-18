@@ -40,7 +40,8 @@ def use_rules(monkeypatch, rules):
 def stock_row(**overrides):
     row = {"medicine_id": MED, "name": "TEST", "strength": "500 mg", "category": None,
            "unit": "กล่อง", "reorder_point": 5, "available_quantity": 3, "expired_quantity": 2,
-           "available_value": Decimal("24.75"), "expired_value": Decimal("25")}
+           "available_value": Decimal("24.75"), "expired_value": Decimal("25"),
+           "lot_count": 2, "nearest_expiry": TODAY + timedelta(days=20), "days_remaining": 20}
     row.update(overrides)
     return row
 
@@ -271,3 +272,42 @@ def test_expiring_report_returns_the_unit(client, monkeypatch, role):
     body = client.get("/api/v1/reports/expiring").json()
     assert body["items"][0]["unit"] == "ขวด"
     assert "m.unit" in cursor.queries("SELECT * FROM expiring")[0][0]
+
+
+# --- stock report: lots, nearest expiry and risk (columns of /stock) -----------------------------
+
+
+def test_stock_report_returns_lot_count_and_nearest_expiry(client, monkeypatch):
+    login_as("staff")
+    cursor = use_rules(monkeypatch, [("count(*) AS total", {"total": 1}),
+                                     ("GROUP BY m.id", [stock_row()])])
+    item = client.get("/api/v1/reports/stock").json()["items"][0]
+    assert item["lot_count"] == 2
+    assert item["nearest_expiry"] == str(TODAY + timedelta(days=20))
+    assert item["days_remaining"] == 20  # raw value; the web subtracts 1 (D19)
+    assert item["risk_level"] == "critical"
+
+    rows_sql = cursor.queries("GROUP BY m.id")[0][0]
+    # the nearest expiry is the first SELLABLE lot, so it uses business today (D9/D10)
+    assert f"MIN(l.expiry_date) FILTER (WHERE l.expiry_date > {TODAY_SQL})" in rows_sql
+
+
+def test_stock_report_without_sellable_lots_has_no_expiry_or_risk(client, monkeypatch):
+    login_as("owner")
+    use_rules(monkeypatch, [
+        ("count(*) AS total", {"total": 1}),
+        ("GROUP BY m.id", [stock_row(available_quantity=0, lot_count=1,
+                                     nearest_expiry=None, days_remaining=None)]),
+    ])
+    item = client.get("/api/v1/reports/stock").json()["items"][0]
+    assert item["nearest_expiry"] is None
+    assert item["days_remaining"] is None
+    assert item["risk_level"] is None
+
+
+@pytest.mark.parametrize("days,level", [(30, "critical"), (31, "high_risk"), (200, "normal")])
+def test_stock_risk_level_uses_the_same_thresholds_as_expiring(client, monkeypatch, days, level):
+    login_as("owner")
+    use_rules(monkeypatch, [("count(*) AS total", {"total": 1}),
+                            ("GROUP BY m.id", [stock_row(days_remaining=days)])])
+    assert client.get("/api/v1/reports/stock").json()["items"][0]["risk_level"] == level

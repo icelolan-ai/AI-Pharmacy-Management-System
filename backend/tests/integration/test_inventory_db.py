@@ -250,3 +250,42 @@ def test_deleting_draft_purchase_is_audited(client, today):
     logs = api(client, "get", f"/api/v1/audit-logs?table_name=purchases&record_id={purchase_id}", "owner").json()["items"]
     assert sorted(entry["action"] for entry in logs) == ["delete", "insert"]
     assert count_rows("purchase_items") == 0
+
+
+# --- D23: a sale from another window must not be overwritten ---------------------------------------
+
+
+def test_sale_during_an_open_adjust_dialog_returns_409(client):
+    """The real case from the spec: the dialog reads 5, someone sells 2, the save must not
+    write 4 over a lot that actually holds 3."""
+    medicine_id = insert_medicine("D23 med", selling_price="20.00")
+    lot = insert_lot(medicine_id, lot_number="D23-1", quantity=5, exp_offset_days=60)
+
+    # what the dialog read when it opened
+    opened = api(client, "get", f"/api/v1/lots/{lot['id']}", "owner")
+    assert opened.status_code == 200
+    seen = opened.json()["quantity_remaining"]
+    assert seen == 5
+
+    # another window sells 2 from the same lot
+    sale = api(client, "post", "/api/v1/sales", "staff",
+               json={"items": [{"medicine_id": str(medicine_id), "quantity": 2}]})
+    assert sale.status_code == 201, sale.text
+
+    counts = table_counts()
+    stale = api(client, "post", f"/api/v1/lots/{lot['id']}/adjustments", "owner",
+                json={"transaction_type": "correction", "quantity_change": -1,
+                      "quantity_before": seen, "reason": "นับสต็อกแล้วไม่ตรง"})
+    assert stale.status_code == 409
+    assert stale.json()["error"]["code"] == "INVALID_STATE"
+    assert stale.json()["error"]["message"] == "จำนวนคงเหลือเปลี่ยนไป กรุณาตรวจนับใหม่"
+    assert table_counts() == counts  # nothing written
+
+    # after re-counting against the fresh number the same adjustment succeeds
+    fresh = api(client, "get", f"/api/v1/lots/{lot['id']}", "owner").json()["quantity_remaining"]
+    assert fresh == 3
+    retry = api(client, "post", f"/api/v1/lots/{lot['id']}/adjustments", "owner",
+                json={"transaction_type": "correction", "quantity_change": -1,
+                      "quantity_before": fresh, "reason": "นับสต็อกแล้วไม่ตรง"})
+    assert retry.status_code == 201, retry.text
+    assert retry.json()["quantity_remaining"] == 2

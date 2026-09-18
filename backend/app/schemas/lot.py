@@ -52,6 +52,9 @@ class AdjustmentIn(BaseModel):
 
     transaction_type: AdjustmentType
     quantity_change: int
+    # D23: what the screen showed when the dialog was opened. Optional so older
+    # clients keep working; when sent it must still match the lot -> 409.
+    quantity_before: Annotated[int, Field(ge=0)] | None = None
     reason: Annotated[str, Field(min_length=1, max_length=500)]
 
     @field_validator("reason", mode="before")

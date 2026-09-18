@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api/client";
 import { updateStoreProfile, type StoreProfile, type StoreProfilePayload } from "@/lib/api/store";
 import { formatDateTimeBE } from "@/lib/format/date";
+import { useUnsavedChangesWarning } from "@/lib/use-unsaved-changes-warning";
 
 type FormState = {
   name: string;
@@ -55,7 +56,7 @@ export function StoreProfileForm({
 }) {
   const [form, setForm] = useState<FormState>(() => fromProfile(profile));
   const [error, setError] = useState<string | null>(null);
-  const [nameError, setNameError] = useState<string | null>(null);
+  const [fieldError, setFieldError] = useState<Partial<Record<keyof FormState, string>>>({});
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
@@ -68,15 +69,24 @@ export function StoreProfileForm({
     setSaved(false);
   }
 
+  // Unsaved when the form no longer matches what the server holds.
+  const saved_ = fromProfile(profile);
+  const dirty = (Object.keys(form) as (keyof FormState)[]).some(
+    (key) => form[key].trim() !== saved_[key],
+  );
+  useUnsavedChangesWarning(dirty && !saving);
+
   async function save() {
     setError(null);
     setSaved(false);
 
-    if (!form.name.trim()) {
-      setNameError("กรุณากรอกชื่อร้าน");
-      return;
-    }
-    setNameError(null);
+    // The backend only insists on a name; the receipt header needs these three.
+    const errors: Partial<Record<keyof FormState, string>> = {};
+    if (!form.name.trim()) errors.name = "กรุณากรอกชื่อร้าน";
+    if (!form.address.trim()) errors.address = "กรุณากรอกที่อยู่ร้าน";
+    if (!form.phone.trim()) errors.phone = "กรุณากรอกเบอร์โทร";
+    setFieldError(errors);
+    if (Object.keys(errors).length > 0) return;
 
     const payload = changedFields(form, profile);
     if (Object.keys(payload).length === 0) {
@@ -108,9 +118,18 @@ export function StoreProfileForm({
     return () => window.removeEventListener("keydown", onKeyDown);
   });
 
-  const textFields: { key: keyof FormState; label: string; hint?: string }[] = [
-    { key: "phone", label: "เบอร์โทร" },
-    { key: "license_no", label: "เลขที่ใบอนุญาต", hint: "เช่น ขย.1/2569" },
+  const textFields: {
+    key: keyof FormState;
+    label: string;
+    hint?: string;
+    required?: boolean;
+  }[] = [
+    { key: "phone", label: "เบอร์โทร", required: true },
+    {
+      key: "license_no",
+      label: "เลขที่ใบอนุญาตขายยา",
+      hint: "มาตรฐานร้านยา — แสดงบนใบเสร็จ",
+    },
     { key: "tax_id", label: "เลขประจำตัวผู้เสียภาษี" },
   ];
 
@@ -136,33 +155,49 @@ export function StoreProfileForm({
                 value={form.name}
                 onChange={(event) => setField("name", event.target.value)}
                 disabled={saving}
-                aria-invalid={Boolean(nameError)}
+                aria-invalid={Boolean(fieldError.name)}
               />
-              {nameError ? <p className="mt-1 text-xs text-red-600">{nameError}</p> : null}
+              {fieldError.name ? (
+                <p className="mt-1 text-xs text-red-600">{fieldError.name}</p>
+              ) : (
+                <p className="mt-1 text-xs text-slate-500">แสดงบนหัวใบเสร็จและใบรับสินค้า</p>
+              )}
             </div>
 
             <div>
-              <Label htmlFor="store-address">ที่อยู่</Label>
+              <Label htmlFor="store-address">ที่อยู่ร้าน *</Label>
               <Textarea
                 id="store-address"
                 value={form.address}
                 onChange={(event) => setField("address", event.target.value)}
                 disabled={saving}
                 rows={3}
+                aria-invalid={Boolean(fieldError.address)}
               />
+              {fieldError.address ? (
+                <p className="mt-1 text-xs text-red-600">{fieldError.address}</p>
+              ) : null}
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
               {textFields.map((field) => (
                 <div key={field.key}>
-                  <Label htmlFor={`store-${field.key}`}>{field.label}</Label>
+                  <Label htmlFor={`store-${field.key}`}>
+                    {field.label}
+                    {field.required ? " *" : ""}
+                  </Label>
                   <Input
                     id={`store-${field.key}`}
                     value={form[field.key]}
                     onChange={(event) => setField(field.key, event.target.value)}
                     disabled={saving}
+                    aria-invalid={Boolean(fieldError[field.key])}
                   />
-                  {field.hint ? <p className="mt-1 text-xs text-slate-500">{field.hint}</p> : null}
+                  {fieldError[field.key] ? (
+                    <p className="mt-1 text-xs text-red-600">{fieldError[field.key]}</p>
+                  ) : field.hint ? (
+                    <p className="mt-1 text-xs text-slate-500">{field.hint}</p>
+                  ) : null}
                 </div>
               ))}
             </div>
