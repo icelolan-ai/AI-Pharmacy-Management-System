@@ -13,7 +13,16 @@ import { StoreProvider } from "@/lib/store/store-provider";
 
 const MENU: { href: string; label: string; ability?: Ability }[] = [
   { href: "/", label: "หน้าแรก" },
-  { href: "/stock", label: "สต็อกยา" },
+  { href: "/dashboard", label: "ภาพรวมร้าน", ability: ABILITIES.viewReports },
+  { href: "/stock", label: "คลังยา" },
+  { href: "/expiry", label: "ใกล้หมดอายุ", ability: ABILITIES.viewReports },
+  { href: "/reports/expired", label: "หมดอายุแล้ว", ability: ABILITIES.viewReports },
+  { href: "/reports/low-stock", label: "ยาใกล้หมด", ability: ABILITIES.viewReports },
+  {
+    href: "/reports/inventory-value",
+    label: "มูลค่าคลังยา",
+    ability: ABILITIES.viewInventoryValue,
+  },
   { href: "/suppliers", label: "ผู้จำหน่าย", ability: ABILITIES.viewSuppliers },
   { href: "/me", label: "ข้อมูลของฉัน" },
   { href: "/settings/store", label: "ข้อมูลร้าน", ability: ABILITIES.manageStoreProfile },

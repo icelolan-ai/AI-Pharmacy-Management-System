@@ -12,6 +12,7 @@ export const ABILITIES = {
   adjustStock: "adjustStock",
   viewInventoryValue: "viewInventoryValue",
   viewAuditLog: "viewAuditLog",
+  viewReports: "viewReports",
   manageStoreProfile: "manageStoreProfile",
 } as const;
 
@@ -29,6 +30,7 @@ const ABILITY_ROLES: Record<Ability, readonly Role[]> = {
   adjustStock: MANAGERS,
   viewInventoryValue: OWNER_ONLY, // D20
   viewAuditLog: OWNER_ONLY,
+  viewReports: MANAGERS, // dashboard, expiry and the three report pages
   manageStoreProfile: OWNER_ONLY, // everyone may read it; only the owner may edit
 };
 

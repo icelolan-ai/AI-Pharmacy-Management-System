@@ -64,6 +64,20 @@ def test_pharmacist_forbidden_on_audit_logs(client):
     assert api(client, "get", "/api/v1/audit-logs", "pharmacist").status_code == 403
 
 
+def test_pharmacist_forbidden_on_inventory_value(client):
+    """D20: hiding the page is not the guard — the API itself refuses pharmacist."""
+    resp = api(client, "get", "/api/v1/reports/inventory-value", "pharmacist")
+    assert resp.status_code == 403
+    assert resp.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_owner_can_view_inventory_value(client):
+    resp = api(client, "get", "/api/v1/reports/inventory-value", "owner")
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert set(body) == {"total_value", "sellable_value", "expired_value", "by_medicine", "by_category"}
+
+
 def test_each_role_sees_own_profile(client):
     for role in ("owner", "pharmacist", "staff"):
         resp = api(client, "get", "/api/v1/me", role)

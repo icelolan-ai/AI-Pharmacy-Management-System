@@ -86,6 +86,14 @@ export function formatExpiryBE(iso: string | null | undefined, placeholder = "-"
   return `${pad(parts.month)}/${parts.year + BE_OFFSET}`;
 }
 
+/** Epoch milliseconds -> "14:22". Components must not read the clock
+ *  themselves, so "อัปเดตล่าสุด" goes through here. */
+export function formatClockTime(epochMs: number | null | undefined, placeholder = "-"): string {
+  if (epochMs === null || epochMs === undefined) return placeholder;
+  const at = new Date(epochMs);
+  return `${pad(at.getHours())}:${pad(at.getMinutes())}`;
+}
+
 /** Today in the shop's timezone as "YYYY-MM-DD" (D9).
  *  Components must never read the clock themselves. */
 export function todayBangkokISO(): string {

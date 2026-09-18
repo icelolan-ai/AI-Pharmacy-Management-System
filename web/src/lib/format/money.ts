@@ -74,3 +74,19 @@ export function normalizeMoneyInput(value: string): string | null {
   if (text === "" || !MONEY_PATTERN.test(text)) return null;
   return fromSatang(toSatang(text));
 }
+
+/** Percentage of one money string against another, worked out in satang so no
+ *  float ever touches it. Returns null when the total is zero or invalid. */
+export function percentOfMoney(part: string, total: string, decimals = 1): number | null {
+  if (!isValidMoney(part) || !isValidMoney(total)) return null;
+  const totalSatang = toSatang(total);
+  if (totalSatang === 0) return null;
+  const scale = 10 ** decimals;
+  // Integer maths end to end: round to `decimals` places, then scale back.
+  return Math.round((toSatang(part) * 100 * scale) / totalSatang) / scale;
+}
+
+/** Sum a list of money strings, skipping anything missing. */
+export function sumMoney(values: (string | null | undefined)[]): string {
+  return addMoney(...values.filter((value): value is string => Boolean(value && isValidMoney(value))));
+}
