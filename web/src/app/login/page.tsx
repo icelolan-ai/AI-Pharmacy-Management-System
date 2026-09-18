@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ApiError, fetchMe } from "@/lib/api";
+import { ApiError, fetchMe } from "@/lib/api/client";
 import { isSupabaseConfigured, supabase } from "@/lib/supabase";
 
 /** Turns Supabase auth errors into plain Thai, with no technical wording. */

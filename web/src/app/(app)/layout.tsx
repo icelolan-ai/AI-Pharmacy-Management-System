@@ -6,10 +6,13 @@ import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
 import { Button } from "@/components/ui/button";
+import { ABILITIES, can, type Ability } from "@/lib/abilities";
 import { roleLabel } from "@/lib/roles";
 
-const MENU = [
+const MENU: { href: string; label: string; ability?: Ability }[] = [
   { href: "/", label: "หน้าแรก" },
+  { href: "/stock", label: "สต็อกยา" },
+  { href: "/suppliers", label: "ผู้จำหน่าย", ability: ABILITIES.viewSuppliers },
   { href: "/me", label: "ข้อมูลของฉัน" },
 ];
 
@@ -35,8 +38,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white p-4 sm:block">
         <div className="mb-6 text-sm font-semibold text-slate-900">ร้านขายยา</div>
         <nav className="space-y-1">
-          {MENU.map((item) => {
-            const active = pathname === item.href;
+          {MENU.filter((item) => !item.ability || can(me?.role, item.ability)).map((item) => {
+            const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
             return (
               <Link
                 key={item.href}

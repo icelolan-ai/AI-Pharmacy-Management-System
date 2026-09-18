@@ -8,6 +8,14 @@ type BackendError = {
   error?: { code?: string; message?: string; details?: unknown };
 };
 
+/** Every list endpoint answers with this shape (spec 8) — no `data` wrapper. */
+export type Page<T> = {
+  items: T[];
+  total: number;
+  limit: number;
+  offset: number;
+};
+
 export class ApiError extends Error {
   readonly code: string;
   readonly status: number;
@@ -22,6 +30,7 @@ export class ApiError extends Error {
   }
 }
 
+/** Only used when the backend gives us nothing to show the user. */
 const MESSAGE_BY_STATUS: Record<number, string> = {
   400: "ข้อมูลที่ส่งไปไม่ถูกต้อง",
   401: "กรุณาเข้าสู่ระบบ",
@@ -34,6 +43,10 @@ const MESSAGE_BY_STATUS: Record<number, string> = {
 
 export const NETWORK_ERROR_MESSAGE =
   "เชื่อมต่อระบบไม่ได้ กรุณาตรวจสอบว่าเซิร์ฟเวอร์เปิดอยู่แล้วลองใหม่อีกครั้ง";
+
+export function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
 
 function redirectToLogin() {
   if (typeof window !== "undefined" && window.location.pathname !== "/login") {
@@ -52,9 +65,23 @@ async function clearSessionAndRedirect() {
   redirectToLogin();
 }
 
+/** Builds a query string, skipping null/undefined/"" values. */
+export function buildQuery(params: Record<string, string | number | boolean | null | undefined>): string {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value === null || value === undefined) continue;
+    const text = String(value);
+    if (text === "") continue;
+    search.set(key, text);
+  }
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}
+
 type ApiOptions = RequestInit & { auth?: boolean };
 
-/** Calls the backend. Attaches the access token; never logs it. */
+/** Calls the backend. Attaches the access token; never logs it.
+ *  Error messages come from the backend as-is (they are already Thai). */
 export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promise<T> {
   const { auth = true, headers, ...init } = options;
   const requestHeaders = new Headers(headers);
@@ -76,8 +103,9 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
   let response: Response;
   try {
     response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers: requestHeaders });
-  } catch {
-    // Network/DNS/refused — the backend is probably not running.
+  } catch (error) {
+    // A cancelled request (new search typed) must not look like a failure.
+    if (isAbortError(error)) throw error;
     throw new ApiError(NETWORK_ERROR_MESSAGE, "NETWORK_ERROR", 0);
   }
 
@@ -98,9 +126,9 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
       throw new ApiError("กรุณาเข้าสู่ระบบ", backend?.code ?? "UNAUTHENTICATED", 401, backend?.details);
     }
     const message =
-      response.status === 403
-        ? backend?.message ?? MESSAGE_BY_STATUS[403]
-        : backend?.message ?? MESSAGE_BY_STATUS[response.status] ?? "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
+      backend?.message ??
+      MESSAGE_BY_STATUS[response.status] ??
+      "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
     throw new ApiError(message, backend?.code ?? "HTTP_ERROR", response.status, backend?.details);
   }
 

@@ -3,7 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 
-import { ApiError, fetchMe, type Me } from "@/lib/api";
+import { ApiError, fetchMe, type Me } from "@/lib/api/client";
 import { supabase } from "@/lib/supabase";
 
 type AuthState = {

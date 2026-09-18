@@ -6,7 +6,7 @@ import { useAuth } from "@/components/auth-provider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ApiError, fetchHealth } from "@/lib/api";
+import { ApiError, fetchHealth } from "@/lib/api/client";
 import { roleLabel } from "@/lib/roles";
 
 type HealthState =

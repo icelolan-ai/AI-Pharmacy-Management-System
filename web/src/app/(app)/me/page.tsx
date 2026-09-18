@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ApiError, fetchMe, type Me } from "@/lib/api";
+import { ApiError, fetchMe, type Me } from "@/lib/api/client";
 import { roleLabel } from "@/lib/roles";
 
 export default function MePage() {
