@@ -23,6 +23,7 @@ router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
 
 AnyRole = Annotated[CurrentUser, Depends(get_current_user)]
 Manager = Annotated[CurrentUser, Depends(require_roles("owner", "pharmacist"))]
+Owner = Annotated[CurrentUser, Depends(require_roles("owner"))]
 Limit = Annotated[int, Query(ge=1, le=200)]
 Offset = Annotated[int, Query(ge=0)]
 
@@ -62,5 +63,5 @@ def low_stock(user: AnyRole, limit: Limit = 50, offset: Offset = 0):
 
 
 @router.get("/inventory-value", response_model=InventoryValueOut)
-def inventory_value(user: Manager, limit: Limit = 50, offset: Offset = 0):
+def inventory_value(user: Owner, limit: Limit = 50, offset: Offset = 0):
     return report_service.inventory_value_report(limit=limit, offset=offset)

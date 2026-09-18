@@ -231,7 +231,8 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 |---|:-:|:-:|:-:|
 | ดูยา / Stock / Lot / รายงานพื้นฐาน | ✅ | ✅ | ✅ |
 | ขายยา | ✅ | ✅ | ✅ |
-| ดูต้นทุน (cost) และมูลค่า Stock | ✅ | ✅ | ❌ |
+| ดูต้นทุน (cost) และมูลค่า Stock รายรายการ | ✅ | ✅ | ❌ |
+| ดูรายงานมูลค่าคลังรวม (`/reports/inventory-value`) | ✅ | ❌ (D20) | ❌ |
 | เพิ่ม/แก้ยา, Supplier | ✅ | ✅ | ❌ |
 | รับสินค้า (Purchase) | ✅ | ✅ | ❌ |
 | ปรับ Stock (Adjustment) | ✅ | ✅ | ❌ |
@@ -380,7 +381,7 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | GET | `/api/v1/reports/expiring?days=180` | ทุก Role | Lot ใกล้หมดอายุ + ระดับความเสี่ยง |
 | GET | `/api/v1/reports/expired` | ทุก Role | Lot ที่หมดอายุแล้วแต่ยังมีจำนวนคงเหลือ |
 | GET | `/api/v1/reports/low-stock` | ทุก Role | ยาที่ Stock ขายได้ ≤ `reorder_point` (แบบพื้นฐาน) |
-| GET | `/api/v1/reports/inventory-value` | owner, pharmacist | มูลค่า Stock รวม / รายยา / ราย Category |
+| GET | `/api/v1/reports/inventory-value` | **owner เท่านั้น** (D20) | มูลค่า Stock รวม / รายยา / ราย Category |
 
 ระดับความเสี่ยงหมดอายุ (ตาม `02-database-schema.md` ข้อ 4.2):
 
@@ -558,6 +559,8 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 | D11 | 17 ก.ย. 2026 | staff เปลี่ยนราคา/ให้ส่วนลด | **A** — staff ต้องใช้ selling_price และ discount = 0 (ไม่งั้น 403); owner/pharmacist ปรับได้และบันทึก audit |
 | D12 | 17 ก.ย. 2026 | เครื่องมือ Mobile | ลงไดรฟ์ D:, ทดสอบด้วย Emulator (ไม่มีมือถือ Android) — ใช้เมื่อถึง Phase 4 |
 | D13 | 17 ก.ย. 2026 | ลำดับ Phase | สลับ: ทำ Phase 5 (Web) ก่อน Phase 4 (Mobile); Phase 6+ ไม่เปลี่ยน |
+| D19 | 18 ก.ย. 2026 | วันหมดอายุที่แสดงบนหน้าจอ | ยาขายได้ถึงวันก่อน `expiry_date` (Backend ใช้ `expiry_date > วันนี้` ตาม D10) — เว็บแสดง "เหลือกี่วัน" = `days_remaining` ของ API **− 1** และคำนวณที่ `lib/format/expiry.ts` จุดเดียว |
+| D20 | 18 ก.ย. 2026 | สิทธิ์ดูรายงานมูลค่าคลังรวม | `GET /reports/inventory-value` เป็นของ **owner เท่านั้น** (pharmacist / staff → `403`) — ต่างจากการดูต้นทุนรายรายการที่ pharmacist ยังดูได้ |
 
 ---
 

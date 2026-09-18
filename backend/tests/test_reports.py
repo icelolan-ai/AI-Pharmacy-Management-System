@@ -192,8 +192,10 @@ def test_manager_sees_values_as_strings(client, monkeypatch):
     assert client.get("/api/v1/reports/expired").json()["items"][0]["stock_value"] == "24.75"
 
 
-def test_staff_cannot_view_inventory_value(client):
-    login_as("staff")
+@pytest.mark.parametrize("role", ["staff", "pharmacist"])
+def test_only_owner_can_view_inventory_value(client, role):
+    """D20: inventory-value is owner only."""
+    login_as(role)
     assert_error(client.get("/api/v1/reports/inventory-value"), 403, "FORBIDDEN")
 
 
