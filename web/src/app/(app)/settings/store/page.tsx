@@ -30,13 +30,6 @@ export default function StoreSettingsPage() {
         description="ชื่อ ที่อยู่ และเลขทะเบียนที่จะพิมพ์บนหัวใบเสร็จ"
       />
 
-      <Alert>
-        <AlertDescription>
-          ข้อมูลนี้ใช้เป็นหัวใบเสร็จและหัวรายงานของร้าน (D21) การแก้ไขมีผลกับเอกสารที่ออกหลังจากนี้
-          เท่านั้น เอกสารที่พิมพ์ไปแล้วจะไม่เปลี่ยนตาม
-        </AlertDescription>
-      </Alert>
-
       {isEmpty ? (
         <Alert>
           <AlertDescription>

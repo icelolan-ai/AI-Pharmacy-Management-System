@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
+import { SideNavStoreName } from "@/components/store/SideNavStoreName";
 import { Button } from "@/components/ui/button";
 import { ABILITIES, can, type Ability } from "@/lib/abilities";
 import { roleLabel } from "@/lib/roles";
@@ -39,7 +40,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <StoreProvider>
       <div className="flex min-h-screen">
         <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white p-4 sm:block">
-          <div className="mb-6 text-sm font-semibold text-slate-900">ร้านขายยา</div>
+          <SideNavStoreName />
           <nav className="space-y-1">
             {MENU.filter((item) => !item.ability || can(me?.role, item.ability)).map((item) => {
               const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);

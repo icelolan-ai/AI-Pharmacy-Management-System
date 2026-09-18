@@ -181,6 +181,11 @@ export function StoreProfileForm({
               ) : null}
             </div>
 
+            {/* D21 — ข้อความนี้กำหนดไว้ใน docs/05-web-spec.md ข้อ 5.8ข ห้ามแก้ถ้อยคำ */}
+            <p className="text-xs text-slate-500">
+              ใบเสร็จจะใช้ข้อมูลร้านล่าสุดเสมอ — ถ้าแก้ที่อยู่ ใบเสร็จเก่าที่พิมพ์ซ้ำจะขึ้นที่อยู่ใหม่
+            </p>
+
             <p className="text-xs text-slate-500">
               {profile?.updated_at
                 ? `แก้ไขล่าสุด ${formatDateTimeBE(profile.updated_at)} น. โดย ${
