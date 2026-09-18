@@ -10,6 +10,7 @@ type AuthState = {
   session: Session | null;
   me: Me | null;
   loading: boolean;
+  profileLoading: boolean;
   profileError: string | null;
   signOut: () => Promise<void>;
   reloadProfile: () => Promise<void>;
@@ -21,6 +22,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [me, setMe] = useState<Me | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [profileError, setProfileError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -38,6 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!nextSession) {
         setMe(null);
         setProfileError(null);
+        setProfileLoading(false);
       }
     });
 
@@ -49,12 +52,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const reloadProfile = useCallback(async () => {
     if (!session) return;
+    setProfileLoading(true);
     try {
       setMe(await fetchMe());
       setProfileError(null);
     } catch (error) {
       setMe(null);
       setProfileError(error instanceof ApiError ? error.message : "โหลดข้อมูลผู้ใช้ไม่สำเร็จ");
+    } finally {
+      setProfileLoading(false);
     }
   }, [session]);
 
@@ -67,11 +73,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     setMe(null);
     setProfileError(null);
+    setProfileLoading(false);
   }, []);
 
   const value = useMemo<AuthState>(
-    () => ({ session, me, loading, profileError, signOut, reloadProfile }),
-    [session, me, loading, profileError, signOut, reloadProfile],
+    () => ({ session, me, loading, profileLoading, profileError, signOut, reloadProfile }),
+    [session, me, loading, profileLoading, profileError, signOut, reloadProfile],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

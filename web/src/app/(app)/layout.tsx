@@ -16,7 +16,7 @@ const MENU = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { session, me, loading, signOut } = useAuth();
+  const { session, me, loading, profileLoading, profileError, signOut, reloadProfile } = useAuth();
 
   useEffect(() => {
     if (!loading && !session) router.replace("/login");
@@ -55,12 +55,36 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-4 py-3">
-          <div className="min-w-0">
-            <p className="truncate text-sm font-medium text-slate-900">
-              {me?.full_name ?? me?.email ?? "ผู้ใช้"}
-            </p>
-            <p className="text-xs text-slate-500">{me ? roleLabel(me.role) : "กำลังโหลดสิทธิ์..."}</p>
-          </div>
+          {me ? (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-slate-900">
+                {me.full_name ?? me.email ?? "ผู้ใช้"}
+              </p>
+              <p className="text-xs text-slate-500">{roleLabel(me.role)}</p>
+            </div>
+          ) : profileError ? (
+            // Loading the profile failed (e.g. the backend is down): say so instead of
+            // showing "loading" forever, and offer a retry.
+            <div className="flex min-w-0 items-center gap-2">
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-slate-900">โหลดข้อมูลผู้ใช้ไม่ได้</p>
+                <p className="truncate text-xs text-slate-500">{profileError}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void reloadProfile()}
+                disabled={profileLoading}
+              >
+                {profileLoading ? "กำลังลองใหม่..." : "ลองใหม่"}
+              </Button>
+            </div>
+          ) : (
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-slate-900">ผู้ใช้</p>
+              <p className="text-xs text-slate-500">กำลังโหลดสิทธิ์...</p>
+            </div>
+          )}
           <Button variant="outline" size="sm" onClick={() => void signOut()}>
             ออกจากระบบ
           </Button>
