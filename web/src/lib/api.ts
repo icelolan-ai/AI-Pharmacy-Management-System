@@ -41,6 +41,17 @@ function redirectToLogin() {
   }
 }
 
+/** The stored session is no longer usable: clear it first, otherwise /login
+ *  sees a session and bounces straight back here. */
+async function clearSessionAndRedirect() {
+  try {
+    await supabase.auth.signOut();
+  } catch {
+    // Signing out failed (e.g. offline) — still send the user to /login.
+  }
+  redirectToLogin();
+}
+
 type ApiOptions = RequestInit & { auth?: boolean };
 
 /** Calls the backend. Attaches the access token; never logs it. */
@@ -83,7 +94,7 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
   if (!response.ok) {
     const backend = (payload as BackendError)?.error;
     if (response.status === 401) {
-      redirectToLogin();
+      await clearSessionAndRedirect();
       throw new ApiError("กรุณาเข้าสู่ระบบ", backend?.code ?? "UNAUTHENTICATED", 401, backend?.details);
     }
     const message =
