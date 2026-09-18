@@ -159,6 +159,8 @@ export interface Paginated<T> { items: T[]; total: number; limit: number; offset
 
 > **หมายเหตุบังคับ:** ก่อนเขียน `types/api.ts` ให้ยึด `docs/03-api-openapi.json` ที่ Claude Code export เป็นหลัก — ชื่อฟิลด์ในเอกสารนี้เป็นค่าที่ Chat A ยืนยันแล้ว แต่ถ้าขัดกับ OpenAPI ให้ยึด OpenAPI และรายงาน Chat A
 
+> **กฎชี้ขาดชื่อฟิลด์ (Chat A, 19 ก.ย. 2569):** **ถ้าสเปกขัดกับ OpenAPI ให้ยึด OpenAPI เสมอ และแก้สเปกให้ตรง ห้ามเปลี่ยนชื่อฟิลด์ใน Backend** — `docs/03-api-openapi.json` คือ Source of Truth เพียงแหล่งเดียวของชื่อฟิลด์ เอกสารนี้เป็นฝ่ายปรับตาม
+
 ## 5.0.4 สถานะโหลด / ว่าง / ผิดพลาด
 
 ```ts
@@ -518,17 +520,20 @@ export interface Supplier {
 ```ts
 export interface StockRow {                      // GET /reports/stock
   medicine_id: string; name: string;
-  strength: string | null; dosage_form: string | null;
-  manufacturer: string | null; unit: string;
-  sellable_quantity: number;        // ไม่รวม Lot ที่ขายไม่ได้ตาม D10/D18
+  strength: string | null; category: string | null;
+  unit: string;
+  available_quantity: number;       // ไม่รวม Lot ที่ขายไม่ได้ตาม D10/D18
   expired_quantity: number;
-  lot_count: number;
-  nearest_expiry: string | null;
-  days_remaining?: number;          // ★ ค่าดิบ (D19) — ต้องผ่าน daysLeftToSell() ก่อนแสดง
-  risk_level?: RiskLevel;
-  stock_value?: Money;              // 🔒 owner/pharmacist เท่านั้น (B-5)
+  lot_count: number;                // D24
+  nearest_expiry: string | null;    // D24 — Lot ที่ขายได้และหมดอายุก่อน
+  days_remaining: number | null;    // D24 · ★ ค่าดิบ (D19) — ต้องผ่าน daysLeftToSell() ก่อนแสดง
+  risk_level: RiskLevel | null;     // D24
+  available_value?: Money;          // 🔒 owner/pharmacist เท่านั้น (B-5)
+  expired_value?: Money;            // 🔒 เช่นกัน
   reorder_point: number | null;     // B-14 — ต้องคืนมาด้วย รวมค่า null
 }
+// ★ ไม่มี strength/dosage_form/manufacturer แยกครบใน /reports/stock —
+//   มีแค่ strength กับ category · ต้องการมากกว่านี้ให้เรียก GET /medicines/{id}
 
 export interface Lot {
   id: string; medicine_id: string;
@@ -990,29 +995,45 @@ export const itemHasMismatch = (i: PurchaseItem) => i.quantity_invoiced !== i.qu
 
 ```ts
 export interface ExpiringRow {                   // GET /reports/expiring?days=
-  medicine_id: string; medicine_name: string;
-  strength: string | null; dosage_form: string | null;
-  lot_id: string; lot_number: string;
+  lot_id: string; medicine_id: string; medicine_name: string;
+  unit: string;
+  lot_number: string;
+  quantity_remaining: number;
   expiry_date: string;
   days_remaining: number;           // ★ ค่าดิบ (D19) — ห้ามแสดงตรง ๆ
-  quantity: number; unit: string;
+  risk_level: RiskLevel;            // คิดจากค่าดิบ ฝั่ง Backend
   stock_value?: Money;              // 🔒 owner/pharmacist (B-5)
-  risk_level?: RiskLevel;           // คิดจากค่าดิบ
 }
-export interface ExpiredRow extends Omit<ExpiringRow,'days_remaining'> { days_since_expiry: number; }
+// ★ ไม่มี strength / dosage_form ใน /reports/expiring — ต้องการให้เรียก GET /medicines/{id}
+
+export interface ExpiredRow {                    // GET /reports/expired
+  lot_id: string; medicine_id: string; medicine_name: string;
+  lot_number: string;
+  quantity_remaining: number;
+  expiry_date: string;
+  days_expired: number;             // ★ ชื่อจริงใน API (ไม่ใช่ days_since_expiry)
+  stock_value?: Money;              // 🔒 owner/pharmacist (B-5)
+}
+// ★ /reports/expired ไม่คืน unit และไม่คืน risk_level
 
 export interface LowStockRow {                   // ★ ตัด last_supplier_name / last_unit_cost แล้ว
-  medicine_id: string; medicine_name: string; strength: string | null;
-  current_quantity: number;
+  medicine_id: string; name: string;
+  available_quantity: number;
   reorder_point: number;            // ไม่มี null เพราะ API ตัดยาที่ยังไม่ตั้งค่าออกแล้ว (B-14)
-  shortage: number; unit: string;
+  shortage: number;
 }
+// ★ /reports/low-stock ไม่คืน strength และไม่คืน unit
 
-export interface InventoryValueReport {
-  total_value: Money; total_medicines: number;
-  near_expiry_value: Money; expired_value: Money;
-  by_medicine: { medicine_id: string; medicine_name: string; quantity: number; value: Money }[];
+export interface InventoryValueReport {          // GET /reports/inventory-value (owner, D20)
+  total_value: Money; sellable_value: Money; expired_value: Money;
+  by_medicine: Page<{
+    medicine_id: string; name: string;
+    total_value: Money; sellable_value: Money; expired_value: Money;
+  }>;
+  by_category: { category: string; total_value: Money; sellable_value: Money; expired_value: Money }[];
 }
+// ★ ไม่มี total_medicines และไม่มี near_expiry_value — ใช้ by_medicine.total เป็นจำนวนรายการ
+//   และ "เงินจม" ให้คิดจาก expired_value ÷ total_value
 ```
 
 ## Dashboard
@@ -1028,7 +1049,7 @@ GET /reports/inventory-value     → 2 กล่องล่าง  🔒 owner �
 **ข้อกำหนด:**
 - ทุกกล่องความเสี่ยงแสดง **ทั้งจำนวนรายการและมูลค่าเงิน** · แสดง **3 อันดับแรกตรงหน้า**
 - **ตัวเลขวันในรายการ 3 อันดับแรกต้องผ่าน `daysLeftToSell()` (D19)** — เช่น `🔴 Amoxicillin Lot B-2503 เหลือ 11 วัน (ขายได้ถึง 29 ก.ย. 2569) 28 กล่อง 2,100 ฿`
-- `%` เงินจม = `near_expiry_value ÷ total_value` คำนวณในหน่วยสตางค์
+- `%` เงินจม = `expired_value ÷ total_value` คำนวณในหน่วยสตางค์ (ไม่มีฟิลด์ `near_expiry_value` ใน API)
 - **pharmacist เข้าได้ แต่ซ่อน 2 กล่องล่าง** → ซ่อนแล้วส่วนบนขยายเต็มความกว้าง **ห้ามเหลือช่องว่าง**
 - **ส่วน "ยาที่ใกล้หมด" ต้องมีข้อความท้าย** `(นับเฉพาะยาที่ตั้งจุดสั่งซื้อไว้แล้ว — ยังไม่ตั้งค่า 38 รายการ)` + ลิงก์ไปหน้าคลังยา · ตั้งครบแล้วไม่ต้องแสดง
 - **ไม่มีกราฟใด ๆ** (รอ Phase 8)
