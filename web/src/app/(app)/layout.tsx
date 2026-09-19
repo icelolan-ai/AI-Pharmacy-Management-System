@@ -16,6 +16,7 @@ const MENU: { href: string; label: string; ability?: Ability }[] = [
   { href: "/sell", label: "ขายยา" },
   { href: "/dashboard", label: "ภาพรวมร้าน", ability: ABILITIES.viewReports },
   { href: "/stock", label: "คลังยา" },
+  { href: "/receiving", label: "รับสินค้า", ability: ABILITIES.receiveStock },
   { href: "/expiry", label: "ใกล้หมดอายุ", ability: ABILITIES.viewReports },
   { href: "/reports/expired", label: "หมดอายุแล้ว", ability: ABILITIES.viewReports },
   { href: "/reports/low-stock", label: "ยาใกล้หมด", ability: ABILITIES.viewReports },

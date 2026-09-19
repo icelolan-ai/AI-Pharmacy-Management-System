@@ -152,3 +152,171 @@
     background: #fff;
   }
 }
+
+/* --- A4 goods-received note (งาน 5.5) ------------------------------------
+   Its own page size, so the A5 receipt above is untouched. No page numbering
+   anywhere: the shop signs one sheet per receipt. */
+
+.note {
+  width: 100%;
+  color: #000;
+  background: #fff;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+@media print {
+  /* A4 applies only when a note is on the page. */
+  .note {
+    page: a4note;
+  }
+}
+
+@page a4note {
+  size: A4 portrait;
+  margin: 12mm;
+}
+
+.note .head {
+  text-align: center;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #000;
+}
+
+.note .shop-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.note .shop-line {
+  font-size: 11px;
+  white-space: pre-line;
+}
+
+.note .shop-small {
+  font-size: 10px;
+}
+
+.note .title {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.note .flag {
+  margin-top: 2px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.note .meta {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px 16px;
+  font-size: 11px;
+}
+
+.note .meta > div {
+  display: flex;
+  gap: 6px;
+}
+
+.note .meta dt {
+  min-width: 90px;
+}
+
+.note .meta .doc-no {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.note .items {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.note .items th,
+.note .items td {
+  padding: 4px 2px;
+  vertical-align: top;
+  border-bottom: 1px dotted #999;
+}
+
+.note .items th {
+  border-bottom: 1px solid #000;
+  font-weight: 600;
+}
+
+.note .left {
+  text-align: left;
+}
+
+.note .right {
+  text-align: right;
+}
+
+.note .nowrap {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.note .medicine {
+  display: block;
+}
+
+.note .lot {
+  display: block;
+  font-size: 10px;
+  color: #555;
+}
+
+.note .diff {
+  font-weight: 700;
+}
+
+.note .count {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.note .total {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid #000;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* A mismatch has to be visible on the paper, not just on screen. */
+.note .mismatch {
+  margin-top: 10px;
+  padding: 6px 8px;
+  border: 1px solid #000;
+}
+
+.note .mismatch-title {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.note .mismatch-line {
+  font-size: 11px;
+}
+
+.note .foot {
+  margin-top: 24px;
+}
+
+.note .signs {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  font-size: 11px;
+}

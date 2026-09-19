@@ -431,9 +431,7 @@ def _confirm_purchase_once(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
 
         # D28: a draft may be saved without it, but nothing is received without it.
         if not (purchase["invoice_no"] or "").strip():
-            raise AppError(
-                "VALIDATION_ERROR", "กรุณากรอกเลขที่ใบส่งของก่อนยืนยันรับสินค้า", 422
-            )
+            raise _validation_error("กรุณากรอกเลขที่ใบส่งของก่อนยืนยันรับสินค้า")
 
         items = _load_items(cur, purchase_id)
         if not items:

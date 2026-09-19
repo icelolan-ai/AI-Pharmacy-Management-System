@@ -82,7 +82,7 @@ def test_check_constraint_blocks_leaving_draft_without_a_number(client, today):
         assert cur.fetchone()["status"] == "draft"
 
 
-def test_confirm_without_invoice_no_returns_422(client, today):
+def test_confirm_without_invoice_no_returns_400(client, today):
     """D28: a draft saves without it; nothing is received without it."""
     supplier_id = insert_supplier("D28 supplier")
     medicine_id = insert_medicine("D28 med")
@@ -93,7 +93,7 @@ def test_confirm_without_invoice_no_returns_422(client, today):
 
     before = table_counts()
     resp = api(client, "post", f"/api/v1/purchases/{created.json()['id']}/confirm", "owner")
-    assert resp.status_code == 422
+    assert resp.status_code == 400
     assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
     assert table_counts() == before  # no lots created, nothing received
 

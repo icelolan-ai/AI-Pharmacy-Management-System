@@ -574,7 +574,7 @@ def test_confirm_without_an_invoice_number_is_refused(client, monkeypatch):
     login_as("owner")
     cursor = use_confirm(monkeypatch, invoice_no=None)
     resp = client.post(f"/api/v1/purchases/{PURCHASE_ID}/confirm")
-    assert resp.status_code == 422
+    assert resp.status_code == 400
     assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
     assert resp.json()["error"]["message"] == "กรุณากรอกเลขที่ใบส่งของก่อนยืนยันรับสินค้า"
     assert cursor.queries("INSERT INTO public.medicine_lots") == []  # nothing received
@@ -584,7 +584,7 @@ def test_confirm_without_an_invoice_number_is_refused(client, monkeypatch):
 def test_blank_invoice_number_counts_as_missing(client, monkeypatch, invoice_no):
     login_as("owner")
     use_confirm(monkeypatch, invoice_no=invoice_no)
-    assert client.post(f"/api/v1/purchases/{PURCHASE_ID}/confirm").status_code == 422
+    assert client.post(f"/api/v1/purchases/{PURCHASE_ID}/confirm").status_code == 400
 
 
 def test_confirm_issues_the_number_and_stamps_the_time(client, monkeypatch):
