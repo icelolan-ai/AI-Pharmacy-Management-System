@@ -262,6 +262,11 @@
       },
       "ConfirmOut": {
         "properties": {
+          "confirmed_at": {
+            "format": "date-time",
+            "title": "Confirmed At",
+            "type": "string"
+          },
           "discrepancies": {
             "items": {
               "$ref": "#/components/schemas/DiscrepancyOut"
@@ -281,6 +286,10 @@
             "title": "Purchase Id",
             "type": "string"
           },
+          "purchase_no": {
+            "title": "Purchase No",
+            "type": "string"
+          },
           "status": {
             "enum": [
               "confirmed",
@@ -292,7 +301,9 @@
         },
         "required": [
           "purchase_id",
+          "purchase_no",
           "status",
+          "confirmed_at",
           "lots",
           "discrepancies"
         ],
@@ -1761,6 +1772,17 @@
             "default": "0.00",
             "title": "Discount Amount"
           },
+          "invoice_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice No"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/PurchaseItemIn"
@@ -2011,6 +2033,18 @@
       },
       "PurchaseOut": {
         "properties": {
+          "confirmed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmed At"
+          },
           "created_at": {
             "format": "date-time",
             "title": "Created At",
@@ -2028,6 +2062,17 @@
             ],
             "title": "Created By"
           },
+          "created_by_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created By Name"
+          },
           "discount_amount": {
             "title": "Discount Amount",
             "type": "string"
@@ -2036,6 +2081,17 @@
             "format": "uuid",
             "title": "Id",
             "type": "string"
+          },
+          "invoice_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice No"
           },
           "items": {
             "items": {
@@ -2059,6 +2115,17 @@
             "format": "date",
             "title": "Purchase Date",
             "type": "string"
+          },
+          "purchase_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase No"
           },
           "status": {
             "enum": [
@@ -2096,6 +2163,8 @@
         },
         "required": [
           "id",
+          "purchase_no",
+          "invoice_no",
           "supplier_id",
           "supplier_name",
           "purchase_date",
@@ -2105,7 +2174,9 @@
           "total_amount",
           "status",
           "created_by",
+          "created_by_name",
           "created_at",
+          "confirmed_at",
           "items",
           "lots"
         ],
@@ -2124,6 +2195,17 @@
             "title": "Id",
             "type": "string"
           },
+          "invoice_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invoice No"
+          },
           "item_count": {
             "title": "Item Count",
             "type": "integer"
@@ -2132,6 +2214,17 @@
             "format": "date",
             "title": "Purchase Date",
             "type": "string"
+          },
+          "purchase_no": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Purchase No"
           },
           "status": {
             "enum": [
@@ -2165,6 +2258,8 @@
         },
         "required": [
           "id",
+          "purchase_no",
+          "invoice_no",
           "supplier_id",
           "supplier_name",
           "purchase_date",

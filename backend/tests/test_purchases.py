@@ -11,12 +11,22 @@ from decimal import Decimal
 import pytest
 from fastapi.testclient import TestClient
 from psycopg import sql
+from psycopg.errors import UniqueViolation
 
 from app import business_date, db
 from app.auth import get_current_user
+from app.errors import AppError
 from app.main import app
 from app.services import purchases as purchase_service
 from tests.helpers import NOW, assert_error, make_user
+
+
+class DuplicatePurchaseNo(UniqueViolation):
+    @property
+    def diag(self):
+        from types import SimpleNamespace
+
+        return SimpleNamespace(constraint_name=purchase_service.PURCHASE_NO_UNIQUE_CONSTRAINT)
 
 TODAY = date(2026, 9, 17)
 SUPPLIER_ID = uuid.uuid4()
@@ -32,7 +42,8 @@ PURCHASE_ID = uuid.uuid4()
 class RecordingCursor:
     """Answers INSERT/UPDATE ... RETURNING with rows built from params; records everything."""
 
-    def __init__(self):
+    def __init__(self, last_running=0):
+        self.last_running = last_running
         self.executed: list[tuple[str, tuple]] = []
         self._next = None
 
@@ -41,9 +52,10 @@ class RecordingCursor:
         self.executed.append((text, params))
         self._next = None
         if "INSERT INTO public.purchases" in text:
-            supplier_id, purchase_date, discount, tax, total, created_by = params
+            supplier_id, purchase_date, invoice_no, discount, tax, total, created_by = params
             self._next = {
                 "id": PURCHASE_ID, "store_id": None, "supplier_id": supplier_id, "invoice_id": None,
+                "invoice_no": invoice_no, "purchase_no": None, "confirmed_at": None,
                 "purchase_date": purchase_date, "discount_amount": discount, "tax_amount": tax,
                 "total_amount": total, "status": "draft", "created_by": created_by, "created_at": NOW,
             }
@@ -56,10 +68,14 @@ class RecordingCursor:
                     "quantity_received", "quantity_remaining", "cost_per_unit",
                     "expiry_date", "received_date")
             self._next = {"id": uuid.uuid4(), **dict(zip(keys, params)), "status": "active"}
-        elif "UPDATE public.purchases SET status" in text:
-            self._next = {"id": params[1], "status": params[0]}
+        elif "last_running" in text:
+            # D29: highest running number issued for this business day so far
+            self._next = {"last_running": self.last_running}
+        elif "SET status = %s, purchase_no" in text:
+            self._next = {"id": params[2], "status": params[0], "purchase_no": params[1],
+                          "confirmed_at": NOW}
         elif "UPDATE public.purchases" in text:
-            self._next = {"id": params[-1], "status": "draft", "total_amount": params[4]}
+            self._next = {"id": params[-1], "status": "draft", "total_amount": params[5]}
 
     def fetchone(self):
         return self._next
@@ -124,6 +140,7 @@ def purchase_body(items=None, **overrides):
     body = {
         "supplier_id": str(SUPPLIER_ID),
         "purchase_date": TODAY.isoformat(),
+        "invoice_no": "INV-001",
         "discount_amount": "0.00",
         "tax_amount": "0.00",
         "items": items if items is not None else [item()],
@@ -139,7 +156,10 @@ def detail_row(status="draft"):
         "purchase_date": TODAY, "items_subtotal": Decimal("250.00"),
         "discount_amount": Decimal("0.00"), "tax_amount": Decimal("0.00"),
         "total_amount": Decimal("250.00"), "status": status, "created_by": uuid.uuid4(),
-        "created_at": NOW,
+        "created_by_name": "ผู้รับทดสอบ", "created_at": NOW,
+        "purchase_no": None if status == "draft" else "R-690917-001",
+        "invoice_no": "INV-001",
+        "confirmed_at": None if status == "draft" else NOW,
         "items": [{
             "id": item_id, "medicine_id": MED_A, "medicine_name": "A", "quantity_invoiced": 20,
             "quantity_actual": 18, "unit_cost": Decimal("12.5"), "lot_number": "L1",
@@ -149,8 +169,10 @@ def detail_row(status="draft"):
     }
 
 
-def stored_purchase(status="draft"):
-    return {"id": PURCHASE_ID, "supplier_id": SUPPLIER_ID, "purchase_date": TODAY, "status": status}
+def stored_purchase(status="draft", invoice_no="INV-001"):
+    return {"id": PURCHASE_ID, "supplier_id": SUPPLIER_ID, "purchase_date": TODAY,
+            "status": status, "invoice_no": invoice_no, "purchase_no": None,
+            "confirmed_at": None}
 
 
 def stored_item(**overrides):
@@ -166,6 +188,24 @@ def stored_item(**overrides):
 def use_stored(monkeypatch, purchase, items):
     monkeypatch.setattr(purchase_service, "_lock_purchase", lambda c, pid: purchase)
     monkeypatch.setattr(purchase_service, "_load_items", lambda c, pid: items)
+
+
+def use_confirm(monkeypatch, invoice_no="INV-001", last_running=0):
+    """A draft ready to be confirmed, with a recording cursor in place."""
+    recording = RecordingCursor(last_running=last_running)
+
+    @contextmanager
+    def tx():
+        yield recording
+
+    monkeypatch.setattr(db, "get_transaction", tx)
+    monkeypatch.setattr(purchase_service, "fetch_business_today", lambda c: TODAY)
+    monkeypatch.setattr(
+        purchase_service, "_lock_purchase", lambda c, pid: stored_purchase(invoice_no=invoice_no)
+    )
+    monkeypatch.setattr(purchase_service, "_load_items", lambda c, pid: [stored_item(quantity_actual=20)])
+    monkeypatch.setattr(purchase_service, "_validate_purchase", lambda *a, **k: None)
+    return recording
 
 
 # --- roles --------------------------------------------------------------------------------------
@@ -202,7 +242,8 @@ def test_create_draft_returns_201_and_money_strings(client, cursor):
     assert body["total_amount"] == "250.00"
     assert body["items"][0]["unit_cost"] == "12.50" and body["items"][0]["subtotal"] == "250.00"
     purchase_insert = cursor.queries("INSERT INTO public.purchases")[0][1]
-    assert purchase_insert[4] == Decimal("250.00") and purchase_insert[5] == user.id
+    assert purchase_insert[5] == Decimal("250.00") and purchase_insert[6] == user.id
+    assert purchase_insert[2] == "INV-001"  # D28: เลขที่ใบส่งของ
     assert len(cursor.queries("audit_logs")) == 1
 
 
@@ -331,7 +372,7 @@ def test_api_total_uses_backend_calculation(client, cursor):
     items = [item(), item(medicine_id=str(MED_B), lot_number="L2", quantity_invoiced=10, quantity_actual=None, unit_cost="8.25")]
     client.post("/api/v1/purchases", json=purchase_body(items=items, discount_amount="1.00", tax_amount="0.50"))
     params = cursor.queries("INSERT INTO public.purchases")[0][1]
-    assert params[4] == Decimal("332.00")  # 250.00 + 82.50 - 1.00 + 0.50
+    assert params[5] == Decimal("332.00")  # 250.00 + 82.50 - 1.00 + 0.50
     subtotals = [p[7] for _, p in cursor.queries("INSERT INTO public.purchase_items")]
     assert subtotals == [Decimal("250.00"), Decimal("82.50")]
 
@@ -426,7 +467,9 @@ def test_confirm_without_discrepancy_is_confirmed(client, cursor, monkeypatch):
     tx_params = cursor.queries("INSERT INTO public.inventory_transactions")[0][1]
     assert tx_params[1:] == (10, 10, PURCHASE_ID, user.id)  # change, after, reference_id, created_by
     assert "'purchase', %s, 0, %s, 'purchase'" in cursor.queries("INSERT INTO public.inventory_transactions")[0][0]
-    assert cursor.queries("UPDATE public.purchases SET status")[0][1] == ("confirmed", PURCHASE_ID)
+    update_params = cursor.queries("SET status = %s, purchase_no")[0][1]
+    # D29/D30: number and timestamp are set in the same statement
+    assert update_params == ("confirmed", "R-690917-001", PURCHASE_ID)
 
 
 def test_confirm_with_actual_different_is_discrepancy(client, cursor, monkeypatch):
@@ -500,3 +543,111 @@ def test_medicine_available_quantity_uses_business_today_and_excludes_today():
     text = _render(medicine_service._select_medicine())
     assert "l.expiry_date > ((now()) AT TIME ZONE 'Asia/Bangkok')::date" in text
     assert "CURRENT_DATE" not in text.upper()
+
+
+# --- D28 / D29 / D30 ------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "business_date,expected",
+    [
+        (date(2026, 9, 18), "R-690918"),
+        (date(2027, 6, 30), "R-700630"),
+        (date(2057, 3, 4), "R-000304"),
+    ],
+)
+def test_purchase_no_prefix_uses_buddhist_year(business_date, expected):
+    assert purchase_service.purchase_no_prefix(business_date) == expected
+
+
+@pytest.mark.parametrize(
+    "last_running,expected",
+    [(0, "R-690917-001"), (9, "R-690917-010"), (998, "R-690917-999"), (999, "R-690917-1000")],
+)
+def test_purchase_running_number_pads_and_widens(last_running, expected):
+    cursor = RecordingCursor(last_running=last_running)
+    assert purchase_service.next_purchase_no(cursor, TODAY) == expected
+
+
+def test_confirm_without_an_invoice_number_is_refused(client, monkeypatch):
+    """D28: a draft may be saved without it, but nothing is received without it."""
+    login_as("owner")
+    cursor = use_confirm(monkeypatch, invoice_no=None)
+    resp = client.post(f"/api/v1/purchases/{PURCHASE_ID}/confirm")
+    assert resp.status_code == 422
+    assert resp.json()["error"]["code"] == "VALIDATION_ERROR"
+    assert resp.json()["error"]["message"] == "กรุณากรอกเลขที่ใบส่งของก่อนยืนยันรับสินค้า"
+    assert cursor.queries("INSERT INTO public.medicine_lots") == []  # nothing received
+
+
+@pytest.mark.parametrize("invoice_no", ["", "   "])
+def test_blank_invoice_number_counts_as_missing(client, monkeypatch, invoice_no):
+    login_as("owner")
+    use_confirm(monkeypatch, invoice_no=invoice_no)
+    assert client.post(f"/api/v1/purchases/{PURCHASE_ID}/confirm").status_code == 422
+
+
+def test_confirm_issues_the_number_and_stamps_the_time(client, monkeypatch):
+    """D29/D30: both are written in the same statement as the status change."""
+    login_as("owner")
+    cursor = use_confirm(monkeypatch)
+    resp = client.post(f"/api/v1/purchases/{PURCHASE_ID}/confirm")
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["purchase_no"] == "R-690917-001"
+    assert resp.json()["confirmed_at"] is not None
+
+    texts = [text for text, _ in cursor.executed]
+    lookup = next(i for i, text in enumerate(texts) if "last_running" in text)
+    update = next(i for i, text in enumerate(texts) if "SET status = %s, purchase_no" in text)
+    assert lookup < update  # read first, then written, one transaction
+    assert "confirmed_at = now()" in texts[update]
+
+
+def test_a_draft_carries_no_number(client, monkeypatch, cursor):
+    """D29: creating a draft must not burn a number — the column stays null."""
+    login_as("owner")
+    resp = client.post("/api/v1/purchases", json=purchase_body())
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["purchase_no"] is None
+    assert resp.json()["confirmed_at"] is None
+    insert_sql = cursor.queries("INSERT INTO public.purchases")[0][0]
+    assert "purchase_no" not in insert_sql
+
+
+def test_clash_on_the_number_retries_the_whole_confirm(monkeypatch):
+    attempts = {"count": 0}
+
+    def flaky(purchase_id, actor_id):
+        attempts["count"] += 1
+        if attempts["count"] < 3:
+            raise DuplicatePurchaseNo("duplicate key")
+        return {"purchase_id": purchase_id, "purchase_no": "R-690917-003"}
+
+    monkeypatch.setattr(purchase_service, "_confirm_purchase_once", flaky)
+    result = purchase_service.confirm_purchase(PURCHASE_ID, uuid.uuid4())
+    assert attempts["count"] == 3
+    assert result["purchase_no"] == "R-690917-003"
+
+
+def test_giving_up_after_five_clashes_raises(monkeypatch):
+    attempts = {"count": 0}
+
+    def always(purchase_id, actor_id):
+        attempts["count"] += 1
+        raise DuplicatePurchaseNo("duplicate key")
+
+    monkeypatch.setattr(purchase_service, "_confirm_purchase_once", always)
+    with pytest.raises(AppError) as error:
+        purchase_service.confirm_purchase(PURCHASE_ID, uuid.uuid4())
+    assert attempts["count"] == purchase_service.MAX_PURCHASE_NO_ATTEMPTS == 5
+    assert error.value.code == "INVALID_STATE" and error.value.http_status == 409
+
+
+def test_created_by_name_is_joined_from_created_by(client, monkeypatch):
+    """D30: the receiver is whoever booked it in, not whoever is reading."""
+    login_as("owner")
+    monkeypatch.setattr(purchase_service, "get_purchase", lambda pid: detail_row("confirmed"))
+    body = client.get(f"/api/v1/purchases/{PURCHASE_ID}").json()
+    assert body["created_by_name"] == "ผู้รับทดสอบ"
+    assert body["purchase_no"] == "R-690917-001"
+    assert body["invoice_no"] == "INV-001"

@@ -22,6 +22,7 @@ def purchase_body(supplier_id, medicine_id, today, *, invoiced=20, actual=18, co
     return {
         "supplier_id": str(supplier_id),
         "purchase_date": str(today),
+        "invoice_no": "INV-INT-001",  # D28: confirm refuses without it
         "items": [
             {
                 "medicine_id": str(medicine_id),

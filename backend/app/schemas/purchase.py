@@ -5,7 +5,7 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.schemas.common import MoneyIn, MoneyOut
+from app.schemas.common import MoneyIn, MoneyOut, blank_to_none
 
 PurchaseStatus = Literal["draft", "confirmed", "discrepancy"]
 
@@ -40,9 +40,17 @@ class PurchaseIn(BaseModel):
 
     supplier_id: UUID
     purchase_date: date
+    # D28: เลขที่ใบส่งของ. Optional while the purchase is a draft; confirm
+    # refuses without it.
+    invoice_no: str | None = None
     discount_amount: MoneyIn = Decimal("0.00")
     tax_amount: MoneyIn = Decimal("0.00")
     items: Annotated[list[PurchaseItemIn], Field(min_length=1, max_length=200)]
+
+    @field_validator("invoice_no", mode="after")
+    @classmethod
+    def _blank_invoice_to_none(cls, value):
+        return blank_to_none(value)
 
 
 class PurchaseItemOut(BaseModel):
@@ -72,6 +80,9 @@ class PurchaseLotOut(BaseModel):
 
 class PurchaseOut(BaseModel):
     id: UUID
+    # D29: เลขที่ใบรับสินค้า R-YYMMDD-NNN — null while still a draft.
+    purchase_no: str | None
+    invoice_no: str | None
     supplier_id: UUID
     supplier_name: str | None
     purchase_date: date
@@ -81,13 +92,19 @@ class PurchaseOut(BaseModel):
     total_amount: MoneyOut
     status: PurchaseStatus
     created_by: UUID | None
+    # D30: who received the goods, from purchases.created_by — never the reader.
+    created_by_name: str | None
     created_at: datetime
+    # D30: when the goods were counted in; the A4 note prints this, not created_at.
+    confirmed_at: datetime | None
     items: list[PurchaseItemOut]
     lots: list[PurchaseLotOut]
 
 
 class PurchaseSummaryOut(BaseModel):
     id: UUID
+    purchase_no: str | None
+    invoice_no: str | None
     supplier_id: UUID
     supplier_name: str | None
     purchase_date: date
@@ -114,7 +131,9 @@ class DiscrepancyOut(BaseModel):
 
 class ConfirmOut(BaseModel):
     purchase_id: UUID
+    purchase_no: str
     status: Literal["confirmed", "discrepancy"]
+    confirmed_at: datetime
     lots: list[ConfirmedLotOut]
     discrepancies: list[DiscrepancyOut]
 

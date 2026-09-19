@@ -887,27 +887,45 @@ export interface PurchaseCreateInput {
   supplier_id: string;
   invoice_no: string;
   purchase_date: string;
+  invoice_no?: string;              // D28 — ร่างไม่ใส่ก็ได้ แต่ confirm ต้องมี
   discount_amount: Money;           // ส่ง "0.00" ใน Phase 5
   tax_amount: Money;                // ส่ง "0.00" ใน Phase 5
   items: PurchaseItemInput[];
   // ★ ห้ามส่ง subtotal / total_amount — Backend คำนวณเอง
 }
 
-export interface PurchaseItem extends PurchaseItemInput {
-  id: string; medicine_name: string;
-  strength: string | null; dosage_form: string | null; manufacturer: string | null;
-  line_total: Money;                // Backend คำนวณ
+export interface PurchaseItem {                  // หนึ่งแถวต่อหนึ่งรายการในใบรับ
+  id: string;
+  medicine_id: string; medicine_name: string | null;
+  quantity_invoiced: number; quantity_actual: number | null;
+  unit_cost: Money;
+  lot_number: string; expiry_date: string;
+  subtotal: Money;                  // ★ ชื่อจริง ไม่ใช่ line_total
+}
+// ★ ไม่มี strength / dosage_form / manufacturer ในรายการของใบรับ
+
+export interface Purchase {                      // GET /purchases/{id}
+  id: string;
+  purchase_no: string | null;       // D29 — null ตอนยังเป็น draft
+  invoice_no: string | null;        // D28 — บังคับตอน confirm
+  status: PurchaseStatus;           // ★ 'discrepancy' = มีรายการที่จำนวนไม่ตรง
+  supplier_id: string; supplier_name: string | null;
+  purchase_date: string;
+  items_subtotal: Money;            // ★ ชื่อจริง ไม่ใช่ subtotal
+  discount_amount: Money; tax_amount: Money; total_amount: Money;
+  items: PurchaseItem[];
+  lots: PurchaseLot[];              // ★ API คืนล็อตที่สร้างจากใบรับนี้มาด้วย
+  created_by: string | null;
+  created_by_name: string | null;   // D30
+  created_at: string;
+  confirmed_at: string | null;      // D30 — ใบรับ A4 ใช้วันที่นี้
 }
 
-export interface Purchase {
-  id: string; purchase_no: string;
-  status: PurchaseStatus;           // ★ 'discrepancy' = มีรายการที่จำนวนไม่ตรง
-  supplier_id: string; supplier_name: string;
-  invoice_no: string; purchase_date: string;
-  discount_amount: Money; tax_amount: Money;
-  subtotal: Money; total_amount: Money;
-  items: PurchaseItem[];
-  created_by_name: string; confirmed_at: string | null;
+export interface PurchaseLot {
+  id: string; purchase_item_id: string | null; medicine_id: string;
+  lot_number: string; quantity_received: number; quantity_remaining: number;
+  cost_per_unit: Money; expiry_date: string; received_date: string;
+  status: string | null;
 }
 ```
 

@@ -10,6 +10,7 @@ from typing import Any
 from uuid import UUID
 
 from psycopg import sql
+from psycopg.errors import UniqueViolation
 
 from app import db
 from app.audit import write_audit
@@ -173,9 +174,10 @@ def _insert_items(
 def _fetch_detail(cur, purchase_id: UUID) -> dict[str, Any] | None:
     cur.execute(
         """
-        SELECT p.*, s.name AS supplier_name
+        SELECT p.*, s.name AS supplier_name, u.full_name AS created_by_name
         FROM public.purchases p
         LEFT JOIN public.suppliers s ON s.id = p.supplier_id
+        LEFT JOIN public.user_profiles u ON u.id = p.created_by
         WHERE p.id = %s
         """,
         (purchase_id,),
@@ -301,20 +303,50 @@ def get_purchase(purchase_id: UUID) -> dict[str, Any]:
     return detail
 
 
+# D29: เลขที่ใบรับสินค้า R-YYMMDD-NNN. Issued only when the purchase leaves
+# draft, so a thrown-away draft never burns a number.
+PURCHASE_NO_UNIQUE_CONSTRAINT = "purchases_purchase_no_key"
+MAX_PURCHASE_NO_ATTEMPTS = 5
+BE_OFFSET = 543
+
+
+def purchase_no_prefix(business_today: date) -> str:
+    """R-690918 for 18 ก.ย. 2569 — Buddhist year, last two digits."""
+    buddhist_year = business_today.year + BE_OFFSET
+    return f"R-{buddhist_year % 100:02d}{business_today.month:02d}{business_today.day:02d}"
+
+
+def next_purchase_no(cur, business_today: date) -> str:
+    """Read inside the confirm transaction, never before it."""
+    prefix = purchase_no_prefix(business_today)
+    cur.execute(
+        """
+        SELECT COALESCE(MAX(split_part(purchase_no, '-', 3)::bigint), 0) AS last_running
+        FROM public.purchases
+        WHERE purchase_no LIKE %s AND split_part(purchase_no, '-', 3) ~ '^[0-9]+$'
+        """,
+        (f"{prefix}-%",),
+    )
+    running = cur.fetchone()["last_running"] + 1
+    # At least three digits; past 999 it widens rather than wrapping.
+    return f"{prefix}-{running:03d}"
+
+
 def create_purchase(data: PurchaseIn, actor_id: UUID) -> dict[str, Any]:
     with db.get_transaction() as cur:
         items, subtotals, total = _prepare(cur, data)
         cur.execute(
             """
             INSERT INTO public.purchases
-                (supplier_id, purchase_date, discount_amount, tax_amount,
+                (supplier_id, purchase_date, invoice_no, discount_amount, tax_amount,
                  total_amount, status, created_by)
-            VALUES (%s, %s, %s, %s, %s, 'draft', %s)
+            VALUES (%s, %s, %s, %s, %s, %s, 'draft', %s)
             RETURNING *
             """,
             (
                 data.supplier_id,
                 data.purchase_date,
+                data.invoice_no,
                 money(data.discount_amount),
                 money(data.tax_amount),
                 total,
@@ -344,14 +376,15 @@ def update_purchase(purchase_id: UUID, data: PurchaseIn, actor_id: UUID) -> dict
         cur.execute(
             """
             UPDATE public.purchases
-            SET supplier_id = %s, purchase_date = %s, discount_amount = %s,
-                tax_amount = %s, total_amount = %s
+            SET supplier_id = %s, purchase_date = %s, invoice_no = %s,
+                discount_amount = %s, tax_amount = %s, total_amount = %s
             WHERE id = %s
             RETURNING *
             """,
             (
                 data.supplier_id,
                 data.purchase_date,
+                data.invoice_no,
                 money(data.discount_amount),
                 money(data.tax_amount),
                 total,
@@ -387,7 +420,7 @@ def delete_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
     return {"id": purchase_id, "deleted": True}
 
 
-def confirm_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
+def _confirm_purchase_once(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
     """Spec 10.1: create lots + inventory transactions for a draft purchase."""
     with db.get_transaction() as cur:
         purchase = _lock_purchase(cur, purchase_id)
@@ -395,6 +428,12 @@ def confirm_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
             raise _purchase_not_found()
         if purchase["status"] != "draft":
             raise _invalid_state(purchase["status"])
+
+        # D28: a draft may be saved without it, but nothing is received without it.
+        if not (purchase["invoice_no"] or "").strip():
+            raise AppError(
+                "VALIDATION_ERROR", "กรุณากรอกเลขที่ใบส่งของก่อนยืนยันรับสินค้า", 422
+            )
 
         items = _load_items(cur, purchase_id)
         if not items:
@@ -459,8 +498,13 @@ def confirm_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
 
         new_status = "discrepancy" if discrepancies else "confirmed"
         cur.execute(
-            "UPDATE public.purchases SET status = %s WHERE id = %s RETURNING *",
-            (new_status, purchase_id),
+            """
+            UPDATE public.purchases
+            SET status = %s, purchase_no = %s, confirmed_at = now()
+            WHERE id = %s
+            RETURNING *
+            """,
+            (new_status, next_purchase_no(cur, today), purchase_id),
         )
         updated = cur.fetchone()
         write_audit(
@@ -473,7 +517,9 @@ def confirm_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
 
     return {
         "purchase_id": purchase_id,
+        "purchase_no": updated["purchase_no"],
         "status": new_status,
+        "confirmed_at": updated["confirmed_at"],
         "lots": [
             {
                 "id": lot["id"],
@@ -486,3 +532,27 @@ def confirm_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
         ],
         "discrepancies": discrepancies,
     }
+
+
+def _is_purchase_no_clash(exc: UniqueViolation) -> bool:
+    return getattr(exc.diag, "constraint_name", None) == PURCHASE_NO_UNIQUE_CONSTRAINT
+
+
+def confirm_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
+    """Two people can confirm different purchases at the same instant and read
+    the same running number; the unique index rejects the loser and the whole
+    confirm replays rather than committing without a number."""
+    for attempt in range(1, MAX_PURCHASE_NO_ATTEMPTS + 1):
+        try:
+            return _confirm_purchase_once(purchase_id, actor_id)
+        except UniqueViolation as exc:
+            if not _is_purchase_no_clash(exc):
+                raise
+            if attempt == MAX_PURCHASE_NO_ATTEMPTS:
+                raise AppError(
+                    "INVALID_STATE",
+                    "ออกเลขที่ใบรับสินค้าไม่สำเร็จ กรุณาลองใหม่อีกครั้ง",
+                    409,
+                    {"attempts": attempt},
+                ) from None
+    raise RuntimeError("unreachable")
