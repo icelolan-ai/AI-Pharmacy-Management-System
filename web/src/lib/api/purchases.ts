@@ -98,16 +98,29 @@ export type ConfirmResult = {
 
 export function listPurchases({
   status,
+  supplierId,
+  dateFrom,
+  dateTo,
   limit = 50,
   offset = 0,
   signal,
 }: {
   status?: PurchaseStatus;
+  supplierId?: string | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
   limit?: number;
   offset?: number;
   signal?: AbortSignal;
 } = {}): Promise<Page<PurchaseSummary>> {
-  const query = buildQuery({ status, limit, offset });
+  const query = buildQuery({
+    status,
+    supplier_id: supplierId,
+    date_from: dateFrom,
+    date_to: dateTo,
+    limit,
+    offset,
+  });
   return apiFetch<Page<PurchaseSummary>>(`/api/v1/purchases${query}`, { signal, cache: "no-store" });
 }
 

@@ -1133,8 +1133,9 @@ GET /reports/inventory-value     → กล่องล่าง 3 กล่อ�
 ```ts
 export interface AuditLog {                      // GET /audit-logs
   id: string; created_at: string;
-  user_name: string;
-  action: string;                   // 'INSERT' | 'UPDATE' | 'DELETE' ฯลฯ
+  changed_by: string | null;        // ★ UUID ของผู้แก้
+  changed_by_name: string | null;   // ★ ชื่อจริงใน API (ไม่ใช่ user_name)
+  action: string;                   // ★ ตัวพิมพ์เล็ก: 'insert' | 'update' | 'delete'
   table_name: string;               // 'medicines' | 'medicine_lots' | 'purchases' | 'store_profile' ...
   record_id: string;                // UUID
   old_value: Record<string, unknown> | null;
@@ -1153,7 +1154,7 @@ export const TABLE_LABEL_TH: Record<string, string> = {
   suppliers: 'ผู้จำหน่าย', store_profile: 'ข้อมูลร้าน', user_profiles: 'ผู้ใช้งาน',
 };
 export const ACTION_LABEL_TH: Record<string, string> = {
-  INSERT: 'เพิ่ม', UPDATE: 'แก้ไข', DELETE: 'ลบ',
+  insert: 'เพิ่ม', update: 'แก้ไข', delete: 'ลบ',   // ★ API ส่งตัวพิมพ์เล็ก
 };
 /** ดึงชื่อที่อ่านออกจาก new_value/old_value ตามลำดับความสำคัญของแต่ละตาราง */
 export function entityLabelFrom(log: AuditLog): string;
@@ -1178,6 +1179,8 @@ export function entityLabelFrom(log: AuditLog): string;
 - **ประวัติการรับสินค้า:** ป้าย ⚠️ ในแถวที่ `status === 'discrepancy'` · ตัวกรองสถานะมี 3 ค่า (ร่าง / ยืนยันแล้ว / จำนวนไม่ตรง) · ข้อความ `ใบรับสินค้าที่ยืนยันแล้วดูได้อย่างเดียว แก้ไขไม่ได้`
 - **Audit:** ตัวกรอง วันที่ / ผู้ใช้ / ตาราง · แสดง **ค่าเดิม → ค่าใหม่ คู่กันในแถวเดียว** (เทียบเฉพาะฟิลด์ที่เปลี่ยน) · ชื่อรายการมาจาก `entityLabelFrom()`
 - ทุกหน้าแบ่งหน้า 25 · วันที่และตัวกรองเป็น พ.ศ.
+- **ไม่มี `summary` ใน list endpoint ใด ๆ** — ยอดรวมข้ามหน้าจึงแสดงไม่ได้ ใช้ได้แค่ `total` (จำนวนรายการ) ที่ API ส่งมา
+- ตัวกรอง **ผู้ใช้** ของ `/audit` ยังใช้ไม่ได้: API รับ `changed_by` เป็น UUID ต้องรอรายชื่อผู้ใช้จากงาน 5.8ก
 
 ## เกณฑ์ทดสอบด้วยมือ (5.7)
 

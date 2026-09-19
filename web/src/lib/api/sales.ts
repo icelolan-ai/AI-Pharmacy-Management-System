@@ -1,4 +1,4 @@
-import { apiFetch } from "@/lib/api/client";
+import { apiFetch, buildQuery, type Page } from "@/lib/api/client";
 import { addMoney } from "@/lib/format/money";
 
 /** One allocation the FEFO planner would cut, in the order it would cut it.
@@ -106,6 +106,33 @@ export function createSale(input: SaleCreateInput): Promise<Sale> {
     method: "POST",
     body: JSON.stringify(input),
   });
+}
+
+/** GET /sales — the list carries no items, only the header of each bill. */
+export type SaleSummary = {
+  id: string;
+  sale_no: string;
+  sale_date: string;
+  discount_amount: string;
+  tax_amount: string;
+  total_amount: string;
+};
+
+export function listSales({
+  dateFrom,
+  dateTo,
+  limit = 25,
+  offset = 0,
+  signal,
+}: {
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  limit?: number;
+  offset?: number;
+  signal?: AbortSignal;
+} = {}): Promise<Page<SaleSummary>> {
+  const query = buildQuery({ date_from: dateFrom, date_to: dateTo, limit, offset });
+  return apiFetch<Page<SaleSummary>>(`/api/v1/sales${query}`, { signal, cache: "no-store" });
 }
 
 export function getSale(saleId: string, signal?: AbortSignal): Promise<Sale> {
