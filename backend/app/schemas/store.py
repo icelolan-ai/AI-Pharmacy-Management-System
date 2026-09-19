@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.schemas.common import blank_to_none
 
-_TEXT_FIELDS = ("name", "address", "phone", "license_no", "tax_id")
+_TEXT_FIELDS = ("name", "owner_name", "address", "phone", "license_no", "tax_id")
 
 
 class StoreProfileUpdate(BaseModel):
@@ -16,6 +16,8 @@ class StoreProfileUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     name: Annotated[str, Field(min_length=1)] | None = None
+    # D31: free text — several owners go in this one field (กฎข้อ 66).
+    owner_name: str | None = None
     address: str | None = None
     phone: str | None = None
     license_no: str | None = None
@@ -39,6 +41,7 @@ class StoreProfileOut(BaseModel):
 
     id: UUID | None
     name: str | None
+    owner_name: str | None
     address: str | None
     phone: str | None
     license_no: str | None

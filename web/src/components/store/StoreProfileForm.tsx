@@ -16,18 +16,27 @@ import { useUnsavedChangesWarning } from "@/lib/use-unsaved-changes-warning";
 
 type FormState = {
   name: string;
+  owner_name: string;
   address: string;
   phone: string;
   license_no: string;
   tax_id: string;
 };
 
-const EMPTY: FormState = { name: "", address: "", phone: "", license_no: "", tax_id: "" };
+const EMPTY: FormState = {
+  name: "",
+  owner_name: "",
+  address: "",
+  phone: "",
+  license_no: "",
+  tax_id: "",
+};
 
 function fromProfile(profile: StoreProfile | null): FormState {
   if (!profile) return EMPTY;
   return {
     name: profile.name ?? "",
+    owner_name: profile.owner_name ?? "",
     address: profile.address ?? "",
     phone: profile.phone ?? "",
     license_no: profile.license_no ?? "",
@@ -40,7 +49,7 @@ function changedFields(form: FormState, profile: StoreProfile | null): StoreProf
   const saved = fromProfile(profile);
   const payload: StoreProfilePayload = {};
   if (form.name.trim() !== saved.name) payload.name = form.name.trim();
-  for (const key of ["address", "phone", "license_no", "tax_id"] as const) {
+  for (const key of ["owner_name", "address", "phone", "license_no", "tax_id"] as const) {
     const value = form[key].trim();
     if (value !== saved[key]) payload[key] = value || null;
   }
@@ -124,6 +133,11 @@ export function StoreProfileForm({
     hint?: string;
     required?: boolean;
   }[] = [
+    {
+      key: "owner_name",
+      label: "ชื่อเจ้าของร้าน",
+      hint: "มีหลายคนได้ — พิมพ์รวมในช่องเดียว เช่น คั่นด้วย และ",
+    },
     { key: "phone", label: "เบอร์โทร", required: true },
     {
       key: "license_no",

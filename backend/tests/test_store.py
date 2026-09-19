@@ -20,6 +20,7 @@ def store_row(**overrides):
     row = {
         "id": STORE_ID,
         "name": "ร้านยาสุขภาพดี",
+        "owner_name": "ทดสอบ หนึ่ง และ ทดสอบ สอง",
         "address": "123 ถนนสุขุมวิท กรุงเทพฯ",
         "phone": "021234567",
         "license_no": "ขย.1/2569",
@@ -98,6 +99,7 @@ def test_get_returns_200_with_null_fields_when_never_saved(client, monkeypatch):
     assert set(body) == {
         "id",
         "name",
+        "owner_name",
         "address",
         "phone",
         "license_no",
@@ -244,3 +246,51 @@ def test_get_joins_the_editor_name(monkeypatch):
     monkeypatch.setattr(db, "get_transaction", fake_transaction(cursor))
     assert store_service.get_store_profile()["updated_by_name"] == "ice boonak"
     assert cursor.writes() == []
+
+
+# --- D31: ชื่อเจ้าของร้าน ------------------------------------------------------------------------
+
+
+def test_owner_name_is_free_text_for_several_owners(client, monkeypatch):
+    """One field holds every owner — no owner_1 / owner_2 and no extra table."""
+    login_as("owner")
+    captured = {}
+
+    def fake_update(data, actor_id):
+        captured["owner_name"] = data.owner_name
+        return store_out_row(owner_name=data.owner_name)
+
+    monkeypatch.setattr(store_service, "update_store_profile", fake_update)
+    resp = client.patch(
+        "/api/v1/store", json={"owner_name": "  ทดสอบ หนึ่ง และ ทดสอบ สอง  "}
+    )
+    assert resp.status_code == 200, resp.text
+    assert captured["owner_name"] == "ทดสอบ หนึ่ง และ ทดสอบ สอง"
+    assert resp.json()["owner_name"] == "ทดสอบ หนึ่ง และ ทดสอบ สอง"
+
+
+def test_owner_name_may_be_cleared(client, monkeypatch):
+    """Unlike name, this one is optional and can be emptied again."""
+    login_as("owner")
+    monkeypatch.setattr(
+        store_service, "update_store_profile", lambda data, actor: store_out_row(owner_name=None)
+    )
+    assert client.patch("/api/v1/store", json={"owner_name": ""}).status_code == 200
+
+
+def test_owner_name_is_written_like_any_other_column(monkeypatch):
+    inserted = store_row(owner_name="ทดสอบ หนึ่ง")
+    cursor = MatchCursor([
+        ("INSERT INTO public.store_profile", inserted),
+        ("LEFT JOIN public.user_profiles", store_out_row(owner_name="ทดสอบ หนึ่ง")),
+        ("audit_logs", None),
+        ("store_profile", None),
+    ])
+    monkeypatch.setattr(db, "get_transaction", fake_transaction(cursor))
+
+    store_service.update_store_profile(
+        StoreProfileUpdate(name="ร้านทดสอบ", owner_name="ทดสอบ หนึ่ง"), ACTOR_ID
+    )
+    insert_sql, params = cursor.queries("INSERT INTO public.store_profile")[0]
+    assert '"owner_name"' in insert_sql
+    assert "ทดสอบ หนึ่ง" in params

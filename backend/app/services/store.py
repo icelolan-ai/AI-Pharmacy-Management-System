@@ -18,7 +18,7 @@ from app.schemas.store import StoreProfileUpdate
 TABLE_NAME = "store_profile"
 
 # Whitelisted writable columns (used as sql.Identifier, never raw strings).
-COLUMNS = ("name", "address", "phone", "license_no", "tax_id")
+COLUMNS = ("name", "owner_name", "address", "phone", "license_no", "tax_id")
 
 OUT_FIELDS = ("id", *COLUMNS, "updated_at", "updated_by", "updated_by_name")
 
@@ -27,7 +27,7 @@ OUT_FIELDS = ("id", *COLUMNS, "updated_at", "updated_by", "updated_by_name")
 _WRITE_LOCK_KEY = 5_005
 
 _SELECT_SQL = """
-    SELECT s.id, s.name, s.address, s.phone, s.license_no, s.tax_id,
+    SELECT s.id, s.name, s.owner_name, s.address, s.phone, s.license_no, s.tax_id,
            s.updated_at, s.updated_by, p.full_name AS updated_by_name
     FROM public.store_profile s
     LEFT JOIN public.user_profiles p ON p.id = s.updated_by

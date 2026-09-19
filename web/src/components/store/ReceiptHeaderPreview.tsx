@@ -4,7 +4,7 @@ import type { StoreProfile } from "@/lib/api/store";
 /** Fields the receipt header prints, in the order it prints them. */
 export type ReceiptHeader = Pick<
   StoreProfile,
-  "name" | "address" | "phone" | "license_no" | "tax_id"
+  "name" | "owner_name" | "address" | "phone" | "license_no"
 >;
 
 const PLACEHOLDER = "— ยังไม่ได้กรอก —";
@@ -15,8 +15,8 @@ export function ReceiptHeaderPreview({ store }: { store: ReceiptHeader }) {
   const lines: { label: string; value: string | null }[] = [
     { label: "ที่อยู่", value: store.address },
     { label: "โทร.", value: store.phone },
+    { label: "โดย", value: store.owner_name },
     { label: "เลขที่ใบอนุญาต", value: store.license_no },
-    { label: "เลขประจำตัวผู้เสียภาษี", value: store.tax_id },
   ];
 
   return (
@@ -43,7 +43,8 @@ export function ReceiptHeaderPreview({ store }: { store: ReceiptHeader }) {
           </div>
         </div>
         <p className="mt-2 text-xs text-slate-500">
-          ช่องที่เว้นว่างไว้จะไม่ถูกพิมพ์บนใบเสร็จ
+          ช่องที่เว้นว่างไว้จะไม่ถูกพิมพ์บนใบเสร็จ · เลขประจำตัวผู้เสียภาษีเก็บไว้ในระบบ
+          แต่ยังไม่พิมพ์บนใบเสร็จใน Phase 5
         </p>
       </CardContent>
     </Card>

@@ -2592,6 +2592,17 @@
             ],
             "title": "Name"
           },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
           "phone": {
             "anyOf": [
               {
@@ -2653,6 +2664,7 @@
         "required": [
           "id",
           "name",
+          "owner_name",
           "address",
           "phone",
           "license_no",
@@ -2700,6 +2712,17 @@
               }
             ],
             "title": "Name"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
           },
           "phone": {
             "anyOf": [

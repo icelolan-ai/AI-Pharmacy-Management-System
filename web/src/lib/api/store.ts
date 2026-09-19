@@ -5,6 +5,8 @@ import { apiFetch } from "@/lib/api/client";
 export type StoreProfile = {
   id: string | null;
   name: string | null;
+  /** D31 — free text; several owners share this one field. */
+  owner_name: string | null;
   address: string | null;
   phone: string | null;
   license_no: string | null;
@@ -18,6 +20,7 @@ export type StoreProfile = {
  *  `name` may be changed but never cleared. */
 export type StoreProfilePayload = {
   name?: string;
+  owner_name?: string | null;
   address?: string | null;
   phone?: string | null;
   license_no?: string | null;

@@ -32,10 +32,15 @@ export function SaleReceipt({
           <p className="shop-name">{store?.name}</p>
           {store?.address ? <p className="shop-line">{store.address}</p> : null}
           {store?.phone ? <p className="shop-line">โทร. {store.phone}</p> : null}
+          {store?.owner_name ? (
+            <p className="shop-small">โดย {store.owner_name}</p>
+          ) : null}
           {store?.license_no ? (
             <p className="shop-small">เลขที่ใบอนุญาต {store.license_no}</p>
           ) : null}
-          {store?.tax_id ? <p className="shop-small">เลขประจำตัวผู้เสียภาษี {store.tax_id}</p> : null}
+          {/* D31: tax_id is stored but NOT printed in Phase 5 — this document is
+              not a tax document, and showing the number would imply it is.
+              Waiting on Chat A to confirm the shop's registration status. */}
         </header>
       ) : null}
 
