@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
@@ -13,10 +13,10 @@ import { SkeletonTable } from "@/components/common/SkeletonTable";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ApiError } from "@/lib/api/client";
 import { getSale, groupSaleItems, type Sale, type SaleLine } from "@/lib/api/sales";
 import { ABILITIES, can } from "@/lib/abilities";
 import { formatDateTimeBE, formatExpiryBE } from "@/lib/format/date";
+import { useSection } from "@/lib/use-section";
 
 /** One bill, read only. Reprinting goes through the existing print route with
  *  ?copy=1 — there is no second receipt page to keep in step. */
@@ -27,26 +27,12 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
   const allowed = can(me?.role, ABILITIES.viewReports);
   const canSeeValue = can(me?.role, ABILITIES.viewCost);
 
-  const [sale, setSale] = useState<Sale | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setSale(await getSale(id));
-    } catch (loadError) {
-      setSale(null);
-      setError(loadError instanceof ApiError ? loadError.message : "โหลดรายละเอียดบิลไม่สำเร็จ");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (allowed) void load();
-  }, [allowed, load]);
+  const saleSection = useSection((signal) => getSale(id, signal), {
+    enabled: allowed,
+    errorMessage: "โหลดรายละเอียดบิลไม่สำเร็จ",
+    deps: [id],
+  });
+  const sale = saleSection.data;
 
   if (me && !allowed) {
     return (
@@ -129,9 +115,15 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
         </AlertDescription>
       </Alert>
 
-      {error ? <ErrorState message={error} onRetry={() => void load()} retrying={loading} /> : null}
+      {saleSection.error ? (
+        <ErrorState
+          message={saleSection.error}
+          onRetry={saleSection.reload}
+          retrying={saleSection.loading}
+        />
+      ) : null}
 
-      {loading ? (
+      {saleSection.loading ? (
         <SkeletonTable rows={4} columns={canSeeValue ? 4 : 2} />
       ) : sale ? (
         <>

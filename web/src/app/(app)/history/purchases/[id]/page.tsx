@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
@@ -16,7 +16,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ApiError } from "@/lib/api/client";
 import {
   getPurchase,
   hasMismatch,
@@ -27,6 +26,7 @@ import {
 } from "@/lib/api/purchases";
 import { ABILITIES, can } from "@/lib/abilities";
 import { formatDateBE, formatDateTimeBE } from "@/lib/format/date";
+import { useSection } from "@/lib/use-section";
 
 /** One goods-received note, read only. Printing reuses /print/purchase/[id]. */
 export default function PurchaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -37,26 +37,12 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
   // D32: staff never sees cost here — the whole column is dropped.
   const canSeeCost = can(me?.role, ABILITIES.viewCost);
 
-  const [purchase, setPurchase] = useState<Purchase | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setPurchase(await getPurchase(id));
-    } catch (loadError) {
-      setPurchase(null);
-      setError(loadError instanceof ApiError ? loadError.message : "โหลดใบรับสินค้าไม่สำเร็จ");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (allowed) void load();
-  }, [allowed, load]);
+  const purchaseSection = useSection((signal) => getPurchase(id, signal), {
+    enabled: allowed,
+    errorMessage: "โหลดใบรับสินค้าไม่สำเร็จ",
+    deps: [id],
+  });
+  const purchase = purchaseSection.data;
 
   if (me && !allowed) {
     return (
@@ -156,9 +142,15 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
         <AlertDescription>ใบรับสินค้าที่ยืนยันแล้วดูได้อย่างเดียว แก้ไขไม่ได้</AlertDescription>
       </Alert>
 
-      {error ? <ErrorState message={error} onRetry={() => void load()} retrying={loading} /> : null}
+      {purchaseSection.error ? (
+        <ErrorState
+          message={purchaseSection.error}
+          onRetry={purchaseSection.reload}
+          retrying={purchaseSection.loading}
+        />
+      ) : null}
 
-      {loading ? (
+      {purchaseSection.loading ? (
         <SkeletonTable rows={4} columns={canSeeCost ? 6 : 4} />
       ) : purchase ? (
         <>

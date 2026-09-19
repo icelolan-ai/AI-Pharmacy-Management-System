@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
@@ -16,10 +16,10 @@ import { SkeletonTable } from "@/components/common/SkeletonTable";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ApiError, isAbortError, type Page } from "@/lib/api/client";
 import { listPurchases, type PurchaseStatus, type PurchaseSummary } from "@/lib/api/purchases";
 import { ABILITIES, can } from "@/lib/abilities";
 import { formatDateBE } from "@/lib/format/date";
+import { useSection } from "@/lib/use-section";
 
 const PAGE_SIZE = 25;
 
@@ -47,44 +47,24 @@ export default function PurchaseHistoryPage() {
   const [range, setRange] = useState<DateRange>(() => lastDays(30));
   const [status, setStatus] = useState<PurchaseStatus | "all">("all");
   const [offset, setOffset] = useState(0);
-  const [data, setData] = useState<Page<PurchaseSummary> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(
-    async (signal: AbortSignal) => {
-      setLoading(true);
-      setError(null);
-      try {
-        // Status and dates are filtered by the API, never in the browser.
-        const page = await listPurchases({
-          status: status === "all" ? undefined : status,
-          dateFrom: range.from,
-          dateTo: range.to,
-          limit: PAGE_SIZE,
-          offset,
-          signal,
-        });
-        if (!signal.aborted) setData(page);
-      } catch (loadError) {
-        if (isAbortError(loadError) || signal.aborted) return;
-        setData(null);
-        setError(
-          loadError instanceof ApiError ? loadError.message : "โหลดประวัติการรับสินค้าไม่สำเร็จ",
-        );
-      } finally {
-        if (!signal.aborted) setLoading(false);
-      }
+  // Status and dates are filtered by the API, never in the browser.
+  const purchases = useSection(
+    (signal) =>
+      listPurchases({
+        status: status === "all" ? undefined : status,
+        dateFrom: range.from,
+        dateTo: range.to,
+        limit: PAGE_SIZE,
+        offset,
+        signal,
+      }),
+    {
+      enabled: allowed,
+      errorMessage: "โหลดประวัติการรับสินค้าไม่สำเร็จ",
+      deps: [status, range.from, range.to, offset],
     },
-    [status, range.from, range.to, offset],
   );
-
-  useEffect(() => {
-    if (!allowed) return;
-    const controller = new AbortController();
-    void load(controller.signal);
-    return () => controller.abort();
-  }, [allowed, load]);
 
   if (me && !allowed) {
     return (
@@ -95,7 +75,7 @@ export default function PurchaseHistoryPage() {
     );
   }
 
-  const rows = data?.items ?? [];
+  const rows = purchases.data?.items ?? [];
 
   const columns: Column<PurchaseSummary>[] = [
     {
@@ -149,7 +129,7 @@ export default function PurchaseHistoryPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <DateRangeFilter
           value={range}
-          busy={loading}
+          busy={purchases.loading}
           onChange={(next) => {
             setRange(next);
             setOffset(0);
@@ -174,18 +154,11 @@ export default function PurchaseHistoryPage() {
         </div>
       </div>
 
-      {error ? (
-        <ErrorState
-          message={error}
-          onRetry={() => {
-            const controller = new AbortController();
-            void load(controller.signal);
-          }}
-          retrying={loading}
-        />
+      {purchases.error ? (
+        <ErrorState message={purchases.error} onRetry={purchases.reload} retrying={purchases.loading} />
       ) : null}
 
-      {loading ? (
+      {purchases.loading ? (
         <SkeletonTable rows={6} columns={canSeeCost ? 6 : 5} />
       ) : rows.length === 0 ? (
         <EmptyState title="ไม่มีใบรับสินค้าในเงื่อนไขที่เลือก" />
@@ -199,11 +172,11 @@ export default function PurchaseHistoryPage() {
             caption="ประวัติการรับสินค้า"
           />
           <Pagination
-            total={data?.total ?? 0}
+            total={purchases.data?.total ?? 0}
             limit={PAGE_SIZE}
             offset={offset}
             onOffsetChange={setOffset}
-            busy={loading}
+            busy={purchases.loading}
           />
         </>
       )}

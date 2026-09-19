@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 
 import { useAuth } from "@/components/auth-provider";
 import { AccessDenied } from "@/components/common/AccessDenied";
@@ -12,7 +12,6 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Pagination } from "@/components/common/Pagination";
 import { SkeletonTable } from "@/components/common/SkeletonTable";
 import { Label } from "@/components/ui/label";
-import { ApiError, isAbortError, type Page } from "@/lib/api/client";
 import { listAuditLogs, type AuditLog } from "@/lib/api/audit";
 import { ABILITIES, can } from "@/lib/abilities";
 import {
@@ -24,6 +23,7 @@ import {
   tableLabel,
 } from "@/lib/constants";
 import { formatDateTimeBE } from "@/lib/format/date";
+import { useSection } from "@/lib/use-section";
 
 const PAGE_SIZE = 25;
 
@@ -36,43 +36,23 @@ export default function AuditPage() {
   const [range, setRange] = useState<DateRange>(() => lastDays(7));
   const [table, setTable] = useState("");
   const [offset, setOffset] = useState(0);
-  const [data, setData] = useState<Page<AuditLog> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(
-    async (signal: AbortSignal) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const page = await listAuditLogs({
-          tableName: table || undefined,
-          dateFrom: range.from,
-          dateTo: range.to,
-          limit: PAGE_SIZE,
-          offset,
-          signal,
-        });
-        if (!signal.aborted) setData(page);
-      } catch (loadError) {
-        if (isAbortError(loadError) || signal.aborted) return;
-        setData(null);
-        setError(
-          loadError instanceof ApiError ? loadError.message : "โหลดประวัติการแก้ไขไม่สำเร็จ",
-        );
-      } finally {
-        if (!signal.aborted) setLoading(false);
-      }
+  const logs = useSection(
+    (signal) =>
+      listAuditLogs({
+        tableName: table || undefined,
+        dateFrom: range.from,
+        dateTo: range.to,
+        limit: PAGE_SIZE,
+        offset,
+        signal,
+      }),
+    {
+      enabled: allowed,
+      errorMessage: "โหลดประวัติการแก้ไขไม่สำเร็จ",
+      deps: [table, range.from, range.to, offset],
     },
-    [table, range.from, range.to, offset],
   );
-
-  useEffect(() => {
-    if (!allowed) return;
-    const controller = new AbortController();
-    void load(controller.signal);
-    return () => controller.abort();
-  }, [allowed, load]);
 
   if (me && !allowed) {
     return (
@@ -83,7 +63,7 @@ export default function AuditPage() {
     );
   }
 
-  const rows = data?.items ?? [];
+  const rows = logs.data?.items ?? [];
 
   const columns: Column<AuditLog>[] = [
     {
@@ -149,7 +129,7 @@ export default function AuditPage() {
       <div className="flex flex-wrap items-end gap-3">
         <DateRangeFilter
           value={range}
-          busy={loading}
+          busy={logs.loading}
           onChange={(next) => {
             setRange(next);
             setOffset(0);
@@ -162,7 +142,7 @@ export default function AuditPage() {
           <select
             id="audit-table"
             value={table}
-            disabled={loading}
+            disabled={logs.loading}
             onChange={(event) => {
               setTable(event.target.value);
               setOffset(0);
@@ -179,18 +159,11 @@ export default function AuditPage() {
         </div>
       </div>
 
-      {error ? (
-        <ErrorState
-          message={error}
-          onRetry={() => {
-            const controller = new AbortController();
-            void load(controller.signal);
-          }}
-          retrying={loading}
-        />
+      {logs.error ? (
+        <ErrorState message={logs.error} onRetry={logs.reload} retrying={logs.loading} />
       ) : null}
 
-      {loading ? (
+      {logs.loading ? (
         <SkeletonTable rows={8} columns={5} />
       ) : rows.length === 0 ? (
         <EmptyState title="ไม่มีการแก้ไขในช่วงวันที่ที่เลือก" />
@@ -198,11 +171,11 @@ export default function AuditPage() {
         <>
           <DataTable columns={columns} rows={rows} rowKey={(log) => log.id} caption="ประวัติการแก้ไข" />
           <Pagination
-            total={data?.total ?? 0}
+            total={logs.data?.total ?? 0}
             limit={PAGE_SIZE}
             offset={offset}
             onOffsetChange={setOffset}
-            busy={loading}
+            busy={logs.loading}
           />
         </>
       )}

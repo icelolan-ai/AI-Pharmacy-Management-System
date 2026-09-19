@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -15,10 +15,11 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Pagination } from "@/components/common/Pagination";
 import { SkeletonTable } from "@/components/common/SkeletonTable";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { ApiError, isAbortError, type Page } from "@/lib/api/client";
+
 import { listSales, type SaleSummary } from "@/lib/api/sales";
 import { ABILITIES, can } from "@/lib/abilities";
 import { formatDateTimeBE } from "@/lib/format/date";
+import { useSection } from "@/lib/use-section";
 
 const PAGE_SIZE = 25;
 
@@ -33,41 +34,17 @@ export default function SalesHistoryPage() {
 
   const [range, setRange] = useState<DateRange>(() => lastDays(1)); // today
   const [offset, setOffset] = useState(0);
-  const [data, setData] = useState<Page<SaleSummary> | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
 
-  const load = useCallback(
-    async (signal: AbortSignal) => {
-      setLoading(true);
-      setError(null);
-      try {
-        // The API does the filtering and the counting; the browser never does.
-        const page = await listSales({
-          dateFrom: range.from,
-          dateTo: range.to,
-          limit: PAGE_SIZE,
-          offset,
-          signal,
-        });
-        if (!signal.aborted) setData(page);
-      } catch (loadError) {
-        if (isAbortError(loadError) || signal.aborted) return;
-        setData(null);
-        setError(loadError instanceof ApiError ? loadError.message : "โหลดประวัติการขายไม่สำเร็จ");
-      } finally {
-        if (!signal.aborted) setLoading(false);
-      }
+  // The API does the filtering and the counting; the browser never does.
+  const sales = useSection(
+    (signal) =>
+      listSales({ dateFrom: range.from, dateTo: range.to, limit: PAGE_SIZE, offset, signal }),
+    {
+      enabled: allowed,
+      errorMessage: "โหลดประวัติการขายไม่สำเร็จ",
+      deps: [range.from, range.to, offset],
     },
-    [range.from, range.to, offset],
   );
-
-  useEffect(() => {
-    if (!allowed) return;
-    const controller = new AbortController();
-    void load(controller.signal);
-    return () => controller.abort();
-  }, [allowed, load]);
 
   if (me && !allowed) {
     return (
@@ -78,7 +55,7 @@ export default function SalesHistoryPage() {
     );
   }
 
-  const rows = data?.items ?? [];
+  const rows = sales.data?.items ?? [];
 
   const columns: Column<SaleSummary>[] = [
     {
@@ -119,25 +96,18 @@ export default function SalesHistoryPage() {
 
       <DateRangeFilter
         value={range}
-        busy={loading}
+        busy={sales.loading}
         onChange={(next) => {
           setRange(next);
           setOffset(0);
         }}
       />
 
-      {error ? (
-        <ErrorState
-          message={error}
-          onRetry={() => {
-            const controller = new AbortController();
-            void load(controller.signal);
-          }}
-          retrying={loading}
-        />
+      {sales.error ? (
+        <ErrorState message={sales.error} onRetry={sales.reload} retrying={sales.loading} />
       ) : null}
 
-      {loading ? (
+      {sales.loading ? (
         <SkeletonTable rows={6} columns={canSeeValue ? 3 : 2} />
       ) : rows.length === 0 ? (
         <EmptyState title="ไม่มีการขายในช่วงวันที่ที่เลือก" />
@@ -151,11 +121,11 @@ export default function SalesHistoryPage() {
             caption="ประวัติการขาย"
           />
           <Pagination
-            total={data?.total ?? 0}
+            total={sales.data?.total ?? 0}
             limit={PAGE_SIZE}
             offset={offset}
             onOffsetChange={setOffset}
-            busy={loading}
+            busy={sales.loading}
           />
         </>
       )}
