@@ -23,13 +23,16 @@ import { useSellCart } from "@/lib/hooks/use-sell-cart";
 const SEARCH_DEBOUNCE_MS = 250;
 const SLOW_SAVE_MS = 5000;
 
+/** Stable empty list, so an empty search box does not make a new array each render. */
+const EMPTY_RESULTS: SearchResult[] = [];
+
 export default function SellPage() {
   const { me } = useAuth();
   const canSeePrice = can(me?.role, ABILITIES.viewCost);
 
   const cart = useSellCart();
   const [term, setTerm] = useState("");
-  const [results, setResults] = useState<SearchResult[]>([]);
+  const [fetched, setFetched] = useState<SearchResult[]>([]);
   const [highlight, setHighlight] = useState(0);
   const [searching, setSearching] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
@@ -67,11 +70,11 @@ export default function SellPage() {
     try {
       const page = await listMedicines({ q: text, limit: 20, signal: controller.signal });
       if (controller.signal.aborted) return;
-      setResults(page.items.map(toSearchResult));
+      setFetched(page.items.map(toSearchResult));
       setHighlight(0);
     } catch (error) {
       if (isAbortError(error) || controller.signal.aborted) return;
-      setResults([]);
+      setFetched([]);
       setSearchError(error instanceof ApiError ? error.message : "ค้นหายาไม่สำเร็จ");
     } finally {
       if (!controller.signal.aborted) setSearching(false);
@@ -80,13 +83,13 @@ export default function SellPage() {
 
   useEffect(() => {
     const text = term.trim();
-    if (text === "") {
-      setResults([]);
-      return;
-    }
+    if (text === "") return;
     const timer = setTimeout(() => void runSearch(text), SEARCH_DEBOUNCE_MS);
     return () => clearTimeout(timer);
   }, [term, runSearch]);
+
+  // An empty box shows nothing — derived, so clearing it costs no extra render.
+  const results = term.trim() === "" ? EMPTY_RESULTS : fetched;
 
   // Rule 6: in stock first, then by name.
   const sortedResults = useMemo(() => {
@@ -115,7 +118,7 @@ export default function SellPage() {
     setSaveError(null);
     cart.addMedicine(medicine, quantity);
     setTerm("");
-    setResults([]);
+    setFetched([]);
     focusSearch();
   }
 
@@ -141,7 +144,7 @@ export default function SellPage() {
 
     await runSearch(text);
     // Rule 3: only an unambiguous single hit may be taken automatically.
-    setResults((current) => {
+    setFetched((current) => {
       if (current.length === 1 && current[0].sellable && looksLikeBarcode(text)) {
         addToCart(current[0], 1);
         return [];

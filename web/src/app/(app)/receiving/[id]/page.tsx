@@ -31,6 +31,9 @@ import { isValidMoney, multiplyMoney, normalizeMoneyInput, sumMoney } from "@/li
 import { usePurchaseDraft } from "@/lib/hooks/use-purchase-draft";
 import { useUnsavedChangesWarning } from "@/lib/use-unsaved-changes-warning";
 
+/** Stable empty list for an empty search box. */
+const EMPTY_MEDICINES: Medicine[] = [];
+
 let keyCounter = 0;
 const nextKey = () => `item-${(keyCounter += 1)}`;
 
@@ -43,7 +46,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
 
   const [purchaseId, setPurchaseId] = useState<string | null>(isNew ? null : id);
   const [step, setStep] = useState<1 | 2>(1);
-  const [loading, setLoading] = useState(!isNew);
+  const [loaded, setLoaded] = useState(isNew);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [locked, setLocked] = useState(false); // already confirmed: read only
 
@@ -54,7 +57,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
   const [items, setItems] = useState<DraftItem[]>([]);
 
   const [term, setTerm] = useState("");
-  const [results, setResults] = useState<Medicine[]>([]);
+  const [fetched, setFetched] = useState<Medicine[]>([]);
   const [confirming, setConfirming] = useState(false);
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [result, setResult] = useState<ConfirmResult | null>(null);
@@ -104,7 +107,6 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
   useEffect(() => {
     if (isNew) return;
     let active = true;
-    setLoading(true);
     getPurchase(id)
       .then((purchase) => {
         if (!active) return;
@@ -132,7 +134,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
         setLoadError(error instanceof ApiError ? error.message : "โหลดใบรับสินค้าไม่สำเร็จ");
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) setLoaded(true);
       });
     return () => {
       active = false;
@@ -148,18 +150,18 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
   }, []);
 
   useEffect(() => {
-    if (term.trim() === "") {
-      setResults([]);
-      return;
-    }
+    if (term.trim() === "") return;
     const controller = new AbortController();
     listMedicines({ q: term, limit: 10, signal: controller.signal })
-      .then((page) => setResults(page.items))
+      .then((page) => setFetched(page.items))
       .catch((error: unknown) => {
-        if (!isAbortError(error)) setResults([]);
+        if (!isAbortError(error)) setFetched([]);
       });
     return () => controller.abort();
   }, [term]);
+
+  // An empty box shows nothing — derived rather than cleared in an effect.
+  const results = term.trim() === "" ? EMPTY_MEDICINES : fetched;
 
   function addMedicine(medicine: Medicine) {
     setItems((current) => [
@@ -178,7 +180,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
       },
     ]);
     setTerm("");
-    setResults([]);
+    setFetched([]);
   }
 
   // Ctrl+S writes the draft immediately instead of waiting out the debounce.
@@ -296,7 +298,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
         </div>
       ) : null}
 
-      {loading ? (
+      {!loaded ? (
         <p className="text-sm text-slate-500">กำลังโหลด...</p>
       ) : step === 2 ? (
         <ReviewStep
