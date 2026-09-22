@@ -166,9 +166,10 @@ export default function MedicineStockPage({ params }: { params: Promise<{ id: st
         />
       ) : null}
 
-      {canAdjust ? (
+      {/* Mounted only while open: opening is the reset (D23 keeps it on 409). */}
+      {canAdjust && adjustOpen ? (
         <AdjustStockDialog
-          open={adjustOpen}
+          open
           onOpenChange={setAdjustOpen}
           lot={adjustLotValue}
           unit={unit}

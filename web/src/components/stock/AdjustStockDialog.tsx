@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { ErrorState } from "@/components/common/ErrorState";
 import { QtyText } from "@/components/common/QtyText";
@@ -49,22 +49,16 @@ export function AdjustStockDialog({
   unit: string;
   onAdjusted: () => void;
 }) {
+  // Mounted only while open (see the callers), so these initial values ARE the
+  // reset. Nothing resets them again afterwards — a 409 must leave every typed
+  // field exactly as it was (D23).
   const [current, setCurrent] = useState(lot?.quantity_remaining ?? 0);
-  const [counted, setCounted] = useState("");
+  const [counted, setCounted] = useState(String(lot?.quantity_remaining ?? ""));
   const [reason, setReason] = useState<AdjustmentReason | null>(null);
   const [note, setNote] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (open && lot) {
-      setCurrent(lot.quantity_remaining);
-      setCounted(String(lot.quantity_remaining));
-      setReason(null);
-      setNote("");
-      setError(null);
-    }
-  }, [open, lot]);
 
   const countedValue = parseOptionalInteger(counted);
   const countedValid = isValidOptionalInteger(counted) && countedValue !== null && countedValue >= 0;

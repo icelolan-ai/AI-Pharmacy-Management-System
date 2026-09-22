@@ -152,9 +152,9 @@ export default function ExpiredReportPage() {
         />
       ) : null}
 
-      {canAdjust ? (
+      {canAdjust && adjust.open ? (
         <AdjustStockDialog
-          open={adjust.open}
+          open
           onOpenChange={adjust.setOpen}
           lot={adjust.lot}
           unit={adjust.unit}
