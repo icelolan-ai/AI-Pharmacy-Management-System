@@ -1,34 +1,18 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ApiError, fetchMe, type Me } from "@/lib/api/client";
+import { fetchMe } from "@/lib/api/client";
 import { roleLabel } from "@/lib/roles";
+import { useSection } from "@/lib/use-section";
 
 export default function MePage() {
-  const [me, setMe] = useState<Me | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  async function load() {
-    setLoading(true);
-    setError(null);
-    try {
-      setMe(await fetchMe());
-    } catch (err) {
-      setMe(null);
-      setError(err instanceof ApiError ? err.message : "โหลดข้อมูลไม่สำเร็จ");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    void load();
-  }, []);
+  const profile = useSection((signal) => fetchMe(signal), {
+    errorMessage: "โหลดข้อมูลไม่สำเร็จ",
+  });
+  const me = profile.data;
+  const { error, loading } = profile;
 
   return (
     <div className="space-y-4">
@@ -65,7 +49,7 @@ export default function MePage() {
             </dl>
           ) : null}
 
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
+          <Button variant="outline" size="sm" onClick={profile.reload} disabled={loading}>
             โหลดใหม่
           </Button>
         </CardContent>

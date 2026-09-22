@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
@@ -14,9 +14,9 @@ import { SkeletonTable } from "@/components/common/SkeletonTable";
 import { SupplierFormDialog } from "@/components/suppliers/SupplierFormDialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ApiError, isAbortError } from "@/lib/api/client";
 import { listSuppliers, type Supplier } from "@/lib/api/suppliers";
 import { ABILITIES, can } from "@/lib/abilities";
+import { useSection } from "@/lib/use-section";
 
 export default function SuppliersPage() {
   const router = useRouter();
@@ -24,42 +24,16 @@ export default function SuppliersPage() {
   const allowed = can(me?.role, ABILITIES.viewSuppliers);
 
   const [term, setTerm] = useState("");
-  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async (searchTerm: string) => {
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const page = await listSuppliers({ q: searchTerm, limit: 50, signal: controller.signal });
-      setSuppliers(page.items);
-      setTotal(page.total);
-    } catch (loadError) {
-      if (isAbortError(loadError)) return;
-      setSuppliers([]);
-      setTotal(0);
-      setError(loadError instanceof ApiError ? loadError.message : "โหลดข้อมูลผู้จำหน่ายไม่สำเร็จ");
-    } finally {
-      if (!controller.signal.aborted) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!allowed) {
-      setLoading(false);
-      return;
-    }
-    void load(term);
-    return () => abortRef.current?.abort();
-  }, [term, load, allowed]);
+  const list = useSection((signal) => listSuppliers({ q: term, limit: 50, signal }), {
+    enabled: allowed,
+    errorMessage: "โหลดข้อมูลผู้จำหน่ายไม่สำเร็จ",
+    deps: [term],
+  });
+  const suppliers = list.data?.items ?? [];
+  const total = list.data?.total ?? 0;
+  const { error, loading } = list;
 
   if (me && !allowed) {
     return (
@@ -106,7 +80,7 @@ export default function SuppliersPage() {
         {!loading && !error ? <Badge variant="secondary">ทั้งหมด {total} ราย</Badge> : null}
       </div>
 
-      {error ? <ErrorState message={error} onRetry={() => void load(term)} retrying={loading} /> : null}
+      {error ? <ErrorState message={error} onRetry={list.reload} retrying={loading} /> : null}
 
       {loading ? (
         <SkeletonTable rows={5} columns={4} />
@@ -128,7 +102,7 @@ export default function SuppliersPage() {
       <SupplierFormDialog
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        onSaved={() => void load(term)}
+        onSaved={list.reload}
       />
     </div>
   );

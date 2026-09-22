@@ -1,39 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-
 import { useAuth } from "@/components/auth-provider";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ApiError, fetchHealth } from "@/lib/api/client";
+import { fetchHealth } from "@/lib/api/client";
 import { roleLabel } from "@/lib/roles";
-
-type HealthState =
-  | { kind: "loading" }
-  | { kind: "ok"; database: string }
-  | { kind: "error"; message: string };
+import { useSection } from "@/lib/use-section";
 
 export default function HomePage() {
   const { me, profileError } = useAuth();
-  const [health, setHealth] = useState<HealthState>({ kind: "loading" });
-
-  const checkHealth = useCallback(async () => {
-    setHealth({ kind: "loading" });
-    try {
-      const result = await fetchHealth();
-      setHealth({ kind: "ok", database: result.database });
-    } catch (error) {
-      setHealth({
-        kind: "error",
-        message: error instanceof ApiError ? error.message : "เชื่อมต่อระบบไม่ได้",
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    void checkHealth();
-  }, [checkHealth]);
+  const health = useSection((signal) => fetchHealth(signal), {
+    errorMessage: "เชื่อมต่อระบบไม่ได้",
+  });
 
   return (
     <div className="space-y-4">
@@ -72,18 +51,19 @@ export default function HomePage() {
             <CardDescription>ตรวจการเชื่อมต่อกับเซิร์ฟเวอร์และฐานข้อมูล</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
-            {health.kind === "loading" ? <p className="text-slate-500">กำลังตรวจสอบ...</p> : null}
-            {health.kind === "ok" ? (
+            {health.loading ? <p className="text-slate-500">กำลังตรวจสอบ...</p> : null}
+            {!health.loading && health.data ? (
               <p className="font-medium text-emerald-700">
-                ปกติ · ฐานข้อมูล: {health.database === "ok" ? "เชื่อมต่อได้" : health.database}
+                ปกติ · ฐานข้อมูล:{" "}
+                {health.data.database === "ok" ? "เชื่อมต่อได้" : health.data.database}
               </p>
             ) : null}
-            {health.kind === "error" ? (
+            {health.error ? (
               <Alert variant="destructive" role="alert">
-                <AlertDescription>{health.message}</AlertDescription>
+                <AlertDescription>{health.error}</AlertDescription>
               </Alert>
             ) : null}
-            <Button variant="outline" size="sm" onClick={() => void checkHealth()}>
+            <Button variant="outline" size="sm" onClick={health.reload}>
               ตรวจสอบอีกครั้ง
             </Button>
           </CardContent>

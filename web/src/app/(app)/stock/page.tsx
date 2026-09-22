@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
@@ -13,9 +13,9 @@ import { MedicineFormDialog } from "@/components/medicines/MedicineFormDialog";
 import { StockFilters, type StockFilter } from "@/components/stock/StockFilters";
 import { StockTable } from "@/components/stock/StockTable";
 import { Button } from "@/components/ui/button";
-import { ApiError, isAbortError } from "@/lib/api/client";
 import { isExpiringSoon, isLowStock, listStockReport, type StockRow } from "@/lib/api/reports";
 import { ABILITIES, can } from "@/lib/abilities";
+import { useSection } from "@/lib/use-section";
 
 export default function StockPage() {
   const router = useRouter();
@@ -25,38 +25,15 @@ export default function StockPage() {
 
   const [term, setTerm] = useState("");
   const [filter, setFilter] = useState<StockFilter>("all");
-  const [rows, setRows] = useState<StockRow[]>([]);
-  const [total, setTotal] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const abortRef = useRef<AbortController | null>(null);
 
-  const load = useCallback(async (searchTerm: string) => {
-    abortRef.current?.abort(); // cancel the previous search
-    const controller = new AbortController();
-    abortRef.current = controller;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const page = await listStockReport({ q: searchTerm, signal: controller.signal });
-      setRows(page.items);
-      setTotal(page.total);
-    } catch (loadError) {
-      if (isAbortError(loadError)) return; // a newer search is already running
-      setRows([]);
-      setTotal(0);
-      setError(loadError instanceof ApiError ? loadError.message : "โหลดข้อมูลสต็อกไม่สำเร็จ");
-    } finally {
-      if (!controller.signal.aborted) setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    void load(term);
-    return () => abortRef.current?.abort();
-  }, [term, load]);
+  // useSection aborts the previous request itself when the term changes.
+  const stock = useSection((signal) => listStockReport({ q: term, signal }), {
+    errorMessage: "โหลดข้อมูลสต็อกไม่สำเร็จ",
+    deps: [term],
+  });
+  const rows = stock.data?.items ?? [];
+  const total = stock.data?.total ?? 0;
 
   // Both toggles work on the rows already loaded — no extra request.
   const shown = useMemo(() => {
@@ -84,14 +61,16 @@ export default function StockPage() {
         onFilterChange={setFilter}
         shownCount={shown.length}
         totalCount={total}
-        busy={loading || Boolean(error)}
+        busy={stock.loading || Boolean(stock.error)}
       />
 
-      {error ? <ErrorState message={error} onRetry={() => void load(term)} retrying={loading} /> : null}
+      {stock.error ? (
+        <ErrorState message={stock.error} onRetry={stock.reload} retrying={stock.loading} />
+      ) : null}
 
-      {loading ? (
+      {stock.loading ? (
         <SkeletonTable rows={6} columns={canSeeValue ? 5 : 4} />
-      ) : !error && shown.length === 0 ? (
+      ) : !stock.error && shown.length === 0 ? (
         <EmptyState
           title={
             rows.length > 0
@@ -113,7 +92,7 @@ export default function StockPage() {
             ) : null
           }
         />
-      ) : !error ? (
+      ) : !stock.error ? (
         <StockTable
           rows={shown}
           canSeeValue={canSeeValue}
@@ -127,7 +106,7 @@ export default function StockPage() {
           onOpenChange={setDialogOpen}
           medicine={null}
           canSetPrice={canSeeValue}
-          onSaved={() => void load(term)}
+          onSaved={stock.reload}
         />
       ) : null}
     </div>

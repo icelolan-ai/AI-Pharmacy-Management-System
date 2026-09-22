@@ -1,6 +1,6 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
@@ -11,10 +11,10 @@ import { SkeletonTable } from "@/components/common/SkeletonTable";
 import { SupplierFormDialog } from "@/components/suppliers/SupplierFormDialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { ApiError } from "@/lib/api/client";
 import { getSupplier, type Supplier } from "@/lib/api/suppliers";
 import { ABILITIES, can } from "@/lib/abilities";
 import { formatDateTimeBE } from "@/lib/format/date";
+import { useSection } from "@/lib/use-section";
 
 export default function SupplierDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -22,31 +22,15 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
   const { me } = useAuth();
   const allowed = can(me?.role, ABILITIES.viewSuppliers);
 
-  const [supplier, setSupplier] = useState<Supplier | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      setSupplier(await getSupplier(id));
-    } catch (loadError) {
-      setSupplier(null);
-      setError(loadError instanceof ApiError ? loadError.message : "โหลดข้อมูลผู้จำหน่ายไม่สำเร็จ");
-    } finally {
-      setLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    if (!allowed) {
-      setLoading(false);
-      return;
-    }
-    void load();
-  }, [load, allowed]);
+  const detail = useSection((signal) => getSupplier(id, signal), {
+    enabled: allowed,
+    errorMessage: "โหลดข้อมูลผู้จำหน่ายไม่สำเร็จ",
+    deps: [id],
+  });
+  const supplier = detail.data;
+  const { error, loading } = detail;
 
   if (me && !allowed) {
     return (
@@ -87,7 +71,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         }
       />
 
-      {error ? <ErrorState message={error} onRetry={() => void load()} retrying={loading} /> : null}
+      {error ? <ErrorState message={error} onRetry={detail.reload} retrying={loading} /> : null}
 
       {loading ? (
         <SkeletonTable rows={4} columns={2} />
@@ -114,7 +98,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
           open={dialogOpen}
           onOpenChange={setDialogOpen}
           supplier={supplier}
-          onSaved={(saved) => setSupplier(saved)}
+          onSaved={detail.reload}
         />
       ) : null}
     </div>

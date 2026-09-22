@@ -138,8 +138,8 @@ export async function apiFetch<T>(path: string, options: ApiOptions = {}): Promi
 export type HealthStatus = { status: string; database: string };
 
 /** /health needs no login. */
-export function fetchHealth(): Promise<HealthStatus> {
-  return apiFetch<HealthStatus>("/health", { auth: false, cache: "no-store" });
+export function fetchHealth(signal?: AbortSignal): Promise<HealthStatus> {
+  return apiFetch<HealthStatus>("/health", { auth: false, cache: "no-store", signal });
 }
 
 export type Me = {
@@ -149,6 +149,6 @@ export type Me = {
   role: string;
 };
 
-export function fetchMe(): Promise<Me> {
-  return apiFetch<Me>("/api/v1/me", { cache: "no-store" });
+export function fetchMe(signal?: AbortSignal): Promise<Me> {
+  return apiFetch<Me>("/api/v1/me", { cache: "no-store", signal });
 }

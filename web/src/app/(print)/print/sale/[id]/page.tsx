@@ -1,17 +1,17 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
 
 import { useAuth } from "@/components/auth-provider";
 import { ErrorState } from "@/components/common/ErrorState";
 import { SaleReceipt } from "@/components/print/SaleReceipt";
 import { Button } from "@/components/ui/button";
-import { ApiError } from "@/lib/api/client";
 import { getSale, type Sale } from "@/lib/api/sales";
 import { getStoreProfile, isStoreProfileEmpty, type StoreProfile } from "@/lib/api/store";
 import { ABILITIES, can } from "@/lib/abilities";
 import { formatDateBE, todayBangkokISO } from "@/lib/format/date";
+import { useSection } from "@/lib/use-section";
 
 /** The printable receipt, opened in its own tab. Every role may print.
  *  It fetches the shop profile itself — StoreProvider lives in the app layout
@@ -28,30 +28,19 @@ export default function PrintSalePage({
   const { me, session } = useAuth();
   const isCopy = copy === "1";
 
-  const [sale, setSale] = useState<Sale | null>(null);
-  const [store, setStore] = useState<StoreProfile | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    if (!session) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const [saleResult, storeResult] = await Promise.all([getSale(id), getStoreProfile()]);
-      setSale(saleResult);
-      setStore(storeResult);
-    } catch (loadError) {
-      setSale(null);
-      setError(loadError instanceof ApiError ? loadError.message : "โหลดใบเสร็จไม่สำเร็จ");
-    } finally {
-      setLoading(false);
-    }
-  }, [id, session]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const receipt = useSection(
+    async (signal) => {
+      const [saleResult, storeResult] = await Promise.all([
+        getSale(id, signal),
+        getStoreProfile(signal),
+      ]);
+      return { sale: saleResult, store: storeResult };
+    },
+    { enabled: Boolean(session), errorMessage: "โหลดใบเสร็จไม่สำเร็จ", deps: [id] },
+  );
+  const sale = receipt.data?.sale ?? null;
+  const store = receipt.data?.store ?? null;
+  const { error, loading } = receipt;
 
   const storeMissing = !loading && !error && isStoreProfileEmpty(store);
 
@@ -59,7 +48,7 @@ export default function PrintSalePage({
     <main className="mx-auto max-w-2xl p-4 print:p-0">
       {/* Everything in here is screen-only; the paper gets the receipt alone. */}
       <div className="no-print space-y-3">
-        {error ? <ErrorState message={error} onRetry={() => void load()} retrying={loading} /> : null}
+        {error ? <ErrorState message={error} onRetry={receipt.reload} retrying={loading} /> : null}
 
         {storeMissing ? (
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">

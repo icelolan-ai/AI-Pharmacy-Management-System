@@ -1,16 +1,16 @@
 "use client";
 
-import { use, useCallback, useEffect, useState } from "react";
+import { use } from "react";
 import Link from "next/link";
 
 import { useAuth } from "@/components/auth-provider";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PurchaseNote } from "@/components/print/PurchaseNote";
 import { Button } from "@/components/ui/button";
-import { ApiError } from "@/lib/api/client";
 import { getPurchase, type Purchase } from "@/lib/api/purchases";
 import { getStoreProfile, isStoreProfileEmpty, type StoreProfile } from "@/lib/api/store";
 import { ABILITIES, can } from "@/lib/abilities";
+import { useSection } from "@/lib/use-section";
 
 /** The printable goods-received note, in its own tab. It fetches the shop
  *  profile itself — StoreProvider lives in the app layout, not here — and
@@ -19,30 +19,19 @@ export default function PrintPurchasePage({ params }: { params: Promise<{ id: st
   const { id } = use(params);
   const { me, session } = useAuth();
 
-  const [purchase, setPurchase] = useState<Purchase | null>(null);
-  const [store, setStore] = useState<StoreProfile | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    if (!session) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const [purchaseResult, storeResult] = await Promise.all([getPurchase(id), getStoreProfile()]);
-      setPurchase(purchaseResult);
-      setStore(storeResult);
-    } catch (loadError) {
-      setPurchase(null);
-      setError(loadError instanceof ApiError ? loadError.message : "โหลดใบรับสินค้าไม่สำเร็จ");
-    } finally {
-      setLoading(false);
-    }
-  }, [id, session]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
+  const note = useSection(
+    async (signal) => {
+      const [purchaseResult, storeResult] = await Promise.all([
+        getPurchase(id, signal),
+        getStoreProfile(signal),
+      ]);
+      return { purchase: purchaseResult, store: storeResult };
+    },
+    { enabled: Boolean(session), errorMessage: "โหลดใบรับสินค้าไม่สำเร็จ", deps: [id] },
+  );
+  const purchase = note.data?.purchase ?? null;
+  const store = note.data?.store ?? null;
+  const { error, loading } = note;
 
   const storeMissing = !loading && !error && isStoreProfileEmpty(store);
   const stillDraft = purchase?.status === "draft";
@@ -50,7 +39,7 @@ export default function PrintPurchasePage({ params }: { params: Promise<{ id: st
   return (
     <main className="mx-auto max-w-3xl p-4 print:p-0">
       <div className="no-print space-y-3">
-        {error ? <ErrorState message={error} onRetry={() => void load()} retrying={loading} /> : null}
+        {error ? <ErrorState message={error} onRetry={note.reload} retrying={loading} /> : null}
 
         {storeMissing ? (
           <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3">
