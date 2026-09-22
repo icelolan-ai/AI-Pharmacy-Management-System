@@ -23,8 +23,12 @@ export function MedicineSearchInput({
   id?: string;
 }) {
   const [text, setText] = useState(value);
+  // Kept in a ref so a new inline callback each render does not restart the
+  // debounce; written in an effect, never during render.
   const callbackRef = useRef(onDebouncedChange);
-  callbackRef.current = onDebouncedChange;
+  useEffect(() => {
+    callbackRef.current = onDebouncedChange;
+  });
 
   useEffect(() => {
     const timer = setTimeout(() => callbackRef.current(text.trim()), DEBOUNCE_MS);

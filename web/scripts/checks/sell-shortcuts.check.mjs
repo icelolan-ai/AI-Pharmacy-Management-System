@@ -30,10 +30,18 @@ check.ok(
   /disabled=\{!armed \|\| saving\}/.test(dialog),
   "the arming flag no longer gates the button",
 );
+// The delay restarts on every opening because the dialog is mounted only
+// while open — so both halves have to hold.
 check.ok(
-  "armed เริ่มจาก false ทุกครั้งที่เปิด",
-  /setArmed\(false\)/.test(dialog) && /setTimeout\(\(\) => setArmed\(true\), ARM_DELAY_MS\)/.test(dialog),
-  "the delay no longer resets when the dialog opens",
+  "armed เริ่มจาก false และตั้งเวลาเองตอน mount",
+  /useState\(false\)/.test(dialog) &&
+    /setTimeout\(\(\) => setArmed\(true\), ARM_DELAY_MS\)/.test(dialog),
+  "the arming timer no longer starts from a false state on mount",
+);
+check.ok(
+  "หน้าขาย mount กล่องยืนยันเฉพาะตอนเปิด (การหน่วงจึงเริ่มใหม่ทุกครั้ง)",
+  /\{confirmOpen \? \(\s*<ConfirmSaleDialog/.test(page),
+  "the dialog stays mounted while closed, so the 300ms delay would not restart",
 );
 
 // --- a failed save must say the stock was not touched, and keep the basket --

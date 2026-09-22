@@ -100,9 +100,10 @@ export default function StockPage() {
         />
       ) : null}
 
-      {canManage ? (
+      {/* Mounted only while open: opening is the reset, no effect needed. */}
+      {canManage && dialogOpen ? (
         <MedicineFormDialog
-          open={dialogOpen}
+          open
           onOpenChange={setDialogOpen}
           medicine={null}
           canSetPrice={canSeeValue}

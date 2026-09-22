@@ -93,9 +93,9 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
         </Card>
       ) : null}
 
-      {supplier ? (
+      {supplier && dialogOpen ? (
         <SupplierFormDialog
-          open={dialogOpen}
+          open
           onOpenChange={setDialogOpen}
           supplier={supplier}
           onSaved={detail.reload}

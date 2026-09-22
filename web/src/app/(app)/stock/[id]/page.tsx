@@ -156,9 +156,9 @@ export default function MedicineStockPage({ params }: { params: Promise<{ id: st
         </>
       ) : null}
 
-      {canManage && medicine ? (
+      {canManage && medicine && editOpen ? (
         <MedicineFormDialog
-          open={editOpen}
+          open
           onOpenChange={setEditOpen}
           medicine={medicine}
           canSetPrice={canSeeCost}

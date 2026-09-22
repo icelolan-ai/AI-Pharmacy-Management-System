@@ -99,11 +99,10 @@ export default function SuppliersPage() {
         />
       ) : null}
 
-      <SupplierFormDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        onSaved={list.reload}
-      />
+      {/* Mounted only while open: opening is the reset, no effect needed. */}
+      {dialogOpen ? (
+        <SupplierFormDialog open onOpenChange={setDialogOpen} onSaved={list.reload} />
+      ) : null}
     </div>
   );
 }

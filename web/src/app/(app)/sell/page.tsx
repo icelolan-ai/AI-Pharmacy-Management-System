@@ -317,8 +317,10 @@ export default function SellPage() {
         </aside>
       </div>
 
+      {/* Mounted only while open, so the 300ms arming restarts each time. */}
+      {confirmOpen ? (
       <ConfirmSaleDialog
-        open={confirmOpen}
+        open
         onOpenChange={setConfirmOpen}
         items={cart.items}
         estimatedTotal={cart.estimatedTotal}
@@ -328,6 +330,7 @@ export default function SellPage() {
         error={saveError}
         onConfirm={() => void confirmSale()}
       />
+      ) : null}
     </div>
   );
 }

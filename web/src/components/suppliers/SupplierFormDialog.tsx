@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { ErrorState } from "@/components/common/ErrorState";
 import { Button } from "@/components/ui/button";
@@ -59,18 +59,14 @@ export function SupplierFormDialog({
   supplier?: Supplier | null;
   onSaved: (supplier: Supplier) => void;
 }) {
-  const [form, setForm] = useState<FormState>(EMPTY);
+  // Mounted only while open (see the caller), so the initial value IS the reset.
+  const [form, setForm] = useState<FormState>(() =>
+    supplier ? fromSupplier(supplier) : EMPTY,
+  );
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<Partial<Record<keyof FormState, string>>>({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setForm(supplier ? fromSupplier(supplier) : EMPTY);
-      setError(null);
-      setFieldError({});
-    }
-  }, [open, supplier]);
 
   function setField(key: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [key]: value }));

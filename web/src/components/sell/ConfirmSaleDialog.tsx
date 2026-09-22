@@ -43,16 +43,13 @@ export function ConfirmSaleDialog({
   error: string | null;
   onConfirm: () => void;
 }) {
+  // Mounted only while open (see the caller), so the delay restarts on every
+  // opening and a held Enter cannot carry through from the last one.
   const [armed, setArmed] = useState(false);
-
   useEffect(() => {
-    if (!open) {
-      setArmed(false);
-      return;
-    }
     const timer = setTimeout(() => setArmed(true), ARM_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [open]);
+  }, []);
 
   // Every lot the sale would cut that is close to its last sellable day.
   const warnings = items.flatMap((item) =>

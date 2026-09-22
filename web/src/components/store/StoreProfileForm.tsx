@@ -63,15 +63,14 @@ export function StoreProfileForm({
   profile: StoreProfile | null;
   onSaved: (profile: StoreProfile) => void;
 }) {
+  // Keyed on the saved profile by the caller, so a fresh profile remounts this
+  // form with the stored values instead of resetting it in an effect.
   const [form, setForm] = useState<FormState>(() => fromProfile(profile));
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<Partial<Record<keyof FormState, string>>>({});
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    setForm(fromProfile(profile));
-  }, [profile]);
 
   function setField(key: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [key]: value }));

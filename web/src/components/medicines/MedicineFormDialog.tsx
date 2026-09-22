@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { ErrorState } from "@/components/common/ErrorState";
 import { DEFAULT_UNIT, UnitSelect } from "@/components/common/UnitSelect";
@@ -73,18 +73,14 @@ export function MedicineFormDialog({
   canSetPrice: boolean;
   onSaved: (medicine: Medicine) => void;
 }) {
-  const [form, setForm] = useState<FormState>(EMPTY);
+  // Mounted only while open (see the caller), so the initial value IS the reset.
+  const [form, setForm] = useState<FormState>(() =>
+    medicine ? fromMedicine(medicine) : EMPTY,
+  );
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<Partial<Record<keyof FormState, string>>>({});
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      setForm(medicine ? fromMedicine(medicine) : EMPTY);
-      setError(null);
-      setFieldError({});
-    }
-  }, [open, medicine]);
 
   function setField(key: keyof FormState, value: string) {
     setForm((current) => ({ ...current, [key]: value }));

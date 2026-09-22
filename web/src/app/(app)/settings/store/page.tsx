@@ -41,7 +41,7 @@ export default function StoreSettingsPage() {
 
       {error ? <ErrorState message={error} onRetry={() => void reload()} retrying={loading} /> : null}
 
-      {loading ? <SkeletonTable rows={5} columns={2} /> : <StoreProfileForm profile={store} onSaved={setStore} />}
+      {loading ? <SkeletonTable rows={5} columns={2} /> : <StoreProfileForm key={store?.updated_at ?? "new"} profile={store} onSaved={setStore} />}
     </div>
   );
 }
