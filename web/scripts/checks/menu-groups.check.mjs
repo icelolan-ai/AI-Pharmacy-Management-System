@@ -131,10 +131,13 @@ check.eq(
 // deciding evidence, so D43 reverses it. These assertions were rewritten
 // rather than deleted: the rule changed, so what they guard changed with it.
 const collapsedStore = source("lib/nav/collapsed-groups.ts");
-// Ends at the items, not at the first "{open": aria-expanded={open} sits
-// inside the button, so slicing there cut the block in half and three
-// assertions failed against a fragment rather than against the code.
-const headingBlock = nav.slice(nav.indexOf("{foldable ? ("), nav.indexOf("? group.items.map("));
+// The heading button element itself, matched as a whole rather than sliced
+// between two markers. Both earlier attempts went wrong this way: one ended
+// at a marker that sits inside the button, and one ended at a marker that
+// stopped existing — indexOf returned -1, the slice ran to the end of the
+// file, and a mutation passed against the wrong element entirely (D43-b).
+const headingBlock = nav.match(/<button[\s\S]*?<\/button>/)?.[0] ?? "";
+check.ok("อ่านปุ่มหัวข้อกลุ่มออกมาได้จริง", headingBlock !== "", "nothing to assert against");
 
 check.ok(
   "หัวข้อที่พับได้เป็น <button> จริง มี aria-expanded",
@@ -195,7 +198,7 @@ check.ok(
   "🔴 ชื่อกลุ่มต้องไม่ถูกตัด",
   (() => {
     const wrapper = nav.match(/<span className="([^"]*)">\{group\.heading\}<\/span>/);
-    return wrapper !== null && !/truncate|line-clamp/.test(wrapper[1]);
+    return wrapper !== null && !/truncate|line-clamp|text-ellipsis/.test(wrapper[1]);
   })(),
   "D44: the name was cut to \"ห...\" to make room for the status word",
 );
@@ -222,13 +225,36 @@ check.ok(
   /aria-hidden="true"[\s\S]{0,120}rounded-full bg-green-600/.test(nav),
   "D34: the dot may decorate the label, never replace it",
 );
+// The class list of whatever element renders each menu name. Matches with or
+// without a className, so removing one does not silently pass — the element
+// still has to be found.
+function nameClasses(expression) {
+  const found = nav.match(new RegExp(`<span(?: className="([^"]*)")?>\{${expression}\}</span>`));
+  return found === null ? null : (found[1] ?? "");
+}
+const HEADING_CLASSES = nameClasses("group\.heading");
+const LABEL_CLASSES = nameClasses("item\.label");
+
 check.ok(
   "ชื่อเมนูย่อยต้องมองเห็นได้ ไม่ถูกซ่อนไว้ให้เหลือแต่จุดสี",
-  (() => {
-    const label = nav.match(/<span className="([^"]*)">\{item\.label\}<\/span>/);
-    return label !== null && !/sr-only|hidden|invisible|opacity-0/.test(label[1]);
-  })(),
+  LABEL_CLASSES !== null && !/sr-only|hidden|invisible|opacity-0/.test(LABEL_CLASSES),
   "D34: hiding the label leaves the green dot carrying the meaning on its own",
+);
+check.ok(
+  // D44 ข้อ 5 covered the group name and missed the link name, so the same
+  // bug reappeared one row down: "ยาใกล้ห..." with the "กำลังดูอยู่" badge
+  // beside it. The rule now reads: no menu name is ever cut.
+  "🔴 ชื่อเมนูทุกอันห้ามถูกตัด ทั้งชื่อกลุ่มและชื่อลิงก์",
+  HEADING_CLASSES !== null
+    && LABEL_CLASSES !== null
+    && !/truncate|line-clamp|text-ellipsis/.test(HEADING_CLASSES)
+    && !/truncate|line-clamp|text-ellipsis/.test(LABEL_CLASSES),
+  "D44: move the badge to its own line — never shorten the name",
+);
+check.ok(
+  "ป้าย “กำลังดูอยู่” อยู่คนละบรรทัดกับชื่อลิงก์",
+  /flex flex-col justify-center[^"]*"\s*,\s*$/m.test(nav) || /"flex flex-col justify-center/.test(nav),
+  "D44: side by side is what cut the name",
 );
 check.ok(
   "เมนูหลักตัวหนาเข้ม เมนูย่อยบางและอ่อนกว่า",

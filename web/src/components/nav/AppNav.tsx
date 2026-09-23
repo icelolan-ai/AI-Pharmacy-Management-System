@@ -141,7 +141,10 @@ export function AppNav({
                         aria-current={current ? "page" : undefined}
                         onClick={onNavigate}
                         className={[
-                          "flex items-center justify-between gap-2 rounded-md px-3 py-2",
+                          // D44: a column, for the same reason the heading is
+                          // one — the badge beside the name was cutting it to
+                          // "ยาใกล้ห...". Nothing here truncates.
+                          "flex flex-col justify-center gap-0.5 rounded-md px-3 py-2",
                           ROW_MIN_HEIGHT,
                           panel ? PANEL_ITEM_TEXT : ITEM_TEXT,
                           // D44: the everyday block is the bold, dark one; the
@@ -154,19 +157,22 @@ export function AppNav({
                               : "text-slate-900 hover:bg-slate-100",
                         ].join(" ")}
                       >
-                        <span className="flex min-w-0 items-center gap-2">
+                        <span className="flex items-start gap-2">
                           {foldable ? (
                             // Decoration only — the label is right beside it, so
                             // nothing here is carried by colour (D34).
                             <span
                               aria-hidden="true"
-                              className="h-2 w-2 shrink-0 rounded-full bg-green-600"
+                              className={[
+                                "h-2 w-2 shrink-0 rounded-full bg-green-600",
+                                panel ? "mt-2" : "mt-1.5",
+                              ].join(" ")}
                             />
                           ) : null}
-                          <span className="truncate">{item.label}</span>
+                          <span>{item.label}</span>
                         </span>
                         {current ? (
-                          <span className="shrink-0 rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-medium">
+                          <span className="w-fit rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-medium">
                             กำลังดูอยู่
                           </span>
                         ) : null}
