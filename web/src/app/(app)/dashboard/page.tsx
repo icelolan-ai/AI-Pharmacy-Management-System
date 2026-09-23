@@ -20,6 +20,7 @@ import {
   getInventoryValue,
   listExpiredReport,
   listExpiringReport,
+  type ExpiringReport,
   RISK_LABEL,
   RISK_ORDER,
   listLowStockReport,
@@ -65,6 +66,23 @@ function SectionShell({
   );
 }
 
+/** The pie's slices, kept in one place so the narrowed summary stays in scope
+ *  and the dashboard body reads as a list of sections. */
+function StockMixPie({ summary }: { summary: ExpiringReport["summary"] }) {
+  return (
+    <PieChart
+      caption="มูลค่าสต็อกที่ยังขายได้ แยกตามว่าเหลือเวลาอีกเท่าไร"
+      totalLabel="รวมทั้งหมด"
+      slices={RISK_ORDER.map((risk) => ({
+        key: risk,
+        label: RISK_LABEL[risk],
+        value: summary[risk]?.stock_value ?? "0.00",
+        fill: RISK_FILL[risk],
+      }))}
+    />
+  );
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const { me } = useAuth();
@@ -77,6 +95,15 @@ export default function DashboardPage() {
   const expiring = useSection((signal) => listExpiringReport({ days: 180, signal }), {
     enabled: allowed,
     errorMessage: "โหลดข้อมูลยาใกล้หมดอายุไม่สำเร็จ",
+  });
+  // The pie is about the whole shelf, so it cannot read the 180-day section:
+  // /reports/expiring filters to `days`, which drops every lot beyond the
+  // window — the "ปกติ (เกิน 180 วัน)" slice would be zero by construction.
+  // Same endpoint and same summary.stock_value as D42 requires, just the full
+  // horizon the endpoint allows.
+  const stockMix = useSection((signal) => listExpiringReport({ days: 3650, signal }), {
+    enabled: allowed,
+    errorMessage: "โหลดสัดส่วนมูลค่าสต็อกไม่สำเร็จ",
   });
   const expired = useSection((signal) => listExpiredReport({ signal }), {
     enabled: allowed,
@@ -97,11 +124,11 @@ export default function DashboardPage() {
 
   // The newest of the sections that have loaded — no component reads the clock.
   const loadedAt = useMemo(() => {
-    const stamps = [expiring, expired, lowStock, stock, inventoryValue]
+    const stamps = [expiring, stockMix, expired, lowStock, stock, inventoryValue]
       .map((section) => section.loadedAt)
       .filter((stamp): stamp is number => stamp !== null);
     return stamps.length > 0 ? Math.max(...stamps) : null;
-  }, [expiring.loadedAt, expired.loadedAt, lowStock.loadedAt, stock.loadedAt, inventoryValue.loadedAt]);
+  }, [expiring.loadedAt, stockMix.loadedAt, expired.loadedAt, lowStock.loadedAt, stock.loadedAt, inventoryValue.loadedAt]);
 
   if (me && !allowed) {
     return (
@@ -114,6 +141,7 @@ export default function DashboardPage() {
 
   function reloadAll() {
     expiring.reload();
+    stockMix.reload();
     expired.reload();
     lowStock.reload();
     stock.reload();
@@ -164,6 +192,21 @@ export default function DashboardPage() {
       ) : null}
 
       <SectionShell
+        title="สัดส่วนมูลค่าสต็อก"
+        loading={stockMix.loading}
+        error={stockMix.error}
+        onRetry={stockMix.reload}
+      >
+        {/* D42: the shares are summary.stock_value straight from the API — the
+            same figures as the risk boxes. Adding up the loaded `items` would
+            miss everything past the first page, the mistake already made once
+            with the "เงินจม" percentage. */}
+        {stockMix.data ? (
+          <StockMixPie summary={stockMix.data.summary} />
+        ) : null}
+      </SectionShell>
+
+      <SectionShell
         title="ยาใกล้หมดอายุ (180 วันข้างหน้า)"
         loading={expiring.loading}
         error={expiring.error}
@@ -184,24 +227,7 @@ export default function DashboardPage() {
           <>
             <RiskSummaryCards summary={summary} />
 
-            {/* D42: the shares come straight from summary.stock_value, the same
-                figures the boxes above show. Adding up the loaded `items`
-                instead would miss everything past the first page — the mistake
-                already made once with the "เงินจม" percentage. */}
-            <div className="mt-4">
-              <PieChart
-                caption="สัดส่วนมูลค่าสต็อก แยกตามระดับความเสี่ยงวันหมดอายุ"
-                totalLabel="รวมทั้งหมด"
-                slices={RISK_ORDER.map((risk) => ({
-                  key: risk,
-                  label: RISK_LABEL[risk],
-                  value: summary[risk]?.stock_value ?? "0.00",
-                  fill: RISK_FILL[risk],
-                }))}
-              />
-            </div>
-
-            <ul className="mt-4 space-y-1">
+            <ul className="mt-3 space-y-1">
               {topExpiring.map((row) => {
                 const expiry = describeExpiry(row.expiry_date, row.days_remaining);
                 return (

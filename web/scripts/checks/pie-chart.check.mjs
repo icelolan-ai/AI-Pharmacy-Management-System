@@ -129,13 +129,16 @@ check.eq(
 check.ok(
   "ผลลัพธ์เดิมทุกครั้งสำหรับข้อมูลเดียวกัน",
   (() => {
-    const input = [
-      share("a", 1),
-      share("b", 1),
-      share("c", 1),
-    ];
+    // Three equal shares: 33 each with one point left over, so the tie-break
+    // decides who gets it. Comparing two runs was not enough — a random
+    // comparator agrees with itself about a third of the time, and that
+    // mutation passed on luck. Twenty runs settle it.
+    const input = [share("a", 1), share("b", 1), share("c", 1)];
     const first = JSON.stringify([...wholePercentShares(input)]);
-    return first === JSON.stringify([...wholePercentShares(input)]);
+    for (let attempt = 0; attempt < 20; attempt += 1) {
+      if (JSON.stringify([...wholePercentShares(input)]) !== first) return false;
+    }
+    return true;
   })(),
   "a tie broken at random would redraw the chart differently on every render",
 );
@@ -169,6 +172,20 @@ check.ok(
   /RISK_ORDER\.map\(\(risk\) => \(\{/.test(dashboard),
 );
 check.ok("หน้าภาพรวมร้านแสดงกราฟวงกลมนี้", /<PieChart[\s>]/.test(dashboard));
+check.ok(
+  // /reports/expiring drops every lot past `days`, so reading the 180-day
+  // section would make "ปกติ (เกิน 180 วัน)" zero by construction — and with
+  // this shop's stock all sitting 194 days out or further, the whole chart
+  // rendered as "no value to divide". It needs the full horizon.
+  "กราฟวงกลมดึงข้อมูลครอบคลุมสต็อกทั้งหมด ไม่ใช่แค่หน้าต่าง 180 วัน",
+  /listExpiringReport\(\{ days: 3650, signal \}\)/.test(dashboard),
+  "with days=180 the ปกติ slice can never be anything but zero",
+);
+check.ok(
+  "กราฟวงกลมมีส่วนของตัวเอง ไม่ได้ซ่อนอยู่ในบล็อก 180 วัน",
+  /title="สัดส่วนมูลค่าสต็อก"/.test(dashboard),
+  "nested inside the 180-day block it disappeared entirely when nothing was expiring",
+);
 
 // --- 4. D35: drawn by hand ------------------------------------------------
 check.ok("วาดด้วย <svg> และ <path> จริง", /<svg\b/.test(chart) && /<path\b/.test(chart));
