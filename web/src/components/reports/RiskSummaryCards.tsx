@@ -5,13 +5,7 @@ import { RISK_META } from "@/lib/format/expiry";
 
 /** The four risk boxes. Every box shows BOTH the number of lots and the money,
  *  so a shop never sees a count without knowing what it is worth. */
-export function RiskSummaryCards({
-  summary,
-  canSeeValue,
-}: {
-  summary: ExpiringReport["summary"];
-  canSeeValue: boolean;
-}) {
+export function RiskSummaryCards({ summary }: { summary: ExpiringReport["summary"] }) {
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {RISK_ORDER.map((risk) => {
@@ -27,11 +21,9 @@ export function RiskSummaryCards({
                 {entry.lot_count}
                 <span className="ml-1 text-sm font-normal text-slate-500">ล็อต</span>
               </p>
-              {canSeeValue ? (
-                <p className="mt-1 text-sm text-slate-600">
-                  <MoneyText value={entry.stock_value} withUnit />
-                </p>
-              ) : null}
+              <p className="mt-1 text-sm text-slate-600">
+                <MoneyText value={entry.stock_value} withUnit />
+              </p>
             </CardContent>
           </Card>
         );

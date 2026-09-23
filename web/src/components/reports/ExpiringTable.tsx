@@ -12,13 +12,11 @@ import type { ExpiringRow } from "@/lib/api/reports";
  *  API's days_remaining minus one (D19). */
 export function ExpiringTable({
   rows,
-  canSeeValue,
   canAdjust,
   adjustBusy,
   onAdjust,
 }: {
   rows: ExpiringRow[];
-  canSeeValue: boolean;
   canAdjust: boolean;
   adjustBusy: boolean;
   onAdjust: (row: ExpiringRow) => void;
@@ -45,14 +43,12 @@ export function ExpiringTable({
     },
   ];
 
-  if (canSeeValue) {
-    columns.push({
-      key: "value",
-      header: "มูลค่า",
-      align: "right",
-      cell: (row) => <MoneyText value={row.stock_value} />,
-    });
-  }
+  columns.push({
+    key: "value",
+    header: "มูลค่า",
+    align: "right",
+    cell: (row) => <MoneyText value={row.stock_value} />,
+  });
 
   if (canAdjust) {
     columns.push({

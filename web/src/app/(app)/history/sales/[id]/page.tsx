@@ -25,7 +25,8 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
   const router = useRouter();
   const { me } = useAuth();
   const allowed = can(me?.role, ABILITIES.viewReports);
-  const canSeeValue = can(me?.role, ABILITIES.viewCost);
+  // D33: the page gate above is viewReports = owner + pharmacist, the same
+  // pair as viewCost, so there is no second layer to apply here.
 
   const saleSection = useSection((signal) => getSale(id, signal), {
     enabled: allowed,
@@ -68,22 +69,20 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
     },
   ];
 
-  if (canSeeValue) {
-    columns.push(
-      {
-        key: "price",
-        header: "ราคา/หน่วย",
-        align: "right",
-        cell: (line) => <MoneyText value={line.unit_price} />,
-      },
-      {
-        key: "subtotal",
-        header: "รวม",
-        align: "right",
-        cell: (line) => <MoneyText value={line.subtotal} />,
-      },
-    );
-  }
+  columns.push(
+    {
+      key: "price",
+      header: "ราคา/หน่วย",
+      align: "right",
+      cell: (line) => <MoneyText value={line.unit_price} />,
+    },
+    {
+      key: "subtotal",
+      header: "รวม",
+      align: "right",
+      cell: (line) => <MoneyText value={line.subtotal} />,
+    },
+  );
 
   return (
     <div className="space-y-4">
@@ -124,7 +123,7 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
       ) : null}
 
       {saleSection.loading ? (
-        <SkeletonTable rows={4} columns={canSeeValue ? 4 : 2} />
+        <SkeletonTable rows={4} columns={4} />
       ) : sale ? (
         <>
           <Card>
@@ -142,12 +141,10 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
                   <span className="text-slate-500">ผู้ขาย</span> {sale.sold_by_name}
                 </p>
               ) : null}
-              {canSeeValue ? (
-                <p>
-                  <span className="text-slate-500">ยอดรวม</span>{" "}
-                  <MoneyText value={sale.total_amount} withUnit className="font-medium" />
-                </p>
-              ) : null}
+              <p>
+                <span className="text-slate-500">ยอดรวม</span>{" "}
+                <MoneyText value={sale.total_amount} withUnit className="font-medium" />
+              </p>
             </CardContent>
           </Card>
 

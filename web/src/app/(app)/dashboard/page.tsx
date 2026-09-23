@@ -66,7 +66,8 @@ export default function DashboardPage() {
   const router = useRouter();
   const { me } = useAuth();
   const allowed = can(me?.role, ABILITIES.viewReports);
-  const canSeeValue = can(me?.role, ABILITIES.viewCost);
+  // D33: the page gate above is viewReports = owner + pharmacist, the same
+  // pair as viewCost, so there is no second layer to apply here.
   const canSeeInventoryValue = can(me?.role, ABILITIES.viewInventoryValue);
 
   // Five independent sections: each renders when ready and retries on its own.
@@ -178,7 +179,7 @@ export default function DashboardPage() {
           </div>
         ) : summary ? (
           <>
-            <RiskSummaryCards summary={summary} canSeeValue={canSeeValue} />
+            <RiskSummaryCards summary={summary} />
             <ul className="mt-3 space-y-1">
               {topExpiring.map((row) => {
                 const expiry = describeExpiry(row.expiry_date, row.days_remaining);
@@ -187,12 +188,8 @@ export default function DashboardPage() {
                     <span aria-hidden="true">{expiry.icon}</span> {row.medicine_name} ล็อต{" "}
                     {row.lot_number} — {expiry.headline} ({expiry.detail}){" "}
                     <QtyText value={row.quantity_remaining} unit={row.unit} />
-                    {canSeeValue ? (
-                      <>
-                        {" · "}
-                        <MoneyText value={row.stock_value} withUnit />
-                      </>
-                    ) : null}
+                    {" · "}
+                    <MoneyText value={row.stock_value} withUnit />
                   </li>
                 );
               })}

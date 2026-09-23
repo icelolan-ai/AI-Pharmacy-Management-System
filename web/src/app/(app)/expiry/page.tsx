@@ -20,7 +20,8 @@ import { useSection } from "@/lib/use-section";
 export default function ExpiryPage() {
   const { me } = useAuth();
   const allowed = can(me?.role, ABILITIES.viewReports);
-  const canSeeValue = can(me?.role, ABILITIES.viewCost);
+  // D33: the page gate above is viewReports = owner + pharmacist, the same
+  // pair as viewCost, so there is no second layer to apply here.
   const canAdjust = can(me?.role, ABILITIES.adjustStock);
 
   const [tab, setTab] = useState<RiskLevel>("critical");
@@ -78,13 +79,12 @@ export default function ExpiryPage() {
       </div>
 
       {report.loading ? (
-        <SkeletonTable rows={6} columns={canSeeValue ? 5 : 4} />
+        <SkeletonTable rows={6} columns={5} />
       ) : !report.error && rows.length === 0 ? (
         <EmptyState title={`ไม่มีล็อตในระดับ “${RISK_LABEL[tab]}”`} />
       ) : !report.error ? (
         <ExpiringTable
           rows={rows}
-          canSeeValue={canSeeValue}
           canAdjust={canAdjust}
           adjustBusy={adjust.busy}
           onAdjust={(row) => void adjust.openFor(row.lot_id, row.unit)}

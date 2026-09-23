@@ -30,7 +30,8 @@ export default function SalesHistoryPage() {
   const router = useRouter();
   const { me } = useAuth();
   const allowed = can(me?.role, ABILITIES.viewReports);
-  const canSeeValue = can(me?.role, ABILITIES.viewCost);
+  // D33: the page gate above is viewReports = owner + pharmacist, the same
+  // pair as viewCost, so there is no second layer to apply here.
 
   const [range, setRange] = useState<DateRange>(() => lastDays(1)); // today
   const [offset, setOffset] = useState(0);
@@ -72,14 +73,12 @@ export default function SalesHistoryPage() {
     },
   ];
 
-  if (canSeeValue) {
-    columns.push({
-      key: "total",
-      header: "ยอดรวม",
-      align: "right",
-      cell: (row) => <MoneyText value={row.total_amount} />,
-    });
-  }
+  columns.push({
+    key: "total",
+    header: "ยอดรวม",
+    align: "right",
+    cell: (row) => <MoneyText value={row.total_amount} />,
+  });
 
   return (
     <div className="space-y-4">
@@ -108,7 +107,7 @@ export default function SalesHistoryPage() {
       ) : null}
 
       {sales.loading ? (
-        <SkeletonTable rows={6} columns={canSeeValue ? 3 : 2} />
+        <SkeletonTable rows={6} columns={3} />
       ) : rows.length === 0 ? (
         <EmptyState title="ไม่มีการขายในช่วงวันที่ที่เลือก" />
       ) : (

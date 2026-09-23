@@ -22,7 +22,8 @@ import { useSection } from "@/lib/use-section";
 export default function ExpiredReportPage() {
   const { me } = useAuth();
   const allowed = can(me?.role, ABILITIES.viewReports);
-  const canSeeValue = can(me?.role, ABILITIES.viewCost);
+  // D33: the page gate above is viewReports = owner + pharmacist, the same
+  // pair as viewCost, so there is no second layer to apply here.
   const canAdjust = can(me?.role, ABILITIES.adjustStock);
 
   const report = useSection((signal) => listExpiredReport({ signal }), {
@@ -41,7 +42,7 @@ export default function ExpiredReportPage() {
   }
 
   const rows = report.data?.items ?? [];
-  const totalLoss = canSeeValue ? sumMoney(rows.map((row) => row.stock_value)) : null;
+  const totalLoss = sumMoney(rows.map((row) => row.stock_value));
 
   const columns: Column<ExpiredRow>[] = [
     {
@@ -75,14 +76,12 @@ export default function ExpiredReportPage() {
     },
   ];
 
-  if (canSeeValue) {
-    columns.push({
-      key: "value",
-      header: "มูลค่า",
-      align: "right",
-      cell: (row) => <MoneyText value={row.stock_value} />,
-    });
-  }
+  columns.push({
+    key: "value",
+    header: "มูลค่า",
+    align: "right",
+    cell: (row) => <MoneyText value={row.stock_value} />,
+  });
 
   if (canAdjust) {
     columns.push({
@@ -124,13 +123,11 @@ export default function ExpiredReportPage() {
 
       {!report.loading && !report.error && rows.length > 0 ? (
         <>
-          {canSeeValue ? (
-            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
-              <p className="text-sm font-medium text-red-800">
-                มูลค่าความสูญเสียรวม <MoneyText value={totalLoss} withUnit />
-              </p>
-            </div>
-          ) : null}
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3">
+            <p className="text-sm font-medium text-red-800">
+              มูลค่าความสูญเสียรวม <MoneyText value={totalLoss} withUnit />
+            </p>
+          </div>
           <Alert>
             <AlertDescription>
               ของเหล่านี้ยังอยู่บนชั้นจริง — ตรวจสอบและนำออกจากชั้นวาง
@@ -140,7 +137,7 @@ export default function ExpiredReportPage() {
       ) : null}
 
       {report.loading ? (
-        <SkeletonTable rows={6} columns={canSeeValue ? 6 : 5} />
+        <SkeletonTable rows={6} columns={6} />
       ) : !report.error && rows.length === 0 ? (
         <EmptyState title="ไม่มียาที่ขายไม่ได้แล้วค้างอยู่ในระบบ" />
       ) : !report.error ? (
