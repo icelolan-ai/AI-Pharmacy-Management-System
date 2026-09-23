@@ -88,13 +88,19 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen">
         <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white p-4 sm:block">
           <SideNavStoreName />
-          <AppNav groups={MENU} role={me?.role} pathname={pathname} variant="sidebar" />
+          <AppNav
+            groups={MENU}
+            role={me?.role}
+            userId={me?.id}
+            pathname={pathname}
+            variant="sidebar"
+          />
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
             {/* The phone has no sidebar, so the way out of this page lives here. */}
-            <MobileNav groups={MENU} role={me?.role} pathname={pathname} />
+            <MobileNav groups={MENU} role={me?.role} userId={me?.id} pathname={pathname} />
             {me ? (
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-900">

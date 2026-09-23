@@ -39,7 +39,12 @@ check.ok(
 // behind — exactly how this bug happened the first time.
 check.ok(
   "แถบข้างและเมนูมือถือใช้รายการเดียวกัน (MENU)",
-  /<AppNav groups=\{MENU\}/.test(layout) && /<MobileNav groups=\{MENU\}/.test(layout),
+  // Counted rather than matched on one line: breaking the JSX across lines
+  // for readability broke the old pattern while the property — both surfaces
+  // fed from MENU — was perfectly intact.
+  /<AppNav[\s>]/.test(layout)
+    && /<MobileNav[\s>]/.test(layout)
+    && (layout.match(/groups=\{MENU\}/g) ?? []).length === 2,
 );
 check.ok(
   "ตัวกรองสิทธิ์อยู่ที่เดียว ใน AppNav",

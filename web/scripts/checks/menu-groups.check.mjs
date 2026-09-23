@@ -125,25 +125,95 @@ check.eq(
   false,
 );
 
-// --- headings are text, not controls --------------------------------------
-const headingBlock = nav.slice(nav.indexOf("{group.heading ? ("), nav.indexOf("{group.items.map("));
+// --- D43: folding, and the one block that may never fold ------------------
+// U-3 originally forbade folding outright. The shop owner looked at the
+// finished menu and said it was still cluttered, and D41 makes that the
+// deciding evidence, so D43 reverses it. These assertions were rewritten
+// rather than deleted: the rule changed, so what they guard changed with it.
+const collapsedStore = source("lib/nav/collapsed-groups.ts");
+// Ends at the items, not at the first "{open": aria-expanded={open} sits
+// inside the button, so slicing there cut the block in half and three
+// assertions failed against a fragment rather than against the code.
+const headingBlock = nav.slice(nav.indexOf("{foldable ? ("), nav.indexOf("? group.items.map("));
+
 check.ok(
-  "หัวข้อกลุ่มเป็นข้อความ ไม่ใช่ปุ่ม",
-  /<p\b/.test(headingBlock) && !/<button|onClick|role="button"|tabIndex/.test(headingBlock),
-  "a heading that can be pressed invites folding, which U-3 ruled out",
+  "หัวข้อที่พับได้เป็น <button> จริง มี aria-expanded",
+  // role="presentation" leaves <button> in the source while taking it out of
+  // the accessibility tree — it looked like a button to this check and like
+  // nothing at all to a screen reader, and it slipped the first draft.
+  /<button/.test(headingBlock)
+    && /aria-expanded=\{open\}/.test(headingBlock)
+    && !/role="(presentation|none)"/.test(headingBlock),
+  "D43: a div with onClick is not reachable from a keyboard",
 );
 check.ok(
-  "หัวข้อกลุ่มไม่มีพื้นหลังหรือเอฟเฟกต์ hover ให้ดูเหมือนกดได้",
-  !/hover:|cursor-pointer|bg-slate-[0-9]/.test(headingBlock),
+  "บอกสถานะเป็นข้อความ ไม่ใช่ลูกศรอย่างเดียว",
+  /เปิดอยู่/.test(headingBlock) && /พับอยู่/.test(headingBlock),
+  "D34: an arrow on its own leaves the state to be guessed",
 );
 check.ok(
-  "ไม่มีการพับกลุ่ม",
-  !/collapsib|Collapsib|<details|aria-expanded/.test(nav),
-  "U-3: folding hides pages an older user then has to remember the place of",
+  "🔴 บล็อกบนสุดพับไม่ได้ เพราะ heading เป็น null จึงไม่มีปุ่มให้กด",
+  /const foldable = group\.heading !== null;/.test(nav),
+  "D43: having to open something before selling is worse than the clutter",
+);
+check.ok(
+  "กลุ่มที่พับไม่ได้ ถือว่าเปิดเสมอ",
+  /const open = !foldable \|\|/.test(nav),
+);
+check.ok(
+  "กลุ่มที่มีหน้าที่กำลังดูอยู่ เปิดเสมอแม้เคยพับไว้",
+  /holdsCurrentPage \|\| !collapsed\.has/.test(nav),
+  "D43: folding away the page you are looking at makes no sense",
+);
+check.ok(
+  "ปุ่มของกลุ่มที่กำลังดูอยู่กดไม่ได้ และบอกเหตุผล",
+  /disabled=\{holdsCurrentPage\}/.test(headingBlock) && /กำลังดูหน้าในกลุ่มนี้/.test(headingBlock),
+  "a button that does nothing when pressed is worse than one that is clearly off",
+);
+check.ok(
+  "ลิงก์ในกลุ่มที่เปิดแล้ว มีเส้นคั่นเป็นข้อ ๆ",
+  /border-b border-slate-100 last:border-b-0/.test(nav),
+);
+check.ok(
+  "PC กับมือถือใช้กติกาพับเดียวกัน ไม่แยกพฤติกรรม",
+  // `panel` may size things; it may not decide what is open. Matching it
+  // anywhere near the word "collapsed" flagged the declaration line itself,
+  // which was a false alarm — this reads the decision instead.
+  (() => {
+    const decision = nav.match(/const foldable[\s\S]*?const open = [^;]+;/)?.[0] ?? "";
+    return decision !== "" && !/panel/.test(decision);
+  })(),
+  "D43: same rule on both, so nobody has to learn the menu twice",
 );
 check.ok(
   "กลุ่มว่างถูกตัดทิ้งในโค้ดจริง ไม่ใช่แค่ซ่อนด้วย CSS",
   /\.filter\(\(group\) => group\.items\.length > 0\)/.test(nav),
+);
+
+// --- D38: the folded state is a per-person convenience, stored safely -----
+check.ok(
+  "จำสถานะแยกตามผู้ใช้ ตาม D38",
+  /PREFIX \+ \(userId \?\? "anonymous"\)/.test(collapsedStore),
+);
+check.ok(
+  "อ่านและเขียน localStorage อยู่ใน try/catch ทุกจุด",
+  (collapsedStore.match(/try \{/g) ?? []).length >= 3,
+  "D38: a browser with storage switched off must still show a working menu",
+);
+check.ok(
+  "อ่านไม่ได้ หรือข้อมูลเสีย -> เปิดทุกกลุ่ม ไม่ใช่พับทุกกลุ่ม",
+  /if \(!raw\) return new Set\(\)/.test(collapsedStore)
+    && /if \(!Array\.isArray\(parsed\)\) return new Set\(\)/.test(collapsedStore),
+  "D43: the fallback is everything visible",
+);
+check.ok(
+  "ครั้งแรกที่เข้า เปิดทุกกลุ่ม (ฝั่งเซิร์ฟเวอร์คืน null)",
+  /\(\) => null,/.test(collapsedStore),
+);
+check.ok(
+  "อ่านสถานะด้วย useSyncExternalStore ไม่ใช่ setState ใน effect",
+  /useSyncExternalStore/.test(collapsedStore) && !/useEffect/.test(collapsedStore),
+  "the cleanup that removed state-from-effects is not to be undone here",
 );
 
 process.exit(check.done() ? 1 : 0);

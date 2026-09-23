@@ -20,10 +20,12 @@ import { useStore } from "@/lib/store/store-provider";
 export function MobileNav({
   groups,
   role,
+  userId,
   pathname,
 }: {
   groups: readonly NavGroup[];
   role: string | null | undefined;
+  userId: string | null | undefined;
   pathname: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -46,6 +48,7 @@ export function MobileNav({
         <MobilePanel
           groups={groups}
           role={role}
+          userId={userId}
           pathname={pathname}
           onClose={() => setOpen(false)}
         />
@@ -59,11 +62,13 @@ export function MobileNav({
 function MobilePanel({
   groups,
   role,
+  userId,
   pathname,
   onClose,
 }: {
   groups: readonly NavGroup[];
   role: string | null | undefined;
+  userId: string | null | undefined;
   pathname: string;
   onClose: () => void;
 }) {
@@ -104,6 +109,7 @@ function MobilePanel({
         <AppNav
           groups={groups}
           role={role}
+          userId={userId}
           pathname={pathname}
           variant="panel"
           onNavigate={onClose}
