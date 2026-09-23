@@ -9,10 +9,20 @@ from tests.integration.conftest import BUSINESS_TABLES, api
 
 pytestmark = pytest.mark.db
 
-EXPECTED_TABLES = 12
+# 12 from migrations 001–008, plus the four map tables from 009 (U-8.1).
+EXPECTED_TABLES = 16
+
+# Named rather than only counted: a count says four tables arrived, not which
+# four, and this is the assertion that tells us migration 009 really ran here.
+MAP_TABLES = {
+    "store_maps",
+    "store_map_shapes",
+    "store_map_points",
+    "store_map_point_medicines",
+}
 
 
-def test_test_project_has_migrations_001_to_005_applied():
+def test_test_project_has_every_migration_applied():
     with db.get_transaction() as cur:
         cur.execute(
             "SELECT count(*) AS n FROM information_schema.tables"
@@ -30,7 +40,14 @@ def test_test_project_has_migrations_001_to_005_applied():
         profiles = cur.fetchone()["n"]
         cur.execute("SELECT count(*) AS n FROM auth.users")
         users = cur.fetchone()["n"]
+        cur.execute(
+            "SELECT table_name FROM information_schema.tables"
+            " WHERE table_schema = 'public' AND table_name = ANY(%s)",
+            (sorted(MAP_TABLES),),
+        )
+        map_tables = {row["table_name"] for row in cur.fetchall()}
 
+    assert map_tables == MAP_TABLES, f"migration 009 missing: {sorted(MAP_TABLES - map_tables)}"
     assert tables == EXPECTED_TABLES, f"expected {EXPECTED_TABLES} tables, found {tables}"
     assert policies == 0, f"expected 0 RLS policies, found {policies}"
     assert rls == EXPECTED_TABLES, f"expected RLS on {EXPECTED_TABLES} tables, found {rls}"

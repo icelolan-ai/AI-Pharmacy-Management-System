@@ -199,6 +199,80 @@ erDiagram
 | reason | text | nullable | |
 | created_at | timestamptz | default now() | |
 
+### 3.11 ผังร้าน (U-8) — 4 ตารางจาก `009_store_map.sql`
+
+> ⚠️ **ผังร้านเป็นตัวเลือกเสริม ไม่ใช่ระบบหลัก** ลบทั้ง 4 ตารางนี้ทิ้งเมื่อไรก็ได้
+> ระบบ สแกน → เข้าคลัง → ขายยา ยังทำงานครบทุกอย่าง
+> ไม่มีตารางเดิมตารางใดถูก ALTER และไม่มีตารางเดิมตารางใดอ้างถึง 4 ตารางนี้
+
+**หน่วย:** มิลลิเมตรจริง เป็นจำนวนเต็ม · จุดกำเนิด (0,0) = มุมซ้ายบนของห้อง · x ไปขวา · y ลงล่าง
+เก็บขนาดจริงไม่ใช่พิกัดสัมพัทธ์ เพราะถ้าวัดห้องใหม่แล้วขนาดเปลี่ยน ของที่วางไว้ต้องอยู่ที่เดิม
+2D กับ 2.5D ใช้ข้อมูลชุดเดียวกัน ต่างกันแค่วิธีฉายภาพ (ใช้ `height_z_mm`)
+
+#### `store_maps` — ผังหนึ่งผัง
+
+| Column | Type | Constraint | คำอธิบาย |
+|---|---|---|---|
+| id | uuid | PK | |
+| store_id | uuid | nullable | กฎ 65 — ที่เดียวที่ผูกกับร้าน ตารางอื่นถึงร้านผ่าน `map_id` |
+| name | text | not null, ห้ามว่าง | |
+| width_mm | integer | not null, 100–100000 | ความกว้างห้องจริง |
+| height_mm | integer | not null, 100–100000 | ความลึกห้องจริง |
+| is_active | boolean | default true | |
+| created_at / updated_at | timestamptz | default now() | `updated_at` มี trigger |
+| updated_by | uuid | FK → auth.users.id | |
+
+#### `store_map_shapes` — ของที่วางอยู่ในห้อง (สี่เหลี่ยมเท่านั้น ตามกฎ 66)
+
+| Column | Type | Constraint | คำอธิบาย |
+|---|---|---|---|
+| id | uuid | PK | |
+| map_id | uuid | FK → store_maps, **on delete cascade** | |
+| kind | text | check in (`wall_shelf`,`shelf`,`pillar`,`counter`,`door`,`room`,`other`) | |
+| label | text | not null, ห้ามว่าง | D34 — ทุกอย่างบนผังต้องมีชื่อเป็นข้อความ |
+| x_mm / y_mm | integer | not null | มุมซ้ายบนของรูป |
+| width_mm / height_mm | integer | not null, > 0 | |
+| rotation_deg | integer | default 0, 0–359 | |
+| height_z_mm | integer | default 0, 0–10000 | ความสูง ใช้ตอนวาด 2.5D เท่านั้น |
+| sort_order | integer | default 0 | ลำดับการวาดทับกัน |
+
+รูปตัว L ให้ประกอบจากสองสี่เหลี่ยม ถ้าวันหนึ่งต้องการรูปอิสระจริง ๆ ค่อยเพิ่มตารางจุดยอดต่างหาก โดยไม่ต้องแก้ตารางนี้
+
+#### `store_map_points` — จุดที่ mark ไว้ (1–1000 จุดต่อผัง)
+
+| Column | Type | Constraint | คำอธิบาย |
+|---|---|---|---|
+| id | uuid | PK | |
+| map_id | uuid | FK → store_maps, **on delete cascade** | |
+| code | text | not null, ≤ 8 ตัว, **unique ต่อผัง** (case-insensitive) | ป้ายสั้นบนผัง เช่น `A1` |
+| name | text | not null, ห้ามว่าง | ชื่อเต็ม อยู่ในตารางข้างผัง (D45 ห้ามตัวหนังสือใน `<svg>`) |
+| detail | text | nullable | |
+| x_mm / y_mm | integer | not null, ≥ 0 | |
+| created_at / updated_at | timestamptz | default now() | |
+
+**เพดาน 1000 จุดบังคับที่ backend ไม่ใช่ที่ฐานข้อมูล** — constraint ที่ต้องนับแถวทุกครั้งที่ insert
+จะทำให้การเพิ่มจุดช้าลงตามจำนวนจุดที่มีอยู่ เช่นเดียวกับการตรวจว่า x/y อยู่ในกรอบผัง ซึ่งข้ามตารางไปเช็คใน CHECK ไม่ได้
+
+#### `store_map_point_medicines` — ยาอยู่ตรงไหนบ้าง
+
+| Column | Type | Constraint | คำอธิบาย |
+|---|---|---|---|
+| point_id | uuid | FK → store_map_points, **on delete cascade** | PK คู่กับ `medicine_id` |
+| medicine_id | uuid | FK → **medicines**, **on delete cascade** | 🔴 เส้นเดียวที่ผูกกับโลกเดิม |
+| created_at | timestamptz | default now() | |
+| created_by | uuid | FK → auth.users.id | |
+
+**many-to-many:** ยาตัวเดียวกันวางได้หลายจุด · จุดหนึ่งมีได้หลายยา
+index `store_map_point_medicines_medicine` ตอบคำถามทิศกลับ "ยาตัวนี้อยู่จุดไหนบ้าง"
+
+**ผูกกับ "ยา" ไม่ใช่ "ล็อต" โดยตั้งใจ** — ล็อตเกิดและหมดไปตลอดเวลา ถ้าผูกกับล็อตผู้ใช้ต้องย้ายหมุดใหม่ไม่จบสิ้น
+ตัวกรองล็อต/วันหมดอายุยัง `join medicines → medicine_lots` ได้ตามปกติ
+
+**`on delete cascade` บน `medicine_id`** เลือกไว้เพราะลิงก์ที่ค้างอยู่หลังลบยา จะทำให้ชื่อยาที่ไม่มีอยู่จริงไปโผล่ในช่องขาย
+ซึ่งเป็นบั๊กที่คนหน้าร้านเจอ (ในทางปฏิบัติระบบนี้ไม่ลบยาจริง ใช้ `is_active`)
+
+**RLS:** เปิดทั้ง 4 ตาราง **ไม่มี Policy** เหมือนทุกตารางในโปรเจกต์นี้
+
 ---
 
 ## 4. ตัวอย่าง Query สำคัญ
