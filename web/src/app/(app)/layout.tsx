@@ -61,6 +61,8 @@ const MENU: readonly NavGroup[] = [
     items: [
       { href: "/suppliers", label: "ผู้จำหน่าย", ability: ABILITIES.viewSuppliers },
       { href: "/settings/store", label: "ข้อมูลร้าน", ability: ABILITIES.manageStoreProfile },
+      // U-8: ทุก role เปิดดูได้ พนักงานขายต้องหาว่ายาอยู่ตรงไหน
+      { href: "/store-map", label: "ผังร้าน" },
       { href: "/me", label: "ข้อมูลของฉัน" },
     ],
   },
