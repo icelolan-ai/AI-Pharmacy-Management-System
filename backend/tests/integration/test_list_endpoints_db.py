@@ -27,6 +27,7 @@ from fastapi.testclient import TestClient
 from app.main import app
 from app.schemas.purchase import PurchaseSummaryOut
 from app.schemas.sale import SaleSummaryOut
+from app.schemas.store_map import PointOut, ShapeOut, StoreMapOut
 from tests.integration.conftest import (
     api,
     insert_lot,
@@ -155,6 +156,7 @@ def test_sales_list_returns_rows(client, today):
         "/api/v1/reports/low-stock",
         "/api/v1/reports/inventory-value",
         "/api/v1/reports/sales-timeseries",
+        "/api/v1/store-map",
     ],
 )
 def test_every_other_list_endpoint_answers_with_data_present(client, today, path):
@@ -171,3 +173,48 @@ def test_every_other_list_endpoint_answers_with_data_present(client, today, path
 
     response = api(client, "get", path, "owner")
     assert response.status_code == 200, f"{path} -> {response.status_code} {response.text}"
+
+
+def test_store_map_returns_every_declared_field(client):
+    """U-8.2 joins the sweep (D36).
+
+    The map answers with three models at once, and the parametrized case above
+    would pass on an empty shop — `map: null` is a valid 200. So this one draws
+    a room, puts something in it and marks a point first, then requires every
+    field of all three models to be present.
+    """
+    room = {"name": "สวีป", "width_mm": 4000, "height_mm": 4000}
+    assert api(client, "put", "/api/v1/store-map", "owner", json=room).status_code == 200
+    shape = api(
+        client,
+        "post",
+        "/api/v1/store-map/shapes",
+        "owner",
+        json={
+            "kind": "counter",
+            "label": "เคาน์เตอร์",
+            "x_mm": 100,
+            "y_mm": 100,
+            "width_mm": 900,
+            "height_mm": 600,
+        },
+    )
+    assert shape.status_code == 201, shape.text
+    point = api(
+        client,
+        "post",
+        "/api/v1/store-map/points",
+        "owner",
+        json={"code": "S1", "name": "จุดสวีป", "x_mm": 200, "y_mm": 200},
+    )
+    assert point.status_code == 201, point.text
+
+    body = api(client, "get", "/api/v1/store-map", "owner").json()
+    assert body["map"] is not None and body["shapes"] and body["points"]
+
+    for field in StoreMapOut.model_fields:
+        assert field in body["map"], f"GET /api/v1/store-map dropped map.{field}"
+    for field in ShapeOut.model_fields:
+        assert field in body["shapes"][0], f"GET /api/v1/store-map dropped shapes[].{field}"
+    for field in PointOut.model_fields:
+        assert field in body["points"][0], f"GET /api/v1/store-map dropped points[].{field}"

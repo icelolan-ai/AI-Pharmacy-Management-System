@@ -56,6 +56,11 @@ BUSINESS_TABLES = (
     "medicines",
     "suppliers",
     "store_profile",
+    # U-8 map tables: children first, though CASCADE would cope either way.
+    "store_map_point_medicines",
+    "store_map_points",
+    "store_map_shapes",
+    "store_maps",
 )
 
 

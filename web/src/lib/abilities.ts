@@ -14,6 +14,7 @@ export const ABILITIES = {
   viewAuditLog: "viewAuditLog",
   viewReports: "viewReports",
   manageStoreProfile: "manageStoreProfile",
+  manageStoreMap: "manageStoreMap",
 } as const;
 
 export type Ability = (typeof ABILITIES)[keyof typeof ABILITIES];
@@ -32,6 +33,10 @@ const ABILITY_ROLES: Record<Ability, readonly Role[]> = {
   viewAuditLog: OWNER_ONLY,
   viewReports: MANAGERS, // dashboard, expiry and the three report pages
   manageStoreProfile: OWNER_ONLY, // everyone may read it; only the owner may edit
+  // U-8: every role reads the map — a cashier has to find where a medicine
+  // sits — and only the owner draws it. There is no ability for reading it,
+  // because there is no role that may not.
+  manageStoreMap: OWNER_ONLY,
 };
 
 export function can(role: string | null | undefined, ability: Ability): boolean {
