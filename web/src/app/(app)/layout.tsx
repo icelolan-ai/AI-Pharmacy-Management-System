@@ -4,34 +4,66 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
-import { AppNav } from "@/components/nav/AppNav";
+import { AppNav, type NavGroup } from "@/components/nav/AppNav";
 import { MobileNav } from "@/components/nav/MobileNav";
 import { SideNavStoreName } from "@/components/store/SideNavStoreName";
 import { Button } from "@/components/ui/button";
-import { ABILITIES, type Ability } from "@/lib/abilities";
+import { ABILITIES } from "@/lib/abilities";
 import { roleLabel } from "@/lib/roles";
 import { StoreProvider } from "@/lib/store/store-provider";
 
-const MENU: { href: string; label: string; ability?: Ability }[] = [
-  { href: "/", label: "หน้าแรก" },
-  { href: "/sell", label: "ขายยา" },
-  { href: "/dashboard", label: "ภาพรวมร้าน", ability: ABILITIES.viewReports },
-  { href: "/stock", label: "คลังยา" },
-  { href: "/receiving", label: "รับสินค้า", ability: ABILITIES.receiveStock },
-  { href: "/expiry", label: "ใกล้หมดอายุ", ability: ABILITIES.viewReports },
-  { href: "/reports/expired", label: "หมดอายุแล้ว", ability: ABILITIES.viewReports },
-  { href: "/reports/low-stock", label: "ยาใกล้หมด", ability: ABILITIES.viewReports },
+/** The menu, in the order a shop actually works through its day (U-3).
+ *
+ *  The first block carries no heading and never folds: selling and looking
+ *  something up in the stock list happen all day, and putting them behind a
+ *  heading to read past would make the menu worse, not better.
+ *
+ *  "ยาที่ต้องดูด่วน" is deliberately not filed under reports. Those three
+ *  pages are things to act on, not things to look at.
+ */
+const MENU: readonly NavGroup[] = [
   {
-    href: "/reports/inventory-value",
-    label: "มูลค่าคลังยา",
-    ability: ABILITIES.viewInventoryValue,
+    heading: null,
+    items: [
+      { href: "/", label: "หน้าแรก" },
+      { href: "/sell", label: "ขายยา" },
+      { href: "/stock", label: "คลังยา" },
+    ],
   },
-  { href: "/history/sales", label: "ประวัติการขาย", ability: ABILITIES.viewReports },
-  { href: "/history/purchases", label: "ประวัติรับสินค้า", ability: ABILITIES.viewReports },
-  { href: "/audit", label: "ตรวจสอบย้อนหลัง", ability: ABILITIES.viewAuditLog },
-  { href: "/suppliers", label: "ผู้จำหน่าย", ability: ABILITIES.viewSuppliers },
-  { href: "/me", label: "ข้อมูลของฉัน" },
-  { href: "/settings/store", label: "ข้อมูลร้าน", ability: ABILITIES.manageStoreProfile },
+  {
+    heading: "หน้าที่ประจำวัน",
+    items: [{ href: "/receiving", label: "รับสินค้า", ability: ABILITIES.receiveStock }],
+  },
+  {
+    heading: "ยาที่ต้องดูด่วน",
+    items: [
+      { href: "/reports/low-stock", label: "ยาใกล้หมด", ability: ABILITIES.viewReports },
+      { href: "/expiry", label: "ใกล้หมดอายุ", ability: ABILITIES.viewReports },
+      { href: "/reports/expired", label: "หมดอายุแล้ว", ability: ABILITIES.viewReports },
+    ],
+  },
+  {
+    heading: "รายงานและประวัติ",
+    items: [
+      { href: "/dashboard", label: "ภาพรวมร้าน", ability: ABILITIES.viewReports },
+      {
+        href: "/reports/inventory-value",
+        label: "มูลค่าคลังยา",
+        ability: ABILITIES.viewInventoryValue,
+      },
+      { href: "/history/sales", label: "ประวัติการขาย", ability: ABILITIES.viewReports },
+      { href: "/history/purchases", label: "ประวัติรับสินค้า", ability: ABILITIES.viewReports },
+      { href: "/audit", label: "ตรวจสอบย้อนหลัง", ability: ABILITIES.viewAuditLog },
+    ],
+  },
+  {
+    heading: "ตั้งค่า",
+    items: [
+      { href: "/suppliers", label: "ผู้จำหน่าย", ability: ABILITIES.viewSuppliers },
+      { href: "/settings/store", label: "ข้อมูลร้าน", ability: ABILITIES.manageStoreProfile },
+      { href: "/me", label: "ข้อมูลของฉัน" },
+    ],
+  },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -56,13 +88,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-screen">
         <aside className="hidden w-56 shrink-0 border-r border-slate-200 bg-white p-4 sm:block">
           <SideNavStoreName />
-          <AppNav items={MENU} role={me?.role} pathname={pathname} variant="sidebar" />
+          <AppNav groups={MENU} role={me?.role} pathname={pathname} variant="sidebar" />
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
             {/* The phone has no sidebar, so the way out of this page lives here. */}
-            <MobileNav items={MENU} role={me?.role} pathname={pathname} />
+            <MobileNav groups={MENU} role={me?.role} pathname={pathname} />
             {me ? (
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-900">

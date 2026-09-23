@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { AppNav, type NavItem } from "@/components/nav/AppNav";
+import { AppNav, type NavGroup } from "@/components/nav/AppNav";
 import { Button } from "@/components/ui/button";
 import { useStore } from "@/lib/store/store-provider";
 
@@ -18,11 +18,11 @@ import { useStore } from "@/lib/store/store-provider";
  *  labelled button rather than only a stray tap outside.
  */
 export function MobileNav({
-  items,
+  groups,
   role,
   pathname,
 }: {
-  items: readonly NavItem[];
+  groups: readonly NavGroup[];
   role: string | null | undefined;
   pathname: string;
 }) {
@@ -44,7 +44,7 @@ export function MobileNav({
 
       {open ? (
         <MobilePanel
-          items={items}
+          groups={groups}
           role={role}
           pathname={pathname}
           onClose={() => setOpen(false)}
@@ -57,12 +57,12 @@ export function MobileNav({
 /** Mounted only while open, so it always starts closed and never holds a
  *  stale scroll position or focus from last time. */
 function MobilePanel({
-  items,
+  groups,
   role,
   pathname,
   onClose,
 }: {
-  items: readonly NavItem[];
+  groups: readonly NavGroup[];
   role: string | null | undefined;
   pathname: string;
   onClose: () => void;
@@ -102,7 +102,7 @@ function MobilePanel({
 
       <div className="flex-1 overflow-y-auto p-3">
         <AppNav
-          items={items}
+          groups={groups}
           role={role}
           pathname={pathname}
           variant="panel"

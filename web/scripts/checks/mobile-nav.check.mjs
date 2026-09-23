@@ -25,7 +25,7 @@ check.ok(
 );
 check.ok(
   "จอเล็กมี MobileNav มาแทนแถบข้าง",
-  /<MobileNav items=\{MENU\}/.test(layout),
+  /<MobileNav groups=\{MENU\}/.test(layout),
   "🔴 nothing replaces the hidden sidebar — a phone would have no links at all",
 );
 check.ok(
@@ -39,7 +39,7 @@ check.ok(
 // behind — exactly how this bug happened the first time.
 check.ok(
   "แถบข้างและเมนูมือถือใช้รายการเดียวกัน (MENU)",
-  /<AppNav items=\{MENU\}/.test(layout) && /<MobileNav items=\{MENU\}/.test(layout),
+  /<AppNav groups=\{MENU\}/.test(layout) && /<MobileNav groups=\{MENU\}/.test(layout),
 );
 check.ok(
   "ตัวกรองสิทธิ์อยู่ที่เดียว ใน AppNav",
