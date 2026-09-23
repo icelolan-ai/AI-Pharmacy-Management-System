@@ -179,3 +179,33 @@ export function nearExpiryValue(summary: ExpiringReport["summary"]): string {
 export function totalLotCount(summary: ExpiringReport["summary"]): number {
   return RISK_ORDER.reduce((total, risk) => total + (summary[risk]?.lot_count ?? 0), 0);
 }
+
+/** One business day on the sales line (D9: Asia/Bangkok, never CURRENT_DATE). */
+export type SalesDay = {
+  date: string;
+  sale_count: number;
+  total_amount: string;
+};
+
+export type SalesTimeseries = {
+  date_from: string;
+  date_to: string;
+  /** Every day in the window, including the ones with no sales at all. */
+  days: SalesDay[];
+  total_amount: string;
+  busiest_day: string | null;
+};
+
+/** 🔒 owner + pharmacist — the backend answers 403 for staff, like the other
+ *  report endpoints. The zero days come back as zeroes rather than missing,
+ *  so the line never slopes through a day the shop was shut. */
+export function getSalesTimeseries({
+  days = 30,
+  signal,
+}: { days?: number; signal?: AbortSignal } = {}): Promise<SalesTimeseries> {
+  const query = buildQuery({ days });
+  return apiFetch<SalesTimeseries>(`/api/v1/reports/sales-timeseries${query}`, {
+    signal,
+    cache: "no-store",
+  });
+}

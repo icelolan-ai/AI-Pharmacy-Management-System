@@ -12,12 +12,14 @@ import { MoneyText } from "@/components/common/MoneyText";
 import { PageHeader } from "@/components/common/PageHeader";
 import { QtyText } from "@/components/common/QtyText";
 import { PieChart } from "@/components/charts/PieChart";
+import { SalesLineChart } from "@/components/charts/SalesLineChart";
 import { RiskSummaryCards } from "@/components/reports/RiskSummaryCards";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   getInventoryValue,
+  getSalesTimeseries,
   listExpiredReport,
   listExpiringReport,
   type ExpiringReport,
@@ -91,7 +93,7 @@ export default function DashboardPage() {
   // pair as viewCost, so there is no second layer to apply here.
   const canSeeInventoryValue = can(me?.role, ABILITIES.viewInventoryValue);
 
-  // Five independent sections: each renders when ready and retries on its own.
+  // Independent sections: each renders when ready and retries on its own.
   const expiring = useSection((signal) => listExpiringReport({ days: 180, signal }), {
     enabled: allowed,
     errorMessage: "โหลดข้อมูลยาใกล้หมดอายุไม่สำเร็จ",
@@ -104,6 +106,13 @@ export default function DashboardPage() {
   const stockMix = useSection((signal) => listExpiringReport({ days: 3650, signal }), {
     enabled: allowed,
     errorMessage: "โหลดสัดส่วนมูลค่าสต็อกไม่สำเร็จ",
+  });
+  // 30 days of daily takings for the line (U-7). Every day comes back,
+  // including the ones with no sales, so the drawing never invents trade on a
+  // day the shop was shut.
+  const salesLine = useSection((signal) => getSalesTimeseries({ days: 30, signal }), {
+    enabled: allowed,
+    errorMessage: "โหลดยอดขายรายวันไม่สำเร็จ",
   });
   const expired = useSection((signal) => listExpiredReport({ signal }), {
     enabled: allowed,
@@ -124,11 +133,11 @@ export default function DashboardPage() {
 
   // The newest of the sections that have loaded — no component reads the clock.
   const loadedAt = useMemo(() => {
-    const stamps = [expiring, stockMix, expired, lowStock, stock, inventoryValue]
+    const stamps = [expiring, stockMix, salesLine, expired, lowStock, stock, inventoryValue]
       .map((section) => section.loadedAt)
       .filter((stamp): stamp is number => stamp !== null);
     return stamps.length > 0 ? Math.max(...stamps) : null;
-  }, [expiring.loadedAt, stockMix.loadedAt, expired.loadedAt, lowStock.loadedAt, stock.loadedAt, inventoryValue.loadedAt]);
+  }, [expiring.loadedAt, stockMix.loadedAt, salesLine.loadedAt, expired.loadedAt, lowStock.loadedAt, stock.loadedAt, inventoryValue.loadedAt]);
 
   if (me && !allowed) {
     return (
@@ -142,6 +151,7 @@ export default function DashboardPage() {
   function reloadAll() {
     expiring.reload();
     stockMix.reload();
+    salesLine.reload();
     expired.reload();
     lowStock.reload();
     stock.reload();
@@ -190,6 +200,28 @@ export default function DashboardPage() {
           action={<Button onClick={() => router.push("/stock")}>ไปหน้าคลังยา</Button>}
         />
       ) : null}
+
+      <SectionShell
+        title="ยอดขายรายวัน (30 วันล่าสุด)"
+        loading={salesLine.loading}
+        error={salesLine.error}
+        onRetry={salesLine.reload}
+        action={
+          <Link
+            href="/history/sales"
+            className="text-sm text-slate-600 underline-offset-2 hover:underline"
+          >
+            ดูทั้งหมด
+          </Link>
+        }
+      >
+        {salesLine.data ? (
+          <SalesLineChart
+            data={salesLine.data}
+            caption="ยอดขายแต่ละวันใน 30 วันที่ผ่านมา"
+          />
+        ) : null}
+      </SectionShell>
 
       <SectionShell
         title="สัดส่วนมูลค่าสต็อก"
