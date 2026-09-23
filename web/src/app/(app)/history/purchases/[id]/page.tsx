@@ -34,8 +34,8 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
   const router = useRouter();
   const { me } = useAuth();
   const allowed = can(me?.role, ABILITIES.viewReports);
-  // D32: staff never sees cost here — the whole column is dropped.
-  const canSeeCost = can(me?.role, ABILITIES.viewCost);
+  // D32: the page itself is the gate — viewReports is owner + pharmacist,
+  // so nobody without the right to see cost ever reaches this render.
 
   const purchaseSection = useSection((signal) => getPurchase(id, signal), {
     enabled: allowed,
@@ -96,22 +96,20 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
     },
   ];
 
-  if (canSeeCost) {
-    columns.push(
-      {
-        key: "cost",
-        header: "ต้นทุน/หน่วย",
-        align: "right",
-        cell: (item) => <MoneyText value={item.unit_cost} />,
-      },
-      {
-        key: "subtotal",
-        header: "รวม",
-        align: "right",
-        cell: (item) => <MoneyText value={item.subtotal} />,
-      },
-    );
-  }
+  columns.push(
+    {
+      key: "cost",
+      header: "ต้นทุน/หน่วย",
+      align: "right",
+      cell: (item) => <MoneyText value={item.unit_cost} />,
+    },
+    {
+      key: "subtotal",
+      header: "รวม",
+      align: "right",
+      cell: (item) => <MoneyText value={item.subtotal} />,
+    },
+  );
 
   const canPrint = purchase !== null && purchase.status !== "draft";
 
@@ -151,7 +149,7 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
       ) : null}
 
       {purchaseSection.loading ? (
-        <SkeletonTable rows={4} columns={canSeeCost ? 6 : 4} />
+        <SkeletonTable rows={4} columns={6} />
       ) : purchase ? (
         <>
           {hasMismatch(purchase) ? (
@@ -194,12 +192,10 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
                       : "จำนวนไม่ตรง"}
                 </Badge>
               </p>
-              {canSeeCost ? (
-                <p>
-                  <span className="text-slate-500">มูลค่ารวม</span>{" "}
-                  <MoneyText value={purchase.total_amount} withUnit className="font-medium" />
-                </p>
-              ) : null}
+              <p>
+                <span className="text-slate-500">มูลค่ารวม</span>{" "}
+                <MoneyText value={purchase.total_amount} withUnit className="font-medium" />
+              </p>
             </CardContent>
           </Card>
 

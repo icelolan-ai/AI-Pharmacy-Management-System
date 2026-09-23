@@ -41,8 +41,8 @@ export default function PurchaseHistoryPage() {
   const router = useRouter();
   const { me } = useAuth();
   const allowed = can(me?.role, ABILITIES.viewReports);
-  // D32: cost and totals are for owner and pharmacist only.
-  const canSeeCost = can(me?.role, ABILITIES.viewCost);
+  // D32: the page itself is the gate — viewReports is owner + pharmacist,
+  // so nobody without the right to see cost ever reaches this render.
 
   const [range, setRange] = useState<DateRange>(() => lastDays(30));
   const [status, setStatus] = useState<PurchaseStatus | "all">("all");
@@ -106,14 +106,12 @@ export default function PurchaseHistoryPage() {
     },
   ];
 
-  if (canSeeCost) {
-    columns.push({
-      key: "total",
-      header: "มูลค่า",
-      align: "right",
-      cell: (row) => <MoneyText value={row.total_amount} />,
-    });
-  }
+  columns.push({
+    key: "total",
+    header: "มูลค่า",
+    align: "right",
+    cell: (row) => <MoneyText value={row.total_amount} />,
+  });
 
   return (
     <div className="space-y-4">
@@ -159,7 +157,7 @@ export default function PurchaseHistoryPage() {
       ) : null}
 
       {purchases.loading ? (
-        <SkeletonTable rows={6} columns={canSeeCost ? 6 : 5} />
+        <SkeletonTable rows={6} columns={6} />
       ) : rows.length === 0 ? (
         <EmptyState title="ไม่มีใบรับสินค้าในเงื่อนไขที่เลือก" />
       ) : (
