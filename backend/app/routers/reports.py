@@ -13,10 +13,12 @@ from app.schemas.report import (
     ExpiringReportWithValueOut,
     InventoryValueOut,
     LowStockRowOut,
+    SalesTimeseriesOut,
     StockRowOut,
     StockRowWithValueOut,
 )
 from app.services import reports as report_service
+from app.services import sales_timeseries as timeseries_service
 from app.visibility import role_json
 
 router = APIRouter(prefix="/api/v1/reports", tags=["reports"])
@@ -65,3 +67,16 @@ def low_stock(user: AnyRole, limit: Limit = 50, offset: Offset = 0):
 @router.get("/inventory-value", response_model=InventoryValueOut)
 def inventory_value(user: Owner, limit: Limit = 50, offset: Offset = 0):
     return report_service.inventory_value_report(limit=limit, offset=offset)
+
+
+@router.get("/sales-timeseries", response_model=SalesTimeseriesOut)
+def sales_timeseries(
+    user: Manager,
+    days: Annotated[int, Query(ge=1, le=365)] = 30,
+):
+    """ยอดขายรายวันย้อนหลัง (U-7 Line).
+
+    owner + pharmacist เท่านั้น เหมือนหน้ารายงานอื่น ๆ (D32/D33 กั้นที่ระดับ
+    endpoint). Days with no sales are returned as zero rather than omitted.
+    """
+    return timeseries_service.sales_timeseries(days=days)

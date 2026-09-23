@@ -154,6 +154,7 @@ def test_sales_list_returns_rows(client, today):
         "/api/v1/reports/expired",
         "/api/v1/reports/low-stock",
         "/api/v1/reports/inventory-value",
+        "/api/v1/reports/sales-timeseries",
     ],
 )
 def test_every_other_list_endpoint_answers_with_data_present(client, today, path):

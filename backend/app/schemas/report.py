@@ -104,3 +104,26 @@ class CategoryValueOut(ValueBreakdown):
 class InventoryValueOut(ValueBreakdown):
     by_medicine: Page[MedicineValueOut]
     by_category: list[CategoryValueOut]
+
+
+class SalesDayOut(BaseModel):
+    """One business day on the sales line (D9: Asia/Bangkok, not CURRENT_DATE)."""
+
+    date: date
+    sale_count: int
+    total_amount: MoneyOut
+
+
+class SalesTimeseriesOut(BaseModel):
+    """Every day in the window, including the ones with no sales at all.
+
+    The zero days are returned rather than left out: a line drawn from a list
+    with gaps in it slopes straight through a closed day and tells the owner
+    they sold something they did not.
+    """
+
+    date_from: date
+    date_to: date
+    days: list[SalesDayOut]
+    total_amount: MoneyOut
+    busiest_day: date | None
