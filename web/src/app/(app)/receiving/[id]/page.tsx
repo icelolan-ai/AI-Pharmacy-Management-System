@@ -119,7 +119,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
             key: nextKey(),
             medicine_id: item.medicine_id,
             medicine_name: item.medicine_name ?? "-",
-            unit: "",
+            unit: item.unit ?? "",
             lot_number: item.lot_number,
             expiry_date: item.expiry_date,
             expiryBlocking: false,

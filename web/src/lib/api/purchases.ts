@@ -7,6 +7,9 @@ export type PurchaseItem = {
   id: string;
   medicine_id: string;
   medicine_name: string | null;
+  /** The medicine's unit, carried on the line so reopening a draft still says
+   *  what is being counted. Null only if the medicine row has gone. */
+  unit: string | null;
   quantity_invoiced: number;
   quantity_actual: number | null;
   unit_cost: string;

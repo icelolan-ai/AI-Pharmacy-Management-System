@@ -161,7 +161,8 @@ def detail_row(status="draft"):
         "invoice_no": "INV-001",
         "confirmed_at": None if status == "draft" else NOW,
         "items": [{
-            "id": item_id, "medicine_id": MED_A, "medicine_name": "A", "quantity_invoiced": 20,
+            "id": item_id, "medicine_id": MED_A, "medicine_name": "A", "unit": "กล่อง",
+            "quantity_invoiced": 20,
             "quantity_actual": 18, "unit_cost": Decimal("12.5"), "lot_number": "L1",
             "expiry_date": TODAY + timedelta(days=20), "subtotal": Decimal("250"),
         }],
@@ -178,6 +179,7 @@ def stored_purchase(status="draft", invoice_no="INV-001"):
 def stored_item(**overrides):
     row = {
         "id": uuid.uuid4(), "purchase_id": PURCHASE_ID, "medicine_id": MED_A,
+        "medicine_name": "A", "unit": "กล่อง",
         "quantity_invoiced": 20, "quantity_actual": None, "unit_cost": Decimal("12.50"),
         "lot_number": "L1", "expiry_date": TODAY + timedelta(days=20), "subtotal": Decimal("250.00"),
     }

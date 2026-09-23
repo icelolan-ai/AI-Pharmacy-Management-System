@@ -188,7 +188,7 @@ def _fetch_detail(cur, purchase_id: UUID) -> dict[str, Any] | None:
 
     cur.execute(
         """
-        SELECT pi.*, m.name AS medicine_name
+        SELECT pi.*, m.name AS medicine_name, m.unit AS unit
         FROM public.purchase_items pi
         LEFT JOIN public.medicines m ON m.id = pi.medicine_id
         WHERE pi.purchase_id = %s
@@ -278,7 +278,8 @@ def list_purchases(
         cur.execute(
             sql.SQL(
                 """
-                SELECT p.id, p.supplier_id, s.name AS supplier_name, p.purchase_date,
+                SELECT p.id, p.purchase_no, p.invoice_no,
+                       p.supplier_id, s.name AS supplier_name, p.purchase_date,
                        p.total_amount, p.status, p.created_at,
                        (SELECT count(*) FROM public.purchase_items pi
                         WHERE pi.purchase_id = p.id) AS item_count

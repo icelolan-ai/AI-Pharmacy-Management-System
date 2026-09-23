@@ -57,6 +57,10 @@ class PurchaseItemOut(BaseModel):
     id: UUID
     medicine_id: UUID
     medicine_name: str | None
+    # Carried with the line for the same reason as medicine_name: whoever
+    # reopens a draft is counting real boxes, and "18" means nothing without
+    # knowing 18 of what.
+    unit: str | None
     quantity_invoiced: int
     quantity_actual: int | None
     unit_cost: MoneyOut
