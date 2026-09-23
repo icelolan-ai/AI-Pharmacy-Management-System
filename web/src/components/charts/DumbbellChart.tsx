@@ -17,7 +17,7 @@ export type DumbbellRow = {
 // phone's 375px it lands near 1:1; on a desktop it grows, which only makes the
 // numbers easier to read (D34).
 const WIDTH = 360;
-const ROW_HEIGHT = 82;
+const ROW_HEIGHT = 88;
 const TRACK_LEFT = 10;
 const TRACK_RIGHT = WIDTH - 10;
 const HEADER_HEIGHT = 30;
@@ -107,7 +107,7 @@ export function DumbbellChart({ rows, caption }: { rows: readonly DumbbellRow[];
 
         {rows.map((row, index) => {
           const top = HEADER_HEIGHT + index * ROW_HEIGHT;
-          const trackY = top + 66;
+          const trackY = top + 55;
           const expectedX = position(row.expected);
           const actualX = row.actual === null ? null : position(row.actual);
           const difference = row.actual === null ? null : row.actual - row.expected;
@@ -136,28 +136,39 @@ export function DumbbellChart({ rows, caption }: { rows: readonly DumbbellRow[];
                 {outcome}
               </text>
 
-              {/* Both numbers read on one line. They used to sit above their own
-                  dots, where a dot at the far right pushed its number into the
-                  outcome text — found by measuring the rendered boxes, not by
-                  looking. Here nothing can collide however the dots fall. */}
-              <text x={TRACK_LEFT} y={top + 51} fontSize={FONT_BODY} fill="#334155">
-                ใบส่งของ {row.expected} · รับจริง {row.actual === null ? "—" : row.actual}
-              </text>
+              {/* Every row carries the whole 0..max track, not just the piece
+                  between the two dots. Without it a dot sat in mid-air with
+                  nothing to read it against, and a row where both numbers
+                  agree showed one dot and no line at all — which is what made
+                  the first version unreadable. */}
+              <line
+                x1={TRACK_LEFT}
+                y1={trackY}
+                x2={TRACK_RIGHT}
+                y2={trackY}
+                stroke="#e2e8f0"
+                strokeWidth="2"
+                strokeLinecap="round"
+              />
 
-              {actualX !== null ? (
+              {actualX !== null && actualX !== expectedX ? (
                 <line
                   x1={Math.min(expectedX, actualX)}
                   y1={trackY}
                   x2={Math.max(expectedX, actualX)}
                   y2={trackY}
-                  stroke="#94a3b8"
-                  strokeWidth="3"
+                  stroke="#b45309"
+                  strokeWidth="5"
                   strokeLinecap="round"
                 />
               ) : null}
 
               <circle cx={expectedX} cy={trackY} r="7" fill="white" stroke="#475569" strokeWidth="2" />
               {actualX !== null ? <circle cx={actualX} cy={trackY} r="7" fill="#0f172a" /> : null}
+
+              <text x={TRACK_LEFT} y={top + 75} fontSize={FONT_BODY} fill="#334155">
+                ใบส่งของ {row.expected} · รับจริง {row.actual === null ? "—" : row.actual}
+              </text>
             </g>
           );
         })}

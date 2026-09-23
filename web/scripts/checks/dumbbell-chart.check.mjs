@@ -115,6 +115,19 @@ check.ok(
   "รายการที่ไม่ตรงมีเครื่องหมายเตือนคู่กับข้อความ",
   /⚠️/.test(chart),
 );
+check.ok(
+  // The shop owner looked at the first version and said it read oddly. The
+  // cause: each row drew only the segment between its two dots, so a dot sat
+  // in mid-air with no extent to judge it against, and a row whose numbers
+  // agreed showed a single dot and no line at all.
+  "ทุกแถวมีเส้นฐานเต็มความกว้าง ให้จุดมีที่อ้างอิง",
+  /x1=\{TRACK_LEFT\}[\s\S]{0,120}x2=\{TRACK_RIGHT\}[\s\S]{0,160}stroke="#e2e8f0"/.test(drawing),
+  "without it a lone dot means nothing — this is what made the first draft unreadable",
+);
+check.ok(
+  "ช่วงที่ขาด/เกิน วาดหนากว่าเส้นฐาน จึงเห็นว่าห่างกันแค่ไหน",
+  /strokeWidth="5"/.test(drawing) && /strokeWidth="2"/.test(drawing),
+);
 
 // --- 5. it scales without shrinking the text away ------------------------
 check.ok(
