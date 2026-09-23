@@ -125,3 +125,16 @@ export function describeExpiry(expiryISO: string, apiDaysRemaining?: number) {
     sellable: raw > 0,
   };
 }
+
+/** Wedge fills for the expiry pie (D42). Nothing reads meaning from these —
+ *  the table beside the chart names every slice with its money and its share,
+ *  because D34 forbids colour from carrying meaning on its own. They follow
+ *  RISK_META's traffic-light order so the picture matches the icons used
+ *  everywhere else. */
+export const RISK_FILL: Record<RiskLevel, string> = {
+  expired: "#94a3b8",
+  critical: "#dc2626",
+  high_risk: "#ea580c",
+  warning: "#ca8a04",
+  normal: "#15803d",
+};

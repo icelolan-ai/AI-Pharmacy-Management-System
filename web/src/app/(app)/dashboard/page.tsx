@@ -11,6 +11,7 @@ import { ErrorState } from "@/components/common/ErrorState";
 import { MoneyText } from "@/components/common/MoneyText";
 import { PageHeader } from "@/components/common/PageHeader";
 import { QtyText } from "@/components/common/QtyText";
+import { PieChart } from "@/components/charts/PieChart";
 import { RiskSummaryCards } from "@/components/reports/RiskSummaryCards";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -19,6 +20,8 @@ import {
   getInventoryValue,
   listExpiredReport,
   listExpiringReport,
+  RISK_LABEL,
+  RISK_ORDER,
   listLowStockReport,
   listStockReport,
   nearExpiryValue,
@@ -26,7 +29,7 @@ import {
 } from "@/lib/api/reports";
 import { ABILITIES, can } from "@/lib/abilities";
 import { formatClockTime } from "@/lib/format/date";
-import { describeExpiry } from "@/lib/format/expiry";
+import { describeExpiry, RISK_FILL } from "@/lib/format/expiry";
 import { percentOfMoney } from "@/lib/format/money";
 import { useSection } from "@/lib/use-section";
 
@@ -180,7 +183,25 @@ export default function DashboardPage() {
         ) : summary ? (
           <>
             <RiskSummaryCards summary={summary} />
-            <ul className="mt-3 space-y-1">
+
+            {/* D42: the shares come straight from summary.stock_value, the same
+                figures the boxes above show. Adding up the loaded `items`
+                instead would miss everything past the first page — the mistake
+                already made once with the "เงินจม" percentage. */}
+            <div className="mt-4">
+              <PieChart
+                caption="สัดส่วนมูลค่าสต็อก แยกตามระดับความเสี่ยงวันหมดอายุ"
+                totalLabel="รวมทั้งหมด"
+                slices={RISK_ORDER.map((risk) => ({
+                  key: risk,
+                  label: RISK_LABEL[risk],
+                  value: summary[risk]?.stock_value ?? "0.00",
+                  fill: RISK_FILL[risk],
+                }))}
+              />
+            </div>
+
+            <ul className="mt-4 space-y-1">
               {topExpiring.map((row) => {
                 const expiry = describeExpiry(row.expiry_date, row.days_remaining);
                 return (

@@ -10,7 +10,7 @@ export function isValidMoney(value: string): boolean {
 
 /** "95.5" -> 9550 satang (an exact integer; the API caps amounts at
  *  99,999,999.99 = 9,999,999,999 satang, far inside Number.MAX_SAFE_INTEGER). */
-function toSatang(value: string): number {
+export function toSatang(value: string): number {
   const text = value.trim();
   if (!MONEY_PATTERN.test(text)) {
     throw new Error(`invalid money value: ${text}`);
