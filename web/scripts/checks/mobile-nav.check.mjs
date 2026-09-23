@@ -72,7 +72,13 @@ check.ok(
 );
 check.ok(
   "แถวเมนูบนมือถือสูงพอสำหรับนิ้ว",
-  /panel \? "min-h-12/.test(nav),
+  // Read as a number from the shared constant (D43-b). D44 moved the height
+  // out of a per-variant expression and onto every row including the group
+  // headings, which is stronger — but it broke a pattern tied to the old shape.
+  (() => {
+    const constant = nav.match(/const ROW_MIN_HEIGHT = "min-h-(\d+)"/);
+    return constant !== null && Number(constant[1]) * 4 >= 48;
+  })(),
   "D34: touch targets must be large enough",
 );
 check.ok(

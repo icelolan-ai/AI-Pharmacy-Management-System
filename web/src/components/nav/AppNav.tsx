@@ -13,6 +13,18 @@ export type NavItem = { href: string; label: string; ability?: Ability };
  *  than the clutter folding is meant to fix. */
 export type NavGroup = { heading: string | null; items: readonly NavItem[] };
 
+/** Type sizes, named once so the check can compare them as numbers rather than
+ *  as strings (D43-b). D44: a group heading may never be smaller than the
+ *  links beneath it — it was text-xs against text-sm and could barely be read.
+ */
+export const HEADING_TEXT = "text-sm";
+export const ITEM_TEXT = "text-sm";
+export const PANEL_ITEM_TEXT = "text-base";
+export const PANEL_HEADING_TEXT = "text-base";
+
+/** Every row a finger has to hit, including the headings (D34). */
+const ROW_MIN_HEIGHT = "min-h-12";
+
 /** True for the page being looked at. "/" has to match exactly or it would
  *  claim every page, since every path starts with a slash. */
 export function isCurrent(href: string, pathname: string): boolean {
@@ -36,13 +48,20 @@ export function visibleGroups(
 }
 
 /** The one menu, rendered either down the side on a wide screen or inside the
- *  panel on a phone. Both read the same array, so the two can never disagree,
- *  and D43 gives them the same folding behaviour rather than splitting by
- *  device.
+ *  panel on a phone. Both read the same array, and D43 gives them the same
+ *  folding behaviour rather than splitting by device.
  *
- *  D34 runs through the details: the row a person is on is marked with the
- *  words "กำลังดูอยู่" as well as the dark fill, and a folding heading states
- *  "เปิดอยู่" or "พับอยู่" in words rather than leaving a chevron to carry it.
+ *  D44 separates the two kinds of row by more than position. The everyday
+ *  block at the top is bold and dark and starts at the left edge. Everything
+ *  under a heading is lighter, indented, and hangs off a drawn tree — a
+ *  vertical line down the group with a short branch into each link — with a
+ *  green dot at the start of each one.
+ *
+ *  D34 is why none of that is load-bearing: the dot is decoration beside a
+ *  label, the folded state is spelled out in words rather than left to a
+ *  chevron, and the row a person is on says "กำลังดูอยู่" as well as turning
+ *  dark. A group's name is never truncated — if the status will not fit
+ *  beside it, the status moves to its own line.
  */
 export function AppNav({
   groups,
@@ -63,7 +82,7 @@ export function AppNav({
   const { collapsed, toggle } = useCollapsedGroups(userId);
 
   return (
-    <nav aria-label="เมนูหลัก" className={panel ? "space-y-3" : "space-y-2"}>
+    <nav aria-label="เมนูหลัก" className="space-y-3">
       {visibleGroups(groups, role).map((group) => {
         const holdsCurrentPage = group.items.some((item) => isCurrent(item.href, pathname));
         // The top block never folds (D43). Everything else obeys the stored
@@ -73,7 +92,7 @@ export function AppNav({
         const open = !foldable || holdsCurrentPage || !collapsed.has(group.heading!);
 
         return (
-          <div key={group.heading ?? "__everyday"} className="space-y-1">
+          <div key={group.heading ?? "__everyday"}>
             {foldable ? (
               <button
                 type="button"
@@ -81,52 +100,82 @@ export function AppNav({
                 disabled={holdsCurrentPage}
                 aria-expanded={open}
                 className={[
-                  "flex w-full items-center justify-between gap-2 rounded-md px-3 text-left",
-                  panel ? "min-h-11 text-sm" : "min-h-9 text-xs",
-                  "font-medium tracking-wide text-slate-500",
+                  "flex w-full flex-col justify-center gap-0.5 rounded-md px-3 py-2 text-left",
+                  ROW_MIN_HEIGHT,
+                  panel ? PANEL_HEADING_TEXT : HEADING_TEXT,
+                  "font-semibold text-slate-800",
                   holdsCurrentPage ? "cursor-default" : "hover:bg-slate-100",
                 ].join(" ")}
               >
-                <span className="truncate">{group.heading}</span>
-                <span className="shrink-0 text-[11px] font-normal text-slate-400">
-                  {holdsCurrentPage ? "เปิดอยู่ · กำลังดูหน้าในกลุ่มนี้" : open ? "เปิดอยู่" : "พับอยู่"}
+                {/* Never truncated (D44): the name gets the whole width and the
+                    status sits on its own line underneath. */}
+                <span className="block">{group.heading}</span>
+                <span className="block text-[11px] font-normal text-slate-500">
+                  {holdsCurrentPage ? "เปิดอยู่ · ดูหน้านี้อยู่" : open ? "เปิดอยู่" : "พับอยู่"}
                 </span>
               </button>
             ) : null}
 
-            {open
-              ? group.items.map((item) => {
+            {open ? (
+              <div
+                className={
+                  // D44: the tree. A line down the left of the group, and each
+                  // link branches off it. Only the headed groups are indented;
+                  // the everyday block stays at the left edge where it reads as
+                  // the top level.
+                  foldable ? "ml-3 space-y-0.5 border-l border-slate-200 pt-1" : "space-y-0.5"
+                }
+              >
+                {group.items.map((item) => {
                   const current = isCurrent(item.href, pathname);
                   return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      aria-current={current ? "page" : undefined}
-                      onClick={onNavigate}
-                      className={[
-                        "flex items-center justify-between gap-3 rounded-md",
-                        // D43: once a group is opened its links read as a list,
-                        // so they are separated rather than run together.
-                        foldable ? "border-b border-slate-100 last:border-b-0" : "",
-                        panel ? "min-h-12 px-4 py-3 text-base" : "px-3 py-2 text-sm",
-                        current ? "bg-slate-900 text-white" : "text-slate-700 hover:bg-slate-100",
-                      ].join(" ")}
-                    >
-                      <span className="truncate">{item.label}</span>
-                      {current ? (
+                    <div key={item.href} className={foldable ? "relative pl-4" : ""}>
+                      {foldable ? (
                         <span
-                          className={[
-                            "shrink-0 rounded bg-white/20 px-1.5 py-0.5 font-medium",
-                            panel ? "text-xs" : "text-[10px]",
-                          ].join(" ")}
-                        >
-                          กำลังดูอยู่
-                        </span>
+                          aria-hidden="true"
+                          className="absolute left-0 top-1/2 h-px w-3 bg-slate-200"
+                        />
                       ) : null}
-                    </Link>
+                      <Link
+                        href={item.href}
+                        aria-current={current ? "page" : undefined}
+                        onClick={onNavigate}
+                        className={[
+                          "flex items-center justify-between gap-2 rounded-md px-3 py-2",
+                          ROW_MIN_HEIGHT,
+                          panel ? PANEL_ITEM_TEXT : ITEM_TEXT,
+                          // D44: the everyday block is the bold, dark one; the
+                          // rest read as subordinate to their heading.
+                          foldable ? "font-normal" : "font-semibold",
+                          current
+                            ? "bg-slate-900 text-white"
+                            : foldable
+                              ? "text-slate-600 hover:bg-slate-100"
+                              : "text-slate-900 hover:bg-slate-100",
+                        ].join(" ")}
+                      >
+                        <span className="flex min-w-0 items-center gap-2">
+                          {foldable ? (
+                            // Decoration only — the label is right beside it, so
+                            // nothing here is carried by colour (D34).
+                            <span
+                              aria-hidden="true"
+                              className="h-2 w-2 shrink-0 rounded-full bg-green-600"
+                            />
+                          ) : null}
+                          <span className="truncate">{item.label}</span>
+                        </span>
+                        {current ? (
+                          <span className="shrink-0 rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-medium">
+                            กำลังดูอยู่
+                          </span>
+                        ) : null}
+                      </Link>
+                    </div>
                   );
-                })
-              : null}
+                })}
+              </div>
+            ) : null}
           </div>
         );
       })}

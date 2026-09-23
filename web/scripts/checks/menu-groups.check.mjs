@@ -166,13 +166,82 @@ check.ok(
   "D43: folding away the page you are looking at makes no sense",
 );
 check.ok(
-  "ปุ่มของกลุ่มที่กำลังดูอยู่กดไม่ได้ และบอกเหตุผล",
-  /disabled=\{holdsCurrentPage\}/.test(headingBlock) && /กำลังดูหน้าในกลุ่มนี้/.test(headingBlock),
+  "ปุ่มของกลุ่มที่กำลังดูอยู่กดไม่ได้ และบอกเหตุผลเป็นข้อความ",
+  /disabled=\{holdsCurrentPage\}/.test(headingBlock)
+    && /holdsCurrentPage \? "[^"]*ดูหน้านี้อยู่"/.test(headingBlock),
   "a button that does nothing when pressed is worse than one that is clearly off",
 );
+// --- D44: หน้าตาเมนู หลังผู้ใช้ดูแล้วยังแยกไม่ออก -------------------------
+// Sizes are read from the exported constants and compared as numbers, and the
+// class lists are read off the elements that actually carry them, so none of
+// this depends on how the file is laid out (D43-b).
+const TEXT_PX = { "text-xs": 12, "text-sm": 14, "text-base": 16, "text-lg": 18 };
+function exportedSize(name) {
+  const found = nav.match(new RegExp(`export const ${name} = "([^"]+)"`));
+  return found ? (TEXT_PX[found[1]] ?? 0) : 0;
+}
+
 check.ok(
-  "ลิงก์ในกลุ่มที่เปิดแล้ว มีเส้นคั่นเป็นข้อ ๆ",
-  /border-b border-slate-100 last:border-b-0/.test(nav),
+  "หัวข้อกลุ่มไม่เล็กกว่าเมนูย่อย (จอกว้าง)",
+  exportedSize("HEADING_TEXT") >= exportedSize("ITEM_TEXT") && exportedSize("HEADING_TEXT") > 0,
+  `D34/D44: heading ${exportedSize("HEADING_TEXT")}px vs item ${exportedSize("ITEM_TEXT")}px`,
+);
+check.ok(
+  "หัวข้อกลุ่มไม่เล็กกว่าเมนูย่อย (มือถือ)",
+  exportedSize("PANEL_HEADING_TEXT") >= exportedSize("PANEL_ITEM_TEXT")
+    && exportedSize("PANEL_HEADING_TEXT") > 0,
+);
+check.ok(
+  "🔴 ชื่อกลุ่มต้องไม่ถูกตัด",
+  (() => {
+    const wrapper = nav.match(/<span className="([^"]*)">\{group\.heading\}<\/span>/);
+    return wrapper !== null && !/truncate|line-clamp/.test(wrapper[1]);
+  })(),
+  "D44: the name was cut to \"ห...\" to make room for the status word",
+);
+check.ok(
+  "คำบอกสถานะอยู่คนละบรรทัดกับชื่อกลุ่ม",
+  /flex-col/.test(headingBlock),
+  "D44: side by side is what squeezed the name in the first place",
+);
+check.ok(
+  "เมนูย่อยเยื้องเข้าไป ส่วนบล็อกบนสุดไม่เยื้อง",
+  (() => {
+    const ternary = nav.match(/foldable \? "(ml-[^"]*)" : "([^"]*)"/);
+    return ternary !== null && /\bml-\d/.test(ternary[1]) && !/\bml-\d/.test(ternary[2]);
+  })(),
+  "D44: submenu items must not sit in the same column as the everyday block",
+);
+check.ok(
+  "มีเส้นตั้งด้านซ้ายของกลุ่ม และเส้นสั้นแตกเข้าหาแต่ละรายการ",
+  /border-l border-slate-200/.test(nav) && /absolute left-0 top-1\/2 h-px w-3/.test(nav),
+  "D44: the tree is what shows a link belongs to its heading",
+);
+check.ok(
+  "เมนูย่อยมีจุดสีเขียวนำหน้า และเป็นของประกอบเท่านั้น",
+  /aria-hidden="true"[\s\S]{0,120}rounded-full bg-green-600/.test(nav),
+  "D34: the dot may decorate the label, never replace it",
+);
+check.ok(
+  "ชื่อเมนูย่อยต้องมองเห็นได้ ไม่ถูกซ่อนไว้ให้เหลือแต่จุดสี",
+  (() => {
+    const label = nav.match(/<span className="([^"]*)">\{item\.label\}<\/span>/);
+    return label !== null && !/sr-only|hidden|invisible|opacity-0/.test(label[1]);
+  })(),
+  "D34: hiding the label leaves the green dot carrying the meaning on its own",
+);
+check.ok(
+  "เมนูหลักตัวหนาเข้ม เมนูย่อยบางและอ่อนกว่า",
+  /foldable \? "font-normal" : "font-semibold"/.test(nav)
+    && /text-slate-600 hover:bg-slate-100[\s\S]{0,80}text-slate-900/.test(nav),
+);
+check.ok(
+  "ทุกแถวสูงอย่างน้อย 48px รวมหัวข้อกลุ่ม",
+  (() => {
+    const constant = nav.match(/const ROW_MIN_HEIGHT = "min-h-(\d+)"/);
+    return constant !== null && Number(constant[1]) * 4 >= 48;
+  })(),
+  "D34: Tailwind min-h-12 is 48px",
 );
 check.ok(
   "PC กับมือถือใช้กติกาพับเดียวกัน ไม่แยกพฤติกรรม",
