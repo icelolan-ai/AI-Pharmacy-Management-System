@@ -26,15 +26,24 @@ export function usePurchaseDraft({
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
+  /** Which purchase the next save writes to. It follows the prop, and flush()
+   *  fills it in itself the first time, when the draft is created. Synced
+   *  after every render, not during one: nothing reads it while rendering, and
+   *  every reader — the debounce timer, Ctrl+S, the step-2 button — runs long
+   *  after the commit. */
   const idRef = useRef<string | null>(purchaseId);
-  idRef.current = purchaseId;
+  useEffect(() => {
+    idRef.current = purchaseId;
+  });
 
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inFlight = useRef(false);
   /** The newest value waiting for its turn; only ever one. */
   const queued = useRef<PurchaseInput | null>(null);
 
-  const flush = useCallback(async () => {
+  // Named so the follow-up below calls THIS function rather than the memoized
+  // `flush` binding — the queue keeps working and the memoization survives.
+  const flush = useCallback(async function flush(): Promise<void> {
     if (inFlight.current) return; // the queued value will go out when this one lands
     const input = queued.current;
     if (!input) return;
