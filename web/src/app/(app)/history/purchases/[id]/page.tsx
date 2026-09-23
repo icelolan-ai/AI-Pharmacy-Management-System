@@ -7,6 +7,7 @@ import { useAuth } from "@/components/auth-provider";
 import { AccessDenied } from "@/components/common/AccessDenied";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { ErrorState } from "@/components/common/ErrorState";
+import { DumbbellChart } from "@/components/charts/DumbbellChart";
 import { ExpiryCell } from "@/components/common/ExpiryCell";
 import { MoneyText } from "@/components/common/MoneyText";
 import { PageHeader } from "@/components/common/PageHeader";
@@ -20,6 +21,7 @@ import {
   getPurchase,
   hasMismatch,
   itemDifference,
+  receivedQuantity,
   itemHasMismatch,
   type Purchase,
   type PurchaseItem,
@@ -84,7 +86,7 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
         const difference = itemDifference(item);
         return (
           <div className="flex flex-col items-end">
-            <QtyText value={item.quantity_actual ?? item.quantity_invoiced} />
+            <QtyText value={receivedQuantity(item)} />
             {itemHasMismatch(item) ? (
               <span className="text-xs font-medium text-amber-700">
                 ⚠️ {difference < 0 ? "ขาด" : "เกิน"} {Math.abs(difference)}
@@ -204,6 +206,20 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
             rows={purchase.items}
             rowKey={(item) => item.id}
             caption="รายการในใบรับสินค้า"
+          />
+
+          {/* The same two numbers as the table, drawn so the gaps are visible
+              at a glance instead of read row by row (U-7). */}
+          <DumbbellChart
+            caption="เทียบจำนวนตามใบส่งของ กับ จำนวนที่รับจริง"
+            rows={purchase.items.map((item) => ({
+              key: item.id,
+              label: item.medicine_name ?? "-",
+              sublabel: `Lot ${item.lot_number}`,
+              unit: item.unit ?? "",
+              expected: item.quantity_invoiced,
+              actual: receivedQuantity(item),
+            }))}
           />
         </>
       ) : null}

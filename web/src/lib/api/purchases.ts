@@ -169,10 +169,21 @@ export function itemHasMismatch(item: {
   return item.quantity_actual !== null && item.quantity_invoiced !== item.quantity_actual;
 }
 
+/** How many actually came in, by the rule the API documents (03-api-spec.md
+ *  §411): the counted quantity when one was entered, otherwise the quantity on
+ *  the delivery note. A null does NOT mean "nobody counted" — it means the
+ *  line was taken as invoiced, and that is what the shop was charged for. */
+export function receivedQuantity(item: {
+  quantity_invoiced: number;
+  quantity_actual: number | null;
+}): number {
+  return item.quantity_actual ?? item.quantity_invoiced;
+}
+
 /** Positive = more arrived than the note said, negative = short. */
 export function itemDifference(item: {
   quantity_invoiced: number;
   quantity_actual: number | null;
 }): number {
-  return (item.quantity_actual ?? item.quantity_invoiced) - item.quantity_invoiced;
+  return receivedQuantity(item) - item.quantity_invoiced;
 }
