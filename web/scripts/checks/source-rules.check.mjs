@@ -222,4 +222,105 @@ check.eq(
   // Every entry prints file:line and the class, so the fix needs no hunting.
 );
 
+// --- 6.1: คีย์ AI และการเรียก AI ต้องอยู่ฝั่ง backend เท่านั้น -----------------
+//
+// 🔴 ห้ามลบตลอดไป (Chat A, งาน 6.1)
+//
+// This is the one line in the whole project that, crossed once, cannot be
+// uncrossed. Anything under web/src ends up in a bundle a browser downloads,
+// and a key that reaches a browser has to be treated as published: it gets
+// revoked and replaced, and every bill run up on it in the meantime is ours.
+// So the browser never holds an AI key and never talks to an AI provider; it
+// asks our backend, which does.
+//
+// Four ways it could leak, each checked on its own:
+//   1. the key's name in source — process.env.GEMINI_API_KEY and friends
+//   2. a NEXT_PUBLIC_ variable carrying an AI key, in source or in the web
+//      env files: Next inlines every NEXT_PUBLIC_ value into the bundle, so
+//      naming one in .env.local is enough to ship it
+//   3. a provider's endpoint called straight from the browser
+//   4. a provider's SDK installed in the web app
+//
+// Comments are stripped first (D43-e: what this reports must be findable), so
+// a comment explaining the rule never trips it.
+const AI_KEY_NAMES = /\b(?:NEXT_PUBLIC_[A-Z0-9_]*(?:GEMINI|OPENAI|ANTHROPIC|CLAUDE|AI_KEY|AI_API)[A-Z0-9_]*|GEMINI_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|AI_PROVIDER)\b/g;
+const AI_ENDPOINTS = /generativelanguage\.googleapis\.com|api\.openai\.com|api\.anthropic\.com/g;
+const AI_SDKS = ["@google/generative-ai", "@google/genai", "openai", "@anthropic-ai/sdk", "@ai-sdk/google", "ai"];
+
+function aiLeaks(text) {
+  return [
+    ...(text.match(AI_KEY_NAMES) ?? []),
+    ...(text.match(AI_ENDPOINTS) ?? []),
+    ...AI_SDKS.filter((sdk) => new RegExp(`from ["']${sdk.replace(/[/.@-]/g, "\\$&")}["']`).test(text)),
+  ];
+}
+
+// The matcher first, with the spellings that matter and the ones that must
+// not trip it.
+check.eq(
+  "ตัวจับคีย์ AI จับได้ทุกทางที่คีย์จะหลุดไปถึงเบราว์เซอร์",
+  [
+    aiLeaks("const k = process.env.GEMINI_API_KEY;").length,
+    aiLeaks("const k = process.env.NEXT_PUBLIC_GEMINI_KEY;").length,
+    aiLeaks('fetch("https://generativelanguage.googleapis.com/v1beta/models")').length,
+    aiLeaks('import { GoogleGenerativeAI } from "@google/generative-ai";').length,
+    aiLeaks('import OpenAI from "openai";').length,
+  ],
+  [1, 1, 1, 1, 1],
+);
+check.eq(
+  "ตัวจับคีย์ AI ไม่จับคอมเมนต์ หรือคำที่แค่คล้ายกัน",
+  [
+    aiLeaks(stripComments("// ห้ามใช้ GEMINI_API_KEY ในเว็บ")).length,
+    aiLeaks(stripComments("/* generativelanguage.googleapis.com */")).length,
+    aiLeaks('const label = "AI ช่วยอ่านใบส่งของ";').length,
+    aiLeaks('import { cn } from "@/lib/utils";').length,
+  ],
+  [0, 0, 0, 0],
+);
+
+const aiInSource = [];
+for (const file of sourceFiles) {
+  const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+  lines.forEach((line, index) => {
+    const found = aiLeaks(line);
+    if (found.length) aiInSource.push(`${file.slice(SRC.length + 1)}:${index + 1} ${found.join(" ")}`);
+  });
+}
+check.eq(
+  "🔴 ไม่มีไฟล์ใดใน web/src อ้างถึงคีย์ AI หรือเรียก AI โดยตรง",
+  aiInSource,
+  [],
+);
+
+// The env files: names only are read here. No value is ever printed.
+const envNames = [];
+for (const name of [".env.local", ".env.local.example", ".env", ".env.production"]) {
+  let text;
+  try {
+    text = readFileSync(join(WEB, name), "utf8");
+  } catch {
+    continue;
+  }
+  text.split("\n").forEach((line, index) => {
+    const key = /^\s*([A-Z0-9_]+)\s*=/.exec(line)?.[1];
+    if (key && aiLeaks(key).length) envNames.push(`web/${name}:${index + 1} ${key}`);
+  });
+}
+check.eq(
+  "🔴 ไฟล์ env ของเว็บไม่มีตัวแปรคีย์ AI (NEXT_PUBLIC_ จะถูกฝังลงบันเดิล)",
+  envNames,
+  [],
+);
+
+const webDeps = [
+  ...Object.keys(manifest.dependencies ?? {}),
+  ...Object.keys(manifest.devDependencies ?? {}),
+];
+check.eq(
+  "🔴 เว็บไม่ได้ติดตั้ง SDK ของผู้ให้บริการ AI",
+  webDeps.filter((dep) => AI_SDKS.includes(dep)),
+  [],
+);
+
 process.exit(check.done() ? 1 : 0);

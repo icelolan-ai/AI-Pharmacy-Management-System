@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     # D9: "today" is computed in this timezone (verified against PostgreSQL at startup).
     store_timezone: str = "Asia/Bangkok"
 
+    # D53: which AI provider answers. Swapping one for another is this line in
+    # backend/.env and nothing else.
+    ai_provider: str = "gemini"
+    # Optional on purpose: the app must start, serve and be testable with no AI
+    # key at all. Only the code that actually calls a provider asks for it, and
+    # it says which setting is empty rather than failing somewhere obscure.
+    gemini_api_key: SecretStr | None = None
+
     @field_validator("database_url", "supabase_url", "store_timezone", mode="before")
     @classmethod
     def _not_blank(cls, value):

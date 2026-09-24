@@ -290,7 +290,13 @@ d629be5  lint กลุ่ม C — โหลดโปรไฟล์จาก s
 | `draft-idref.check.mjs` | 9 | ร่างรับสินค้าบันทึกลงใบที่ถูกต้อง |
 | `draft-queue.check.mjs` | 8 | C-2 — แก้ 5 ครั้งระหว่างบันทึก = ยิงจริง 2 ครั้ง ไม่ซ้อนกัน |
 | `history-access.check.mjs` | 33 | D32/D33 — ต้นทุนถูกกั้นที่ระดับหน้า และตัวกรองที่ทำงานจริงต้องไม่ถูกลบ |
-| `source-rules.check.mjs` | 19 | D35 — ห้ามมี library กราฟใน dependencies หรือดึงผ่าน CDN · D48 — ห้ามมีขนาดตัวอักษรนอก scale (`text-[...]`) ในซอร์ส *(เดิมชื่อ `no-chart-library.check.mjs` เปลี่ยนชื่อ 25 ก.ย. 2569 เพราะชื่อแคบกว่าเนื้อหา)* |
+| `source-rules.check.mjs` | 24 | D35 — ห้ามมี library กราฟใน dependencies หรือดึงผ่าน CDN · D48 — ห้ามมีขนาดตัวอักษรนอก scale (`text-[...]`) ในซอร์ส · 🔴 **6.1 — ไม่มีไฟล์ใดใน `web/src` อ้างถึงคีย์ AI หรือเรียก AI โดยตรง · ไฟล์ env ของเว็บไม่มีตัวแปรคีย์ AI · เว็บไม่ได้ติดตั้ง SDK ของผู้ให้บริการ AI (ห้ามลบตลอดไป)** *(เดิมชื่อ `no-chart-library.check.mjs` เปลี่ยนชื่อ 25 ก.ย. 2569 เพราะชื่อแคบกว่าเนื้อหา)* |
+
+**Backend — เทสต์ถาวรที่ห้ามลบ (เพิ่มในงาน 6.1)**
+
+| ไฟล์ | คุ้มครองอะไร |
+|---|---|
+| `tests/integration/test_storage_db.py` | 🔴 **bucket `invoice-scans` ต้องไม่ public (ห้ามลบตลอดไป)** — ตรวจทั้ง flag `public` ของ bucket และ policy บน `storage.objects` ที่เปิดให้ `anon`/`public` เข้าถึง เพราะ bucket ที่ “private” แต่มี policy ให้ anon อ่าน คือ public ในอีกชื่อหนึ่ง · รันบนโปรเจกต์ test เท่านั้นตาม db_guard |
 
 **กติกาการเขียนเทสต์ที่ใช้อยู่**
 
