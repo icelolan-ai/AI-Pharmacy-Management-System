@@ -141,4 +141,74 @@ check.eq(
 );
 check.ok("สแกนไฟล์ซอร์สครบ", sourceFiles.length > 50, `scanned ${sourceFiles.length} files`);
 
+// --- D48: ไม่มีขนาดตัวอักษรที่อยู่นอก scale -------------------------------
+//
+// This lives in the file that already walks every source file, because the
+// rule is the same shape as the one above: easy to break anywhere, invisible
+// to the build, and only findable by sweeping.
+//
+// D47-4 moved the whole app's type scale from one place, which works because
+// Tailwind compiles `text-sm` to `var(--text-sm)`. A fixed size like
+// `text-[11px]` reads nothing from that variable, so it sails through
+// untouched. Two of them were sitting in the menu — 11px on the group's
+// status line and 10px on the "กำลังดูอยู่" badge — and survived the entire
+// D47-4 pass on a phone. A hand sweep catches what is there today; it cannot
+// catch what someone writes tomorrow.
+//
+// Comments are stripped first. An earlier check in this project matched its
+// own explanatory comment and reported a violation that did not exist, so the
+// stripper keeps the newlines and blanks only the comment bodies, leaving
+// every line number where it was.
+function stripComments(text) {
+  return text
+    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, " "))
+    // Not preceded by ':' so that "https://…" is never read as a comment.
+    .replace(/(^|[^:])\/\/[^\n]*/gm, (whole, before) => before + " ".repeat(whole.length - before.length));
+}
+
+// `\b` before the prefix group keeps "context-[…]" out of it, while the group
+// itself lets any number of variant prefixes through and keeps them in the
+// message: a report that says `text-[13px]` when the source says
+// `sm:text-[13px]` sends the reader looking for the wrong string.
+const OFF_SCALE = /\b(?:[a-z][a-z0-9-]*:)*text-\[[^\]]*\]/g;
+
+// The matcher itself is checked first. A matcher that quietly stops matching
+// is worse than no rule at all, and the prefix case is exactly what a simpler
+// pattern misses.
+const probe = (line) => (stripComments(line).match(OFF_SCALE) ?? []).length;
+check.eq(
+  "ตัวจับค่าตายตัวจับได้ทั้งแบบมีและไม่มี prefix",
+  [
+    probe('className="text-[13px]"'),
+    probe('className="sm:text-[13px]"'),
+    probe('className="md:hover:text-[0.9rem] text-[11px]"'),
+  ],
+  [1, 1, 2],
+);
+check.eq(
+  "ตัวจับไม่เหวี่ยงแหใส่คอมเมนต์ หรือชื่อคลาสที่พ้องกัน",
+  [
+    probe("// เคยใช้ text-[11px] แต่ย้ายขึ้น scale แล้ว"),
+    probe("/* text-[10px] */"),
+    probe('className="context-[x] subtext-[y]"'),
+    probe('const url = "https://x.test/text-[9px]";'),
+  ],
+  [0, 0, 0, 1],
+);
+
+const offScale = [];
+for (const file of sourceFiles) {
+  const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+  lines.forEach((line, index) => {
+    const found = line.match(OFF_SCALE);
+    if (found) offScale.push(`${file.slice(SRC.length + 1)}:${index + 1} ${found.join(" ")}`);
+  });
+}
+check.eq(
+  "ไม่มีขนาดตัวอักษรที่อยู่นอก scale ในซอร์สเลย (D48)",
+  offScale,
+  [],
+  // Every entry prints file:line and the class, so the fix needs no hunting.
+);
+
 process.exit(check.done() ? 1 : 0);
