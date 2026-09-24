@@ -25,6 +25,10 @@ class AIResult:
     model: str
     prompt_tokens: int | None
     completion_tokens: int | None
+    # Tokens a model spends reasoning before it answers. They are reported
+    # apart from the answer, and on some models they are most of the total:
+    # a one-word reply came back as 1 answer token and 106 thinking tokens.
+    thinking_tokens: int | None
     total_tokens: int | None
     latency_ms: int
 

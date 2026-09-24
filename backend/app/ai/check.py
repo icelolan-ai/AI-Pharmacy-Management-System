@@ -77,6 +77,7 @@ def ping() -> int:
         "token ที่ใช้  : "
         f"prompt {result.prompt_tokens} · "
         f"คำตอบ {result.completion_tokens} · "
+        f"คิด {result.thinking_tokens if result.thinking_tokens is not None else '-'} · "
         f"รวม {result.total_tokens}"
     )
     return 0

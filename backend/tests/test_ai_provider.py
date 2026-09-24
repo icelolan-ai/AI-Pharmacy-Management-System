@@ -146,3 +146,36 @@ def test_an_unknown_provider_lists_the_ones_that_exist():
     with pytest.raises(ConfigError) as caught:
         get_provider(settings(gemini_api_key=FAKE_KEY, ai_model="m", ai_provider="nobody"))
     assert "gemini" in str(caught.value)
+
+
+# --- thinking tokens are part of the bill, so they are part of the report --
+
+
+def test_thinking_tokens_are_reported_apart_from_the_answer(monkeypatch):
+    """Measured on a real call: a one-word reply from gemini-3.5-flash came
+    back as 8 in, 1 out, 115 total — 106 of it thinking. Reporting only in and
+    out would have hidden nine tenths of what the call cost."""
+    body = {
+        "candidates": [{"content": {"parts": [{"text": "พร้อม"}]}}],
+        "usageMetadata": {
+            "promptTokenCount": 8,
+            "candidatesTokenCount": 1,
+            "thoughtsTokenCount": 106,
+            "totalTokenCount": 115,
+        },
+    }
+    monkeypatch.setattr(httpx, "post", Recorder([(200, body)]))
+    result = GeminiProvider(SecretStr(FAKE_KEY), "some-model").complete("hi")
+    assert (result.prompt_tokens, result.completion_tokens, result.thinking_tokens, result.total_tokens) == (
+        8, 1, 106, 115,
+    )
+
+
+def test_a_model_that_did_not_think_reports_none_not_zero(monkeypatch):
+    body = {
+        "candidates": [{"content": {"parts": [{"text": "พร้อม"}]}}],
+        "usageMetadata": {"promptTokenCount": 8, "candidatesTokenCount": 1, "totalTokenCount": 9},
+    }
+    monkeypatch.setattr(httpx, "post", Recorder([(200, body)]))
+    result = GeminiProvider(SecretStr(FAKE_KEY), "some-model").complete("hi")
+    assert result.thinking_tokens is None

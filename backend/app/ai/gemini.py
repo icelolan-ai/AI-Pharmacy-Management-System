@@ -96,6 +96,9 @@ class GeminiProvider:
             model=self.model,
             prompt_tokens=usage.get("promptTokenCount"),
             completion_tokens=usage.get("candidatesTokenCount"),
+            # Absent when the model did not think — None, not 0, so the report
+            # can tell "did not think" from "reported nothing".
+            thinking_tokens=usage.get("thoughtsTokenCount"),
             total_tokens=usage.get("totalTokenCount"),
             latency_ms=latency_ms,
         )
