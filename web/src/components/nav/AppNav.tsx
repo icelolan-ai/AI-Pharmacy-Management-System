@@ -115,7 +115,7 @@ export function AppNav({
                 {/* Never truncated (D44): the name gets the whole width and the
                     status sits on its own line underneath. */}
                 <span className="block">{group.heading}</span>
-                <span className="block text-[11px] font-normal text-slate-500">
+                <span className="block text-xs font-normal text-slate-500">
                   {open
                     ? holdsCurrentPage
                       ? "เปิดอยู่ · ดูหน้านี้อยู่"
@@ -181,7 +181,7 @@ export function AppNav({
                           <span>{item.label}</span>
                         </span>
                         {current ? (
-                          <span className="w-fit rounded bg-white/20 px-1.5 py-0.5 text-[10px] font-medium">
+                          <span className="w-fit rounded bg-white/20 px-1.5 py-0.5 text-xs font-medium">
                             กำลังดูอยู่
                           </span>
                         ) : null}
