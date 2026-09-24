@@ -62,3 +62,30 @@ def test_no_policy_opens_invoice_scans_to_anonymous_callers():
 
     offenders = [p["name"] for p in policies if opens_this_bucket(p)]
     assert offenders == [], f"policies letting outsiders at {BUCKET!r}: {offenders}"
+
+
+# The limits Chat A approved for 6.1. HEIC is on the list on purpose: an
+# iPhone saves photos as HEIC unless someone changes a setting, and a shop
+# that cannot upload the photo it just took will stop using the feature.
+SIZE_LIMIT = 10 * 1024 * 1024
+ALLOWED_TYPES = {"image/jpeg", "image/png", "image/webp", "image/heic", "application/pdf"}
+
+
+def test_invoice_scans_bucket_limits_size_and_type():
+    """A bucket with no ceiling accepts anything anyone sends it — a 2 GB
+    video as readily as a receipt. The limits are asserted exactly, so a
+    wider list is caught as surely as a missing entry."""
+    with db.get_transaction() as cur:
+        cur.execute(
+            "SELECT file_size_limit, allowed_mime_types FROM storage.buckets WHERE id = %s",
+            (BUCKET,),
+        )
+        row = cur.fetchone()
+    assert row is not None, f"bucket {BUCKET!r} is missing from the test project"
+    assert row["file_size_limit"] == SIZE_LIMIT, (
+        f"size limit is {row['file_size_limit']!r}, expected {SIZE_LIMIT} (10 MB)"
+    )
+    assert set(row["allowed_mime_types"] or []) == ALLOWED_TYPES, (
+        f"allowed types are {sorted(row['allowed_mime_types'] or [])}, "
+        f"expected {sorted(ALLOWED_TYPES)}"
+    )
