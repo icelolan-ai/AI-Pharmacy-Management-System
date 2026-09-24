@@ -3,7 +3,8 @@
 import Link from "next/link";
 
 import { can, type Ability } from "@/lib/abilities";
-import { useCollapsedGroups } from "@/lib/nav/collapsed-groups";
+import { useFoldedGroups } from "@/lib/nav/folded-groups";
+import { isFoldable, isGroupOpen } from "@/lib/nav/folding";
 
 export type NavItem = { href: string; label: string; ability?: Ability };
 
@@ -79,17 +80,22 @@ export function AppNav({
   onNavigate?: () => void;
 }) {
   const panel = variant === "panel";
-  const { collapsed, toggle } = useCollapsedGroups(userId);
+  const { exceptions, toggle } = useFoldedGroups(userId, variant);
 
   return (
     <nav aria-label="เมนูหลัก" className="space-y-3">
       {visibleGroups(groups, role).map((group) => {
         const holdsCurrentPage = group.items.some((item) => isCurrent(item.href, pathname));
-        // The top block never folds (D43). Everything else obeys the stored
-        // preference, except that the group you are standing in stays open —
-        // folding the page you are looking at would be nonsense.
-        const foldable = group.heading !== null;
-        const open = !foldable || holdsCurrentPage || !collapsed.has(group.heading!);
+        // Both answers come from lib/nav/folding so a check can run them
+        // rather than read them (D43-a). The top block never folds (D43); the
+        // rest follow the device default until the person changes one.
+        const foldable = isFoldable(group.heading);
+        const open = isGroupOpen({
+          heading: group.heading,
+          holdsCurrentPage,
+          exceptions,
+          variant,
+        });
 
         return (
           <div key={group.heading ?? "__everyday"}>
@@ -97,21 +103,24 @@ export function AppNav({
               <button
                 type="button"
                 onClick={() => toggle(group.heading!)}
-                disabled={holdsCurrentPage}
                 aria-expanded={open}
                 className={[
                   "flex w-full flex-col justify-center gap-0.5 rounded-md px-3 py-2 text-left",
                   ROW_MIN_HEIGHT,
                   panel ? PANEL_HEADING_TEXT : HEADING_TEXT,
                   "font-semibold text-slate-800",
-                  holdsCurrentPage ? "cursor-default" : "hover:bg-slate-100",
+                  "hover:bg-slate-100",
                 ].join(" ")}
               >
                 {/* Never truncated (D44): the name gets the whole width and the
                     status sits on its own line underneath. */}
                 <span className="block">{group.heading}</span>
                 <span className="block text-[11px] font-normal text-slate-500">
-                  {holdsCurrentPage ? "เปิดอยู่ · ดูหน้านี้อยู่" : open ? "เปิดอยู่" : "พับอยู่"}
+                  {open
+                    ? holdsCurrentPage
+                      ? "เปิดอยู่ · ดูหน้านี้อยู่"
+                      : "เปิดอยู่"
+                    : "พับอยู่"}
                 </span>
               </button>
             ) : null}

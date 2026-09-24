@@ -128,3 +128,41 @@
     @apply font-sans;
   }
 }
+
+/* D47-4 — บนมือถือ ตัวอักษรต้องไม่เล็กกว่า 16px และมีระยะหายใจมากกว่านี้
+ *
+ * Tailwind v4 compiles every size utility to `font-size: var(--text-sm)` and
+ * every spacing utility to a multiple of `var(--spacing)`, so redefining those
+ * variables below the `sm` breakpoint moves the whole app at once — tables,
+ * cards, forms, the till, the receiving screen — without editing a single
+ * page. Nineteen files edited by hand would have drifted apart within a week.
+ *
+ * `text-sm` is this app's body size, so it becomes 16px exactly. The rest are
+ * lifted with it so the relationships between them survive.
+ *
+ * Line height is raised beyond the scaling: Thai stacks vowels and tone marks
+ * above and below the line, and the default 1.43 puts a tone mark of one line
+ * against the vowel of the next. Older eyes are the ones this is for (D34).
+ *
+ * Wide screens are untouched. Nothing here applies at 640px and up.
+ */
+@media (width < 40rem) {
+  :root {
+    --text-xs: 0.875rem;    /* 14px — was 12, used for badges and footnotes */
+    --text-sm: 1rem;        /* 16px — was 14, the body size of this app */
+    --text-base: 1.0625rem; /* 17px — was 16 */
+    --text-lg: 1.1875rem;   /* 19px — was 18 */
+    --text-xl: 1.375rem;    /* 22px — was 20 */
+    --text-2xl: 1.625rem;   /* 26px — was 24 */
+
+    --text-xs--line-height: 1.5;
+    --text-sm--line-height: 1.6;
+    --text-base--line-height: 1.6;
+    --text-lg--line-height: 1.5;
+
+    /* Every gap, padding and margin in the app is a multiple of this. +12%
+     * is enough to unstick the rows without pushing anything off a 375px
+     * screen — measured page by page, not guessed. */
+    --spacing: 0.28rem;
+  }
+}

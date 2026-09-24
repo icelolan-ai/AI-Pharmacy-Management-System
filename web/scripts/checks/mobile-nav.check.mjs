@@ -58,9 +58,18 @@ check.ok(
 
 // --- 3. D34: words, not just colour; and targets big enough ---------------
 check.ok(
-  "ปุ่มเปิดเมนูมีคำว่า “เมนู” ไม่ใช่ไอคอนเปล่า",
-  /เมนู\s*\n?\s*<\/Button>/.test(mobile) || />\s*เมนู\s*</.test(mobile),
+  // D47-3 replaced the word "เมนู" on the face of the button with the shop's
+  // own name, which is what the owner asked for. The word did not disappear:
+  // it moved into the accessible name, so a screen reader still says what the
+  // button is for, and ☰ stays beside the name for everyone else (D34).
+  "ปุ่มเปิดเมนูบอกเป็นคำว่าเป็นเมนู ไม่ใช่ไอคอนเปล่า",
+  /aria-label=\{open \? "ปิดเมนูหลัก" : "เปิดเมนูหลัก"\}/.test(mobile) && /☰/.test(mobile),
   "D34: an icon alone leaves an older user guessing",
+);
+check.ok(
+  "ปุ่มแสดงชื่อร้าน และยังอ่านออกว่าเป็นชื่อร้าน",
+  /\{storeName \?\? "เมนู"\}/.test(mobile),
+  "D47-3: the shop's name is the control",
 );
 check.ok(
   "หน้าที่กำลังดูอยู่บอกด้วยข้อความ ไม่ใช่สีอย่างเดียว",
@@ -82,12 +91,27 @@ check.ok(
   "D34: touch targets must be large enough",
 );
 check.ok(
-  "ปุ่มเปิดและปุ่มปิดสูงพอสำหรับนิ้ว",
-  (mobile.match(/min-h-11/g) ?? []).length >= 2,
+  // One button now, used twice — as the opener and, in the same corner of the
+  // panel, as the closer. Both are the same component, so one height covers
+  // both, and D47-4 raised it from min-h-11 to min-h-12.
+  "ปุ่มเดียวกันนี้สูงพอสำหรับนิ้ว",
+  /min-h-12/.test(mobile),
+  "D34: touch targets must be large enough",
+);
+check.eq(
+  "มีปุ่มเปิด/ปิดตัวเดียว ใช้ซ้ำทั้งสองที่ ไม่ใช่สองปุ่มคนละมุม",
+  (mobile.match(/<StoreNameButton/g) ?? []).length,
+  2,
 );
 check.ok(
-  "ปุ่มปิดเป็นคำว่า “ปิด” ไม่ใช่กากบาทเปล่า",
-  />\s*ปิด\s*</.test(mobile),
+  "ไม่มีปุ่ม “ปิด” แยกอีกปุ่มแล้ว (D47-3)",
+  !/>\s*ปิด\s*</.test(mobile),
+  "two controls for one thing, in two corners, is what made it feel like a trap",
+);
+check.ok(
+  "กดปุ่มเดิมซ้ำ = ปิด",
+  /setOpen\(\(wasOpen\) => !wasOpen\)/.test(mobile),
+  "D47-3: press to open, press again to close",
 );
 
 // --- 4. it behaves like a dialog and closes properly ----------------------

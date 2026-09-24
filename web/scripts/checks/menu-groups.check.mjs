@@ -132,7 +132,165 @@ check.eq(
 // finished menu and said it was still cluttered, and D41 makes that the
 // deciding evidence, so D43 reverses it. These assertions were rewritten
 // rather than deleted: the rule changed, so what they guard changed with it.
-const collapsedStore = source("lib/nav/collapsed-groups.ts");
+const collapsedStore = source("lib/nav/folded-groups.ts");
+const foldingSource = source("lib/nav/folding.ts");
+
+// --- D43-a: the folding rules are RUN here, not read ----------------------
+//
+// Every assertion in this section used to be about the shape of the code: that
+// `aria-expanded={open}` appears, that `open` is spelled a certain way, that
+// the store file mentions useSyncExternalStore. Not one of them ever opened a
+// group, shut it, and looked at the result — which is how D47-1 reached a real
+// phone. So the two decisions now live in lib/nav/folding.ts and lib/nav/
+// folded-groups.ts as plain functions, and this check executes them.
+function lift(text, rewrites, returns) {
+  let body = text;
+  for (const [from, to] of rewrites) {
+    if (!body.includes(from)) throw new Error(`signature moved: ${from}`);
+    body = body.replace(from, to);
+  }
+  body = body.replace(/^export (function|const) /gm, "$1 ").replace(/^export type .*$/gm, "");
+  return new Function(`${body}\nreturn { ${returns} };`)();
+}
+
+const F = lift(
+  foldingSource,
+  [
+    ["export function opensByDefault(variant: NavVariant): boolean {", "function opensByDefault(variant) {"],
+    ["export function isFoldable(heading: string | null): boolean {", "function isFoldable(heading) {"],
+    [
+      `export function isGroupOpen({
+  heading,
+  holdsCurrentPage,
+  exceptions,
+  variant,
+}: {
+  /** null for the everyday block at the top, which never folds (D43). */
+  heading: string | null;
+  holdsCurrentPage: boolean;
+  exceptions: ReadonlySet<string>;
+  variant: NavVariant;
+}): boolean {`,
+      "function isGroupOpen({ heading, holdsCurrentPage, exceptions, variant }) {",
+    ],
+  ],
+  "isGroupOpen, opensByDefault, isFoldable",
+);
+
+// Only the two pure functions are lifted; the hook around them needs React.
+// Each is matched as a whole declaration and asserted to have been found, so
+// a rename fails loudly instead of leaving this check running a stub (D43-c).
+function declaration(label, pattern) {
+  const found = collapsedStore.match(pattern)?.[0] ?? "";
+  check.ok(`อ่าน${label}ออกมาได้จริง`, found !== "", "nothing to assert against");
+  return found;
+}
+const S = lift(
+  declaration("ตัวอ่านค่าที่เก็บไว้", /export function parseExceptions[\s\S]*?\n\}/) +
+    "\n" +
+    declaration("ตัวสลับสถานะ", /export function toggledExceptions[\s\S]*?\n\}/),
+  [
+    ["export function parseExceptions(raw: string | null): ReadonlySet<string> {", "function parseExceptions(raw) {"],
+    [
+      `export function toggledExceptions(
+  exceptions: ReadonlySet<string>,
+  heading: string,
+): string[] {`,
+      "function toggledExceptions(exceptions, heading) {",
+    ],
+    ["const parsed = JSON.parse(raw) as unknown;", "const parsed = JSON.parse(raw);"],
+    ['parsed.filter((entry): entry is string => typeof entry === "string")', 'parsed.filter((entry) => typeof entry === "string")'],
+  ],
+  "parseExceptions, toggledExceptions",
+);
+
+const EVERYDAY = null;
+const GROUP = "หน้าที่ประจำวัน";
+const none = new Set();
+
+// A known answer first: if the lift produced something that runs but is not
+// the real code, everything below would be meaningless.
+check.eq(
+  "ยกโค้ดตัดสินการพับจริงออกมารันได้ ไม่ใช่สำเนาในไฟล์นี้",
+  [F.opensByDefault("sidebar"), F.opensByDefault("panel"), F.isFoldable(EVERYDAY)],
+  [true, false, false],
+);
+
+const openIn = (variant, exceptions, holdsCurrentPage = false) =>
+  F.isGroupOpen({ heading: GROUP, holdsCurrentPage, exceptions, variant });
+
+check.eq(
+  "🔴 บล็อกบนสุดเปิดเสมอ ทั้งสองอุปกรณ์ (D43)",
+  [
+    F.isGroupOpen({ heading: EVERYDAY, holdsCurrentPage: false, exceptions: none, variant: "sidebar" }),
+    F.isGroupOpen({ heading: EVERYDAY, holdsCurrentPage: false, exceptions: none, variant: "panel" }),
+  ],
+  [true, true],
+);
+check.eq("PC: ยังไม่เคยแตะ = เปิดทุกกลุ่ม (D43 เดิม)", openIn("sidebar", none), true);
+check.eq("มือถือ: ยังไม่เคยแตะ = พับทุกกลุ่ม (D47-2)", openIn("panel", none), false);
+
+/** One press of the heading, through the real store logic. */
+function press(variant, exceptions) {
+  return new Set(S.toggledExceptions(exceptions, GROUP));
+}
+
+for (const variant of ["sidebar", "panel"]) {
+  const start = openIn(variant, none);
+  const once = press(variant, none);
+  const twice = press(variant, once);
+  check.eq(
+    `${variant}: กดหัวข้อครั้งเดียว สลับสถานะ`,
+    openIn(variant, once),
+    !start,
+  );
+  check.eq(
+    `${variant}: กดสองครั้ง กลับมาเหมือนเดิม`,
+    openIn(variant, twice),
+    start,
+  );
+}
+
+// D47-1. This is the assertion the bug got past: the old rule forced the group
+// holding the current page open and turned its heading off, so pressing it did
+// nothing at all. A heading that does nothing reads as broken (D34).
+const heldOnce = press("panel", none);
+check.eq(
+  "🔴 D47-1: กลุ่มที่มีหน้าที่กำลังดูอยู่ ก็ต้องกดพับได้",
+  [openIn("sidebar", none, true), openIn("sidebar", press("sidebar", none), true)],
+  [true, false],
+);
+check.eq(
+  "🔴 D47-1: บนมือถือก็เช่นกัน กดแล้วต้องเปลี่ยนสถานะ",
+  [openIn("panel", none, true), openIn("panel", heldOnce, true)],
+  [true, false],
+);
+check.ok(
+  "ไม่มีปุ่มหัวข้อไหนถูกปิดการใช้งาน",
+  !/disabled=/.test(nav),
+  "D47-1: a heading that cannot be pressed is the bug, not the rule",
+);
+check.eq(
+  "มาถึงหน้าที่อยู่ในกลุ่มที่ยังไม่เคยแตะ -> กลุ่มเปิดให้เอง",
+  openIn("panel", none, true),
+  true,
+);
+
+check.ok(
+  "PC กับมือถือ จำแยกกัน ไม่ปนกัน",
+  /\$\{PREFIX\}\$\{variant\}\./.test(collapsedStore),
+  "folding a group on a short screen must not fold it on the shop computer",
+);
+check.eq(
+  "ข้อมูลเสียหรือไม่มี -> กลับไปใช้ค่าเริ่มต้นของอุปกรณ์",
+  [
+    S.parseExceptions(null).size,
+    S.parseExceptions("not json").size,
+    S.parseExceptions('{"a":1}').size,
+    S.parseExceptions('["ตั้งค่า", 7, null]').size,
+  ],
+  [0, 0, 0, 1],
+);
 // The heading button element itself, matched as a whole rather than sliced
 // between two markers. Both earlier attempts went wrong this way: one ended
 // at a marker that sits inside the button, and one ended at a marker that
@@ -157,24 +315,21 @@ check.ok(
   "D34: an arrow on its own leaves the state to be guessed",
 );
 check.ok(
-  "🔴 บล็อกบนสุดพับไม่ได้ เพราะ heading เป็น null จึงไม่มีปุ่มให้กด",
-  /const foldable = group\.heading !== null;/.test(nav),
-  "D43: having to open something before selling is worse than the clutter",
+  // The rule itself is proved by running isFoldable/isGroupOpen above. What
+  // is checked here is that the menu asks them instead of deciding again.
+  "🔴 เมนูถามฟังก์ชันที่เทสต์รันจริง ไม่ได้ตัดสินเองซ้ำ",
+  /const foldable = isFoldable\(group\.heading\);/.test(nav)
+    && /const open = isGroupOpen\(\{/.test(nav),
+  "a second copy of the rule inside the component is one the tests never see",
 );
 check.ok(
-  "กลุ่มที่พับไม่ได้ ถือว่าเปิดเสมอ",
-  /const open = !foldable \|\|/.test(nav),
+  "กลุ่มที่กำลังดูอยู่ ยังบอกได้ว่าดูหน้านี้อยู่ แต่พับได้ (D47-1)",
+  /holdsCurrentPage[\s\S]{0,40}ดูหน้านี้อยู่/.test(headingBlock),
 );
 check.ok(
-  "กลุ่มที่มีหน้าที่กำลังดูอยู่ เปิดเสมอแม้เคยพับไว้",
-  /holdsCurrentPage \|\| !collapsed\.has/.test(nav),
-  "D43: folding away the page you are looking at makes no sense",
-);
-check.ok(
-  "ปุ่มของกลุ่มที่กำลังดูอยู่กดไม่ได้ และบอกเหตุผลเป็นข้อความ",
-  /disabled=\{holdsCurrentPage\}/.test(headingBlock)
-    && /holdsCurrentPage \? "[^"]*ดูหน้านี้อยู่"/.test(headingBlock),
-  "a button that does nothing when pressed is worse than one that is clearly off",
+  "กลุ่มที่พับแล้ว บอกว่าพับอยู่ ไม่ใช่ยังบอกว่าเปิดอยู่",
+  headingBlock.indexOf("{open") < headingBlock.indexOf("ดูหน้านี้อยู่"),
+  "the old order claimed เปิดอยู่ for a folded group holding the current page",
 );
 // --- D44: หน้าตาเมนู หลังผู้ใช้ดูแล้วยังแยกไม่ออก -------------------------
 // Sizes are read from the exported constants and compared as numbers, and the
@@ -290,7 +445,7 @@ check.ok(
 // --- D38: the folded state is a per-person convenience, stored safely -----
 check.ok(
   "จำสถานะแยกตามผู้ใช้ ตาม D38",
-  /PREFIX \+ \(userId \?\? "anonymous"\)/.test(collapsedStore),
+  /\$\{userId \?\? "anonymous"\}/.test(collapsedStore),
 );
 check.ok(
   "อ่านและเขียน localStorage อยู่ใน try/catch ทุกจุด",
