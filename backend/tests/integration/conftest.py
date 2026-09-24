@@ -61,6 +61,9 @@ BUSINESS_TABLES = (
     "store_map_points",
     "store_map_shapes",
     "store_maps",
+    # 6.1 scan tables. Images first; the scan row cascades to them anyway.
+    "invoice_scan_images",
+    "invoice_scans",
 )
 
 
