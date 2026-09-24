@@ -29,12 +29,31 @@ class AIResult:
     latency_ms: int
 
 
-class AIProvider(Protocol):
-    """A provider is a name, a model and one call."""
+@dataclass(frozen=True)
+class ModelInfo:
+    """One model a provider says it offers, as the provider describes it.
+
+    Nothing here is filled in by us: a limit the provider does not report is
+    None, not a number from memory.
+    """
 
     name: str
-    model: str
+    display_name: str | None
+    can_generate: bool
+    input_token_limit: int | None
+    output_token_limit: int | None
+
+
+class AIProvider(Protocol):
+    """A provider is a name, a model and two calls."""
+
+    name: str
+    model: str | None
 
     def complete(self, prompt: str, *, timeout: float = ...) -> AIResult:
         """Send `prompt`, return the answer. Raises AppError on failure."""
+        ...
+
+    def list_models(self, *, timeout: float = ...) -> list[ModelInfo]:
+        """Ask the provider what it really offers — needs a key, not a model."""
         ...

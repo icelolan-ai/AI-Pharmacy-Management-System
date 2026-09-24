@@ -30,6 +30,10 @@ class Settings(BaseSettings):
     # D53: which AI provider answers. Swapping one for another is this line in
     # backend/.env and nothing else.
     ai_provider: str = "gemini"
+    # Which model the provider runs. Deliberately not defaulted in code: two
+    # people guessed two different names, and neither was confirmed to exist.
+    # `python -m app.ai.check list` asks the provider what it really offers.
+    ai_model: str | None = None
     # Optional on purpose: the app must start, serve and be testable with no AI
     # key at all. Only the code that actually calls a provider asks for it, and
     # it says which setting is empty rather than failing somewhere obscure.
