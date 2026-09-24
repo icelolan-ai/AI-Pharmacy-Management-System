@@ -209,7 +209,7 @@ export default function DashboardPage() {
         action={
           <Link
             href="/history/sales"
-            className="text-sm text-slate-600 underline-offset-2 hover:underline"
+            className="inline-flex min-h-11 items-center text-sm text-slate-600 underline-offset-2 hover:underline sm:min-h-0"
           >
             ดูทั้งหมด
           </Link>
@@ -244,7 +244,7 @@ export default function DashboardPage() {
         error={expiring.error}
         onRetry={expiring.reload}
         action={
-          <Link href="/expiry" className="text-sm text-slate-600 underline-offset-2 hover:underline">
+          <Link href="/expiry" className="inline-flex min-h-11 items-center text-sm text-slate-600 underline-offset-2 hover:underline sm:min-h-0">
             ดูทั้งหมด
           </Link>
         }
@@ -285,7 +285,7 @@ export default function DashboardPage() {
         action={
           <Link
             href="/reports/expired"
-            className="text-sm text-slate-600 underline-offset-2 hover:underline"
+            className="inline-flex min-h-11 items-center text-sm text-slate-600 underline-offset-2 hover:underline sm:min-h-0"
           >
             ดูทั้งหมด
           </Link>
@@ -310,7 +310,7 @@ export default function DashboardPage() {
         action={
           <Link
             href="/reports/low-stock"
-            className="text-sm text-slate-600 underline-offset-2 hover:underline"
+            className="inline-flex min-h-11 items-center text-sm text-slate-600 underline-offset-2 hover:underline sm:min-h-0"
           >
             ดูทั้งหมด
           </Link>
@@ -347,7 +347,7 @@ export default function DashboardPage() {
           action={
             <Link
               href="/reports/inventory-value"
-              className="text-sm text-slate-600 underline-offset-2 hover:underline"
+              className="inline-flex min-h-11 items-center text-sm text-slate-600 underline-offset-2 hover:underline sm:min-h-0"
             >
               ดูทั้งหมด
             </Link>

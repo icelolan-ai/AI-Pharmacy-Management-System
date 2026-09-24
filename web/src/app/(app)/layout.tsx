@@ -100,7 +100,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+          <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-slate-200 bg-white px-4 py-3">
             {/* The phone has no sidebar, so the way out of this page lives here. */}
             <MobileNav groups={MENU} role={me?.role} userId={me?.id} pathname={pathname} />
             {me ? (

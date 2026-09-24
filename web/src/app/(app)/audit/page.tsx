@@ -98,13 +98,13 @@ export default function AuditPage() {
         return (
           <div className="space-y-0.5">
             {changes.slice(0, 4).map((change) => (
-              <p key={change.field} className="text-xs text-slate-600">
+              <p key={change.field} className="text-sm text-slate-600">
                 <span className="text-slate-500">{change.field}</span>{" "}
                 {formatAuditValue(change.before)} → {formatAuditValue(change.after)}
               </p>
             ))}
             {changes.length > 4 ? (
-              <p className="text-xs text-slate-400">และอีก {changes.length - 4} ช่อง</p>
+              <p className="text-sm text-slate-400">และอีก {changes.length - 4} ช่อง</p>
             ) : null}
           </div>
         );

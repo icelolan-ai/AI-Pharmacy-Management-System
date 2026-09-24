@@ -123,7 +123,7 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
           purchase?.confirmed_at ? `รับเข้าเมื่อ ${formatDateTimeBE(purchase.confirmed_at)} น.` : undefined
         }
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <Button variant="outline" onClick={() => router.push("/history/purchases")}>
               กลับไปประวัติ
             </Button>

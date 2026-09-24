@@ -166,3 +166,39 @@
     --spacing: 0.28rem;
   }
 }
+
+/* D47-4 — สิ่งที่นิ้วต้องกด ต้องใหญ่พอบนมือถือ
+ *
+ * The shared button component ships at h-8 (32px), h-7 for `sm`, and `sm`
+ * hardcodes text-[0.8rem] — 12.8px, which slips past the type scale above
+ * because it is a fixed value rather than a step on it. None of that is a
+ * finger's worth on a phone (D34), and it is spread across every screen in
+ * the app, so it is raised here rather than in nineteen call sites.
+ *
+ * These rules sit outside @layer on purpose: Tailwind's utilities are
+ * layered, so an unlayered rule wins without anything being marked
+ * !important. Wide screens never see any of it.
+ */
+@media (width < 40rem) {
+  [data-slot="button"],
+  button:not([data-slot]),
+  input:not([type="checkbox"]):not([type="radio"]),
+  select,
+  textarea {
+    min-height: 2.75rem; /* 44px */
+  }
+
+  /* A button's label follows the body size like everything else, and it is
+   * allowed to wrap: the component ships with whitespace-nowrap, which on a
+   * phone pushes a long label like "พิมพ์ใบรับสินค้า R-690917-001" straight
+   * off the side of its row. Two lines inside the button is the lesser
+   * problem, and it keeps the whole label readable (D34). */
+  [data-slot="button"] {
+    font-size: var(--text-sm);
+    white-space: normal;
+    /* The component also ships shrink-0, so a long label in a row of buttons
+     * runs off the side instead of giving way. On a phone it gives way. */
+    flex-shrink: 1;
+    min-width: 0;
+  }
+}
