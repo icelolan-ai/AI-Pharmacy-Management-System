@@ -1,14 +1,25 @@
-/** D35: กราฟทุกตัววาดด้วย inline SVG เอง ห้ามเพิ่ม dependency สำหรับกราฟ
+/** กติกาที่ใช้กับซอร์สทั้งโปรเจกต์ — ไม่ผูกกับหน้าใดหน้าหนึ่ง
  *
- *  Two written rules already forbid this, and one of them fails the whole
- *  gate on contact: 05-web-spec.md 5.0.12 lists "Library กราฟ" among the
- *  packages banned outright, and item 45 of the closing checklist says any
- *  dependency outside 5.0.12 is an immediate fail.
+ *  Two rules live here, and they are here together for the same reason:
+ *  each can be broken anywhere in the tree, neither shows up in the build,
+ *  and the only way to find a breach is to walk every file.
  *
- *  A chart library is the easiest of those rules to break by accident,
- *  because reaching for one is the normal way to draw a chart and nothing
- *  else in the build would complain. So it is checked here rather than left
- *  to whoever reads the checklist last.
+ *  **D35 — ห้ามมี library กราฟ.** Two written rules already forbid it, and
+ *  one fails the whole gate on contact: 05-web-spec.md 5.0.12 lists
+ *  "Library กราฟ" among the packages banned outright, and item 45 of the
+ *  closing checklist says any dependency outside 5.0.12 is an immediate
+ *  fail. Reaching for a charting package is the normal way to draw a chart
+ *  and nothing else in the build would complain, so it is checked here
+ *  rather than left to whoever reads the checklist last.
+ *
+ *  **D48 — ห้ามมีขนาดตัวอักษรนอก scale.** A fixed size like `text-[11px]`
+ *  reads nothing from the type scale, so moving the scale never moves it.
+ *  Two of them sat in the menu through the whole of D47-4 at 11px and 10px
+ *  on a phone.
+ *
+ *  The file was called no-chart-library.check.mjs until 25 ก.ย. 2569. A name
+ *  narrower than the contents invites the next reader to decide the other
+ *  rule does not belong here and tidy it away.
  */
 
 import { readdirSync, readFileSync } from "node:fs";
@@ -17,7 +28,7 @@ import { fileURLToPath } from "node:url";
 
 import { createChecker, SRC } from "./lib.mjs";
 
-const check = createChecker("D35 — ห้ามมี library กราฟ");
+const check = createChecker("กติกาของซอร์สทั้งโปรเจกต์ — D35 ห้าม library กราฟ · D48 ห้ามขนาดนอก scale");
 
 const WEB = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 const manifest = JSON.parse(readFileSync(join(WEB, "package.json"), "utf8"));
