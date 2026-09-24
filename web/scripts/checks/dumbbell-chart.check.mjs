@@ -1,6 +1,6 @@
 /** U-7 Dumbbell: the delivery note against what was counted.
  *
- *  D35 — drawn by hand in SVG, never by a package. no-chart-library.check.mjs
+ *  D35 — drawn by hand in SVG, never by a package. source-rules.check.mjs
  *  guards the dependency list; this file guards that the drawing really is
  *  SVG rather than, say, an image fetched from somewhere.
  *

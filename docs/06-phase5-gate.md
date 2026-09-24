@@ -290,7 +290,7 @@ d629be5  lint กลุ่ม C — โหลดโปรไฟล์จาก s
 | `draft-idref.check.mjs` | 9 | ร่างรับสินค้าบันทึกลงใบที่ถูกต้อง |
 | `draft-queue.check.mjs` | 8 | C-2 — แก้ 5 ครั้งระหว่างบันทึก = ยิงจริง 2 ครั้ง ไม่ซ้อนกัน |
 | `history-access.check.mjs` | 33 | D32/D33 — ต้นทุนถูกกั้นที่ระดับหน้า และตัวกรองที่ทำงานจริงต้องไม่ถูกลบ |
-| `no-chart-library.check.mjs` | 16 | D35 — ห้ามมี library กราฟใน dependencies หรือดึงผ่าน CDN |
+| `source-rules.check.mjs` | 19 | D35 — ห้ามมี library กราฟใน dependencies หรือดึงผ่าน CDN · D48 — ห้ามมีขนาดตัวอักษรนอก scale (`text-[...]`) ในซอร์ส *(เดิมชื่อ `no-chart-library.check.mjs` เปลี่ยนชื่อ 25 ก.ย. 2569 เพราะชื่อแคบกว่าเนื้อหา)* |
 
 **กติกาการเขียนเทสต์ที่ใช้อยู่**
 
