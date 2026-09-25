@@ -16,6 +16,7 @@ from app.errors import register_error_handlers
 from app.routers import (
     audit_logs,
     health,
+    invoice_scans,
     lots,
     me,
     medicines,
@@ -125,3 +126,4 @@ app.include_router(reports.router)
 app.include_router(audit_logs.router)
 app.include_router(store.router)
 app.include_router(store_map.router)
+app.include_router(invoice_scans.router)
