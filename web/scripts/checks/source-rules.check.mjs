@@ -323,4 +323,135 @@ check.eq(
   [],
 );
 
+// --- 6.2: service_role key อยู่ฝั่ง backend เท่านั้น -------------------------
+//
+// 🔴 ห้ามลบตลอดไป (Chat A, งาน 6.2 · A-1)
+//
+// An AI key that leaks costs money. This one costs the shop: it bypasses every
+// row-level rule in the database, so whoever holds it can read and delete
+// every sale, every lot, every receipt. The backend needs it to write to
+// Storage and to sign URLs; the browser must never see it.
+//
+// Four ways it could reach a browser, each checked on its own:
+//   1. its name in source — SUPABASE_SERVICE_ROLE_KEY, anything *SERVICE_ROLE*
+//   2. a NEXT_PUBLIC_ variable in the web env files carrying it
+//   3. the key itself pasted into source — the sb_secret_ prefix, or an old
+//      style JWT whose payload says role "service_role"
+//   4. the key's VALUE sitting under an innocent-looking name in a web env
+//      file, e.g. NEXT_PUBLIC_SUPABASE_KEY=sb_secret_… — the name looks
+//      harmless, so only the value gives it away. Values are read to decide,
+//      and never printed: a failure names the file, the line and the variable.
+const SERVICE_NAMES = /\b[A-Z0-9_]*(?:SERVICE_ROLE|SUPABASE_SECRET)[A-Z0-9_]*\b/g;
+const SECRET_PREFIX = /\bsb_secret_[A-Za-z0-9_-]{8,}/g;
+const JWT = /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g;
+
+function isServiceJwt(token) {
+  try {
+    const payload = token.split(".")[1];
+    const json = Buffer.from(payload.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+    return JSON.parse(json).role === "service_role";
+  } catch {
+    return false;
+  }
+}
+
+function serviceLeaks(text) {
+  return [
+    ...(text.match(SERVICE_NAMES) ?? []),
+    ...(text.match(SECRET_PREFIX) ?? []).map(() => "sb_secret_…"),
+    ...(text.match(JWT) ?? []).filter(isServiceJwt).map(() => "JWT role=service_role"),
+  ];
+}
+
+// A fake service-role JWT, built here so no real key ever sits in this file.
+const fakeServiceJwt = [
+  "eyJhbGciOiJIUzI1NiJ9",
+  Buffer.from(JSON.stringify({ role: "service_role", ref: "example0000000000" })).toString("base64url"),
+  "c2lnbmF0dXJlLW5vdC1yZWFs",
+].join(".");
+const fakeAnonJwt = [
+  "eyJhbGciOiJIUzI1NiJ9",
+  Buffer.from(JSON.stringify({ role: "anon", ref: "example0000000000" })).toString("base64url"),
+  "c2lnbmF0dXJlLW5vdC1yZWFs",
+].join(".");
+
+check.eq(
+  "ตัวจับ service_role จับได้ทุกทางที่คีย์จะหลุดไปถึงเบราว์เซอร์",
+  [
+    serviceLeaks("const k = process.env.SUPABASE_SERVICE_ROLE_KEY;").length,
+    serviceLeaks("const k = process.env.NEXT_PUBLIC_SERVICE_ROLE;").length,
+    serviceLeaks('const k = "sb_secret_abcdefghijklmnop";').length,
+    serviceLeaks(`const k = "${fakeServiceJwt}";`).length,
+  ],
+  [1, 1, 1, 1],
+);
+check.eq(
+  "ตัวจับ service_role ไม่จับคีย์ publishable/anon หรือคอมเมนต์",
+  [
+    serviceLeaks('const k = "sb_publishable_abcdefghijklmnop";').length,
+    serviceLeaks(`const k = "${fakeAnonJwt}";`).length,
+    serviceLeaks(stripComments("// ห้ามใช้ SUPABASE_SERVICE_ROLE_KEY ในเว็บ")).length,
+  ],
+  [0, 0, 0],
+);
+
+/** The variable's name when a web env line carries the key — by its name or
+ *  by its value — else null. Only the name ever leaves this function. */
+function envLineLeak(line) {
+  const match = /^\s*([A-Z0-9_]+)\s*=\s*(.*)$/.exec(line);
+  if (!match) return null;
+  const [, key, value] = match;
+  const bare = value.trim().replace(/^["']|["']$/g, "");
+  return serviceLeaks(key).length || serviceLeaks(bare).length ? key : null;
+}
+
+check.eq(
+  "ตัวจับในไฟล์ env ดูทั้งชื่อตัวแปรและค่า",
+  [
+    envLineLeak("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY=placeholder"),
+    envLineLeak("NEXT_PUBLIC_SUPABASE_KEY=sb_secret_abcdefghijklmnop"),
+    envLineLeak('NEXT_PUBLIC_SUPABASE_KEY="sb_secret_abcdefghijklmnop"'),
+    envLineLeak(`NEXT_PUBLIC_SUPABASE_KEY=${fakeServiceJwt}`),
+    envLineLeak("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_abcdefghijklmnop"),
+    envLineLeak("# SUPABASE_SERVICE_ROLE_KEY อยู่ที่ backend เท่านั้น"),
+  ],
+  [
+    "NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY",
+    "NEXT_PUBLIC_SUPABASE_KEY",
+    "NEXT_PUBLIC_SUPABASE_KEY",
+    "NEXT_PUBLIC_SUPABASE_KEY",
+    null,
+    null,
+  ],
+);
+
+const serviceInSource = [];
+for (const file of sourceFiles) {
+  const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+  lines.forEach((line, index) => {
+    const found = serviceLeaks(line);
+    if (found.length) serviceInSource.push(`${file.slice(SRC.length + 1)}:${index + 1} ${found.join(" ")}`);
+  });
+}
+check.eq("🔴 ไม่มีไฟล์ใดใน web/src อ้างถึงหรือฝัง service_role key", serviceInSource, []);
+
+const serviceInEnv = [];
+for (const name of [".env.local", ".env.local.example", ".env", ".env.production"]) {
+  let text;
+  try {
+    text = readFileSync(join(WEB, name), "utf8");
+  } catch {
+    continue;
+  }
+  text.split("\n").forEach((line, index) => {
+    const key = envLineLeak(line);
+    if (key) serviceInEnv.push(`web/${name}:${index + 1} ${key}`);
+  });
+}
+check.eq(
+  "🔴 ไฟล์ env ของเว็บไม่มี service_role key ทั้งในชื่อตัวแปรและในค่า",
+  serviceInEnv,
+  [],
+);
+
 process.exit(check.done() ? 1 : 0);
