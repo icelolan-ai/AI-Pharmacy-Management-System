@@ -10,6 +10,10 @@
  *  (D43-a), and the declaration is matched whole and asserted found (D43-c).
  */
 
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { createChecker, source } from "./lib.mjs";
 
 const check = createChecker("6.2 — ตรวจชนิดไฟล์รูปจากไบต์แรก");
@@ -66,13 +70,56 @@ check.eq(
   true,
 );
 
+// --- the capture screen after the HEIC test (D69) ---------------------------
+// The finding is in: a real iPhone sends JPEG both ways. The temporary panel
+// that showed the browser's label beside the real type has done its job.
+const page = source("app/(app)/scan/page.tsx");
+
+check.eq(
+  "ถอดแผงทดสอบ HEIC ออกแล้ว — ไม่มีคำเทคนิคบนหน้าจอ",
+  ["เบราว์เซอร์บอกว่า", "ไฟล์จริงเป็น", "page.file.type"].filter((text) => page.includes(text)),
+  [],
+);
+
+// Every accept= on the page, matched whole and asserted found (D43-c).
+const accepts = [...page.matchAll(/accept="([^"]*)"/g)].map((match) => match[1]);
+check.eq("มีปุ่มเลือกไฟล์ 2 ปุ่ม (ถ่ายรูป · คลังรูป)", accepts.length, 2);
+check.eq(
+  "ไม่รับ PDF แล้ว — ย่อไม่ได้ และยังไม่ได้นิยาม for_ai ของ PDF (D69)",
+  accepts.filter((value) => /pdf/i.test(value)),
+  [],
+);
+
+// The screen checks the bytes before sending and skips what the backend
+// would refuse. Which formats it sends is the real list from the page, and
+// every one of them must be something the sniffer can actually return.
+const sendable = page.match(/const SENDABLE: readonly SniffedFormat\[\] = \[([^\]]*)\];/)?.[1] ?? "";
+const sendableList = [...sendable.matchAll(/"(\w+)"/g)].map((match) => match[1]);
+check.eq("ส่งเฉพาะ JPEG · PNG · WebP — ตรงกับที่ backend รับ", sendableList, ["jpeg", "png", "webp"]);
+check.eq(
+  "HEIC ไม่อยู่ในรายการที่ส่ง",
+  sendableList.includes(sniffFormat(ftyp("heic"))),
+  false,
+);
+
+// A person sees one message whichever side refused. The web's words are
+// looked up in the backend's own source (D43-e), so neither can drift alone.
+const backend = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "backend", "app", "services", "invoice_scans.py"),
+  "utf8",
+);
+const webRefusals = [...page.matchAll(/(?:heic|pdf): "([^"]+)"|const REFUSAL_OTHER = "([^"]+)"/g)].map(
+  (match) => match[1] ?? match[2],
+);
+check.eq("อ่านข้อความปฏิเสธของเว็บได้ครบ 3 ข้อ", webRefusals.length, 3);
+check.eq(
+  "ข้อความปฏิเสธบนเว็บ ตรงกับของ backend ทุกคำ",
+  webRefusals.filter((text) => !backend.includes(`"${text}"`)),
+  [],
+);
 check.ok(
-  "หน้าจอแสดงทั้งป้ายของเบราว์เซอร์และชนิดจริงคู่กัน",
-  (() => {
-    const page = source("app/(app)/scan/page.tsx");
-    return /page\.file\.type/.test(page) && /FORMAT_LABEL\[page\.sniffed\]/.test(page);
-  })(),
-  "the finding is the disagreement between the two, so both must be on screen",
+  "ข้อความ HEIC บอกทางออก ไม่ใช่แค่บอกว่าไม่รองรับ",
+  webRefusals.some((text) => text.includes("ลองกดถ่ายรูปแทน")),
 );
 
 process.exit(check.done() ? 1 : 0);

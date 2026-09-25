@@ -31,7 +31,7 @@ export class ApiError extends Error {
 }
 
 /** Only used when the backend gives us nothing to show the user. */
-const MESSAGE_BY_STATUS: Record<number, string> = {
+export const MESSAGE_BY_STATUS: Record<number, string> = {
   400: "ข้อมูลที่ส่งไปไม่ถูกต้อง",
   401: "กรุณาเข้าสู่ระบบ",
   403: "คุณไม่มีสิทธิ์ใช้งานส่วนนี้",
@@ -56,7 +56,7 @@ function redirectToLogin() {
 
 /** The stored session is no longer usable: clear it first, otherwise /login
  *  sees a session and bounces straight back here. */
-async function clearSessionAndRedirect() {
+export async function clearSessionAndRedirect() {
   try {
     await supabase.auth.signOut();
   } catch {

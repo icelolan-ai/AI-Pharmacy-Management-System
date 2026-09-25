@@ -7,49 +7,60 @@ import { AccessDenied } from "@/components/common/AccessDenied";
 import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { ABILITIES, can } from "@/lib/abilities";
+import { ApiError } from "@/lib/api/client";
+import { createScan, deleteScanPage, uploadScanPage } from "@/lib/api/invoice-scans";
 import { formatBytes, sniffFile, type SniffedFormat } from "@/lib/scan/sniff";
 
-/** ถ่ายรูปใบส่งของ (งาน 6.2 — ส่วนแรก)
+/** ถ่ายรูปใบส่งของ (งาน 6.2)
  *
- *  This first part only picks photos and shows them. Nothing is uploaded yet:
- *  its job right now is to find out what a real phone hands the browser,
- *  because whether the backend must convert HEIC depends on it (Chat A: do
- *  not write conversion code until it is known to be needed).
+ *  Each photo is sent as soon as it is taken, one at a time and in the order
+ *  taken, so the pages keep their order. Every page shows where it is:
+ *  checking, waiting, sending (with how far along), sent, or not sent — and a
+ *  page that failed can be sent again or deleted on its own.
  *
- *  So every page shows three things side by side: the label the browser gave
- *  the file, what its first bytes say it really is, and its size. On an
- *  iPhone those can disagree, and the disagreement is the finding.
+ *  What a file is gets read from its first bytes (D69). A HEIC or PDF is not
+ *  sent at all: the backend would refuse it, and on a phone connection there
+ *  is no point pushing megabytes up to hear no. The message says what to do
+ *  instead — the "ถ่ายรูป" button always gives a JPEG (tested on a real
+ *  iPhone). The backend checks again regardless; this only saves the wait.
  *
- *  Two ways in, tested separately on purpose: "ถ่ายรูป" opens the camera
- *  directly, "เลือกจากคลังรูป" opens the photo library. An iPhone can behave
- *  differently for each.
+ *  The scan itself is created with the first photo, not on opening the page,
+ *  so looking at this screen leaves nothing behind.
  *
- *  Nothing here is on the path of receiving stock by hand. If this page is
- *  never opened, receiving works exactly as before.
+ *  Nothing here is on the path of receiving stock by hand.
  */
+
+type Status =
+  | { kind: "checking" }
+  | { kind: "refused"; message: string }
+  | { kind: "queued" }
+  | { kind: "sending"; progress: number }
+  | { kind: "failed"; message: string }
+  | { kind: "sent"; pageNo: number }
+  | { kind: "deleting"; pageNo: number };
 
 type Page = {
   id: number;
   file: File;
   /** Object URL for the preview; revoked when the page is removed. */
   previewUrl: string;
-  /** What the first bytes say. null while still being read. */
-  sniffed: SniffedFormat | null;
-  /** Set when the browser could not draw the picture — itself a finding. */
   previewFailed: boolean;
-  /** How the file arrived, so the test can tell camera from library. */
-  source: "camera" | "library";
+  status: Status;
 };
 
-const FORMAT_LABEL: Record<SniffedFormat, string> = {
-  jpeg: "JPEG",
-  png: "PNG",
-  webp: "WebP",
-  heic: "HEIC",
-  avif: "AVIF",
-  pdf: "PDF",
-  unknown: "ไม่รู้จัก",
+const SENDABLE: readonly SniffedFormat[] = ["jpeg", "png", "webp"];
+
+/** The same words the backend uses for the same refusals, so a person sees
+ *  one message whichever side caught it. */
+const REFUSAL: Partial<Record<SniffedFormat, string>> = {
+  heic: "รูปนี้เป็นรูปแบบที่ยังเปิดไม่ได้ ลองกดถ่ายรูปแทนการเลือกจากคลังรูป",
+  pdf: "ไฟล์ PDF ยังใช้ไม่ได้ ให้กดถ่ายรูปใบส่งของแทน",
 };
+const REFUSAL_OTHER = "ไฟล์นี้ไม่ใช่รูปที่ระบบเปิดได้ ลองกดถ่ายรูปแทน";
+
+function messageOf(error: unknown): string {
+  return error instanceof ApiError ? error.message : "ส่งรูปไม่สำเร็จ ลองใหม่อีกครั้ง";
+}
 
 let nextId = 1;
 
@@ -57,42 +68,128 @@ export default function ScanPage() {
   const { me } = useAuth();
   const allowed = can(me?.role, ABILITIES.receiveStock);
   const [pages, setPages] = useState<Page[]>([]);
+  const [scanId, setScanId] = useState<string | null>(null);
   const cameraInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
+  // Several photos picked at once must still make one scan, not several.
+  const scanPromise = useRef<Promise<string> | null>(null);
+
+  function update(id: number, status: Status) {
+    setPages((current) => current.map((p) => (p.id === id ? { ...p, status } : p)));
+  }
 
   // Object URLs hold the file in memory until revoked. The ref mirrors the
-  // current list so the unmount cleanup sees the latest pages, not the ones
-  // from the first render.
+  // current list so the unmount cleanup sees the latest pages.
   const pagesRef = useRef<Page[]>([]);
   useEffect(() => {
     pagesRef.current = pages;
   });
   useEffect(() => () => pagesRef.current.forEach((page) => URL.revokeObjectURL(page.previewUrl)), []);
 
-  function addFiles(list: FileList | null, source: Page["source"]) {
+  function ensureScan(): Promise<string> {
+    if (scanId) return Promise.resolve(scanId);
+    if (!scanPromise.current) {
+      scanPromise.current = createScan().then(
+        (scan) => {
+          setScanId(scan.id);
+          return scan.id;
+        },
+        (error) => {
+          scanPromise.current = null; // let the next try create it again
+          throw error;
+        },
+      );
+    }
+    return scanPromise.current;
+  }
+
+  // One upload at a time, oldest first: the backend numbers pages in the
+  // order they arrive. The queue lives in a ref and is worked from events
+  // (a photo picked, "ส่งใหม่" pressed), never from a render.
+  const queue = useRef<{ id: number; file: File }[]>([]);
+  const running = useRef(false);
+
+  function enqueue(id: number, file: File) {
+    update(id, { kind: "queued" });
+    queue.current.push({ id, file });
+    void pump();
+  }
+
+  async function pump() {
+    if (running.current) return;
+    running.current = true;
+    try {
+      for (let item = queue.current.shift(); item; item = queue.current.shift()) {
+        const { id, file } = item;
+        update(id, { kind: "sending", progress: 0 });
+        try {
+          const scan = await ensureScan();
+          const uploaded = await uploadScanPage(scan, file, (progress) =>
+            update(id, { kind: "sending", progress }),
+          );
+          update(id, { kind: "sent", pageNo: uploaded.page_no });
+        } catch (error) {
+          update(id, { kind: "failed", message: messageOf(error) });
+        }
+      }
+    } finally {
+      running.current = false;
+    }
+  }
+
+  function addFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
     const added: Page[] = Array.from(list).map((file) => ({
       id: nextId++,
       file,
       previewUrl: URL.createObjectURL(file),
-      sniffed: null,
       previewFailed: false,
-      source,
+      status: { kind: "checking" },
     }));
     setPages((current) => [...current, ...added]);
-    for (const page of added) {
-      void sniffFile(page.file).then((sniffed) =>
-        setPages((current) => current.map((p) => (p.id === page.id ? { ...p, sniffed } : p))),
-      );
-    }
+    // Checked in parallel, but queued in the order picked: page order must
+    // not depend on which file happened to be read first.
+    void Promise.all(added.map((page) => sniffFile(page.file))).then((formats) =>
+      added.forEach((page, index) => {
+        const format = formats[index];
+        if (SENDABLE.includes(format)) enqueue(page.id, page.file);
+        else update(page.id, { kind: "refused", message: REFUSAL[format] ?? REFUSAL_OTHER });
+      }),
+    );
   }
 
-  function removePage(id: number) {
+  function forget(id: number) {
+    queue.current = queue.current.filter((item) => item.id !== id);
     setPages((current) => {
       const gone = current.find((p) => p.id === id);
       if (gone) URL.revokeObjectURL(gone.previewUrl);
       return current.filter((p) => p.id !== id);
     });
+  }
+
+  function removePage(page: Page) {
+    if (page.status.kind !== "sent") {
+      forget(page.id);
+      return;
+    }
+    const { pageNo } = page.status;
+    if (!scanId) return;
+    update(page.id, { kind: "deleting", pageNo });
+    deleteScanPage(scanId, pageNo).then(
+      () => forget(page.id),
+      (error) => {
+        update(page.id, { kind: "sent", pageNo });
+        window.alert(messageOf(error));
+      },
+    );
+  }
+
+  function startOver() {
+    pages.forEach((page) => URL.revokeObjectURL(page.previewUrl));
+    queue.current = [];
+    setPages([]);
+    setScanId(null);
+    scanPromise.current = null;
   }
 
   if (me && !allowed) {
@@ -104,22 +201,27 @@ export default function ScanPage() {
     );
   }
 
+  const sentCount = pages.filter((p) => p.status.kind === "sent").length;
+  const busy = pages.some((p) => ["checking", "queued", "sending", "deleting"].includes(p.status.kind));
+
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="ถ่ายรูปใบส่งของ"
-        description="ถ่ายทีละหน้า ใบที่มีหลายหน้าให้ถ่ายครบทุกหน้า"
-      />
+      <PageHeader title="ถ่ายรูปใบส่งของ" description="ถ่ายทีละหน้า ใบที่มีหลายหน้าให้ถ่ายครบทุกหน้า" />
 
       <div className="flex flex-wrap gap-3">
-        <Button type="button" onClick={() => cameraInput.current?.click()}>
+        <Button type="button" className="min-h-11 px-4" onClick={() => cameraInput.current?.click()}>
           📷 ถ่ายรูป
         </Button>
-        <Button type="button" variant="outline" onClick={() => libraryInput.current?.click()}>
+        <Button
+          type="button"
+          variant="outline"
+          className="min-h-11 px-4"
+          onClick={() => libraryInput.current?.click()}
+        >
           🖼️ เลือกจากคลังรูป
         </Button>
         {/* Hidden inputs, reset after each pick so the same photo can be
-            chosen twice in a row. */}
+            chosen twice in a row. Images only: PDF is not accepted yet. */}
         <input
           ref={cameraInput}
           type="file"
@@ -127,25 +229,29 @@ export default function ScanPage() {
           capture="environment"
           className="hidden"
           onChange={(event) => {
-            addFiles(event.target.files, "camera");
+            addFiles(event.target.files);
             event.target.value = "";
           }}
         />
         <input
           ref={libraryInput}
           type="file"
-          accept="image/*,application/pdf"
+          accept="image/*"
           multiple
           className="hidden"
           onChange={(event) => {
-            addFiles(event.target.files, "library");
+            addFiles(event.target.files);
             event.target.value = "";
           }}
         />
       </div>
 
-      <p className="text-sm text-slate-700">
-        {pages.length === 0 ? "ยังไม่มีรูป" : `ถ่ายไปแล้ว ${pages.length} หน้า`}
+      <p className="text-sm text-slate-700" aria-live="polite">
+        {pages.length === 0
+          ? "ยังไม่มีรูป"
+          : busy
+            ? `กำลังส่ง… ส่งแล้ว ${sentCount} จาก ${pages.length} หน้า`
+            : `ส่งแล้ว ${sentCount} จาก ${pages.length} หน้า`}
       </p>
 
       {pages.length > 0 ? (
@@ -176,27 +282,27 @@ export default function ScanPage() {
               <div className="min-w-0 flex-1 space-y-1">
                 <p className="font-semibold text-slate-900">หน้า {index + 1}</p>
                 <p className="text-sm text-slate-700">ขนาด {formatBytes(page.file.size)}</p>
-
-                {/* Temporary, for the HEIC test only — removed once the
-                    finding is in. It is the one place on this screen that
-                    shows technical words, on purpose. */}
-                <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 rounded bg-amber-50 p-2 text-sm text-slate-800">
-                  <dt className="text-slate-600">ได้มาจาก</dt>
-                  <dd>{page.source === "camera" ? "ถ่ายรูป" : "คลังรูป"}</dd>
-                  <dt className="text-slate-600">เบราว์เซอร์บอกว่า</dt>
-                  <dd className="break-all">{page.file.type || "(ไม่ได้บอก)"}</dd>
-                  <dt className="text-slate-600">ไฟล์จริงเป็น</dt>
-                  <dd>{page.sniffed === null ? "กำลังตรวจ…" : FORMAT_LABEL[page.sniffed]}</dd>
-                  <dt className="text-slate-600">ชื่อไฟล์</dt>
-                  <dd className="break-all">{page.file.name}</dd>
-                  <dt className="text-slate-600">ขนาดจริง</dt>
-                  <dd>{page.file.size.toLocaleString("th-TH")} ไบต์</dd>
-                </dl>
+                <PageStatus status={page.status} />
               </div>
 
-              <div className="sm:self-center">
-                <Button type="button" variant="outline" onClick={() => removePage(page.id)}>
-                  ลบหน้านี้
+              <div className="flex flex-wrap gap-2 sm:flex-col sm:self-center">
+                {page.status.kind === "failed" ? (
+                  <Button
+                    type="button"
+                    className="min-h-11 px-4"
+                    onClick={() => enqueue(page.id, page.file)}
+                  >
+                    ส่งใหม่
+                  </Button>
+                ) : null}
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="min-h-11 px-4"
+                  disabled={page.status.kind === "sending" || page.status.kind === "deleting"}
+                  onClick={() => removePage(page)}
+                >
+                  {page.status.kind === "deleting" ? "กำลังลบ…" : "ลบหน้านี้"}
                 </Button>
               </div>
             </li>
@@ -204,9 +310,58 @@ export default function ScanPage() {
         </ol>
       ) : null}
 
-      <p className="text-sm text-slate-600">
-        ตอนนี้ยังไม่ส่งรูปขึ้นระบบ หน้านี้ใช้ทดสอบว่ามือถือส่งรูปแบบไหนมา
-      </p>
+      {sentCount > 0 && !busy ? (
+        <div className="space-y-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+          <p className="text-sm text-slate-700">
+            เก็บรูปไว้แล้ว {sentCount} หน้า ส่วนการอ่านรายการยาจากรูปยังไม่เปิดใช้
+          </p>
+          <Button type="button" variant="outline" className="min-h-11 px-4" onClick={startOver}>
+            เริ่มใบใหม่
+          </Button>
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function PageStatus({ status }: { status: Status }) {
+  switch (status.kind) {
+    case "checking":
+      return <p className="text-sm text-slate-600">กำลังตรวจรูป…</p>;
+    case "queued":
+      return <p className="text-sm text-slate-600">รอส่ง</p>;
+    case "sending": {
+      const percent = Math.round(status.progress * 100);
+      return (
+        <div className="space-y-1">
+          <p className="text-sm text-slate-700">กำลังส่ง {percent}%</p>
+          <div
+            className="h-2 w-full overflow-hidden rounded bg-slate-200"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={percent}
+            aria-label="ส่งรูป"
+          >
+            <div className="h-full bg-slate-700" style={{ width: `${percent}%` }} />
+          </div>
+        </div>
+      );
+    }
+    case "sent":
+    case "deleting":
+      return <p className="text-sm font-medium text-emerald-700">✓ ส่งแล้ว</p>;
+    case "failed":
+      return (
+        <p className="text-sm text-red-700" role="alert">
+          ส่งไม่สำเร็จ: {status.message}
+        </p>
+      );
+    case "refused":
+      return (
+        <p className="text-sm text-red-700" role="alert">
+          {status.message}
+        </p>
+      );
+  }
 }

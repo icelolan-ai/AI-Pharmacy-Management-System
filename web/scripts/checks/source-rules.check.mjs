@@ -454,4 +454,64 @@ check.eq(
   [],
 );
 
+// --- 6.2: the browser never reaches Storage by itself ----------------------
+//
+// 🔴 ห้ามลบตลอดไป (Chat A, งาน 6.2)
+//
+// Invoice photos sit in a private bucket. The only way the browser may show
+// one is a signed, short-lived link the backend hands it (a fresh one on
+// every read). Two ways that could quietly stop being true:
+//   1. the web calls Storage through the Supabase client — supabase.storage,
+//      .storage.from(…), createSignedUrl — which would need the bucket opened
+//      to browser sessions
+//   2. the web builds a Storage address itself (/storage/v1/…), which either
+//      does not work on a private bucket or means the bucket went public
+// Links that arrive from the backend are fine: they are data, never written
+// in the source.
+// `.storage` on any client, or `storage` pulled out of one by destructuring.
+const STORAGE_CALLS = /\.storage\b|\{[^}]*\bstorage\b[^}]*\}\s*=|\bcreateSignedUrls?\b|\bgetPublicUrl\b/g;
+const STORAGE_PATHS = /\/storage\/v1\//g;
+
+function storageLeaks(text) {
+  return [...(text.match(STORAGE_CALLS) ?? []), ...(text.match(STORAGE_PATHS) ?? [])];
+}
+
+check.eq(
+  "ตัวจับ Storage จับได้ทุกทางที่เว็บจะเข้าถึงรูปเอง",
+  [
+    storageLeaks('supabase.storage.from("invoice-scans").download(path)').length > 0,
+    storageLeaks("const { data } = await bucket.createSignedUrl(path, 60);").length > 0,
+    storageLeaks("const url = client.getPublicUrl(path);").length > 0,
+    storageLeaks("const url = `${base}/storage/v1/object/invoice-scans/${path}`;").length > 0,
+    // Not only through the variable named supabase:
+    storageLeaks("const files = client.storage.from(bucket);").length > 0,
+    storageLeaks("const { storage } = supabase;").length > 0,
+  ],
+  [true, true, true, true, true, true],
+);
+check.eq(
+  "ตัวจับ Storage ไม่จับลิงก์ที่มาจาก backend หรือคำที่แค่คล้ายกัน",
+  [
+    storageLeaks("<img src={page.image_url} />").length,
+    storageLeaks("localStorage.getItem(key); sessionStorage.clear();").length,
+    storageLeaks(stripComments("// ห้ามเรียก supabase.storage จากเว็บ")).length,
+    storageLeaks("const { data } = await supabase.auth.getSession();").length,
+  ],
+  [0, 0, 0, 0],
+);
+
+const storageInSource = [];
+for (const file of sourceFiles) {
+  const lines = stripComments(readFileSync(file, "utf8")).split("\n");
+  lines.forEach((line, index) => {
+    const found = storageLeaks(line);
+    if (found.length) storageInSource.push(`${file.slice(SRC.length + 1)}:${index + 1} ${found.join(" ")}`);
+  });
+}
+check.eq(
+  "🔴 เว็บไม่เรียก Storage เอง และไม่ประกอบที่อยู่ Storage เอง — รูปมาจากลิงก์ที่ backend เซ็นให้เท่านั้น",
+  storageInSource,
+  [],
+);
+
 process.exit(check.done() ? 1 : 0);

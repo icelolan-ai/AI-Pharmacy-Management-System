@@ -148,9 +148,11 @@ check.eq(
 //   /receiving/[id]   loads the draft in a plain effect with no `allowed`
 //                     check, so a staff URL does fire one request that the
 //                     backend then rejects. Recorded, not fixed here.
-//   /scan             (6.2) loads nothing from the API yet: it only picks and
-//                     previews photos in the browser. When uploads arrive it
-//                     must either move onto useSection or come off this list.
+//   /scan             (6.2) loads nothing when it opens. Its only requests —
+//                     create the scan, send a page, delete a page — start
+//                     from buttons, and those buttons are rendered only past
+//                     the gate. If it ever starts loading on open (say, a
+//                     list of earlier scans), that load belongs in useSection.
 check.eq(
   "รายชื่อหน้าที่มีด่านแต่ไม่ได้ใช้ useSection ตรงกับที่รู้จัก",
   gated.filter((page) => !/useSection\(/.test(page.text)).map((page) => page.route).sort(),
