@@ -87,11 +87,11 @@ const staff = seenBy("staff");
 
 check.eq("owner เห็น 5 บล็อก", owner.groups, 5);
 check.eq("owner เห็น 4 หัวข้อ", owner.headings.length, 4);
-check.eq("owner เห็น 16 ลิงก์", owner.links, 16);
+check.eq("owner เห็น 17 ลิงก์", owner.links, 17);
 
 check.eq("pharmacist เห็น 5 บล็อก", pharmacist.groups, 5);
 check.eq("pharmacist เห็น 4 หัวข้อ", pharmacist.headings.length, 4);
-check.eq("pharmacist เห็น 13 ลิงก์", pharmacist.links, 13);
+check.eq("pharmacist เห็น 14 ลิงก์", pharmacist.links, 14);
 check.eq(
   "pharmacist ไม่เห็นของ owner เท่านั้น",
   pharmacist.labels.filter((l) => ["มูลค่าคลังยา", "ตรวจสอบย้อนหลัง", "ข้อมูลร้าน"].includes(l)),

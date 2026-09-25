@@ -148,10 +148,13 @@ check.eq(
 //   /receiving/[id]   loads the draft in a plain effect with no `allowed`
 //                     check, so a staff URL does fire one request that the
 //                     backend then rejects. Recorded, not fixed here.
+//   /scan             (6.2) loads nothing from the API yet: it only picks and
+//                     previews photos in the browser. When uploads arrive it
+//                     must either move onto useSection or come off this list.
 check.eq(
-  "รายชื่อหน้าที่มีด่านแต่ไม่ได้ใช้ useSection ยังเป็นสองหน้าที่รู้จัก",
+  "รายชื่อหน้าที่มีด่านแต่ไม่ได้ใช้ useSection ตรงกับที่รู้จัก",
   gated.filter((page) => !/useSection\(/.test(page.text)).map((page) => page.route).sort(),
-  ["/receiving/[id]", "/settings/store"],
+  ["/receiving/[id]", "/scan", "/settings/store"],
 );
 
 // --- 4. GROUP 2 — the flags that really work must stay ---------------------

@@ -32,7 +32,11 @@ const MENU: readonly NavGroup[] = [
   },
   {
     heading: "หน้าที่ประจำวัน",
-    items: [{ href: "/receiving", label: "รับสินค้า", ability: ABILITIES.receiveStock }],
+    items: [
+      { href: "/receiving", label: "รับสินค้า", ability: ABILITIES.receiveStock },
+      // 6.2: optional — receiving by hand never depends on it.
+      { href: "/scan", label: "ถ่ายใบส่งของ", ability: ABILITIES.receiveStock },
+    ],
   },
   {
     heading: "ยาที่ต้องดูด่วน",
