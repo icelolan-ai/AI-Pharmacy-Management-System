@@ -39,6 +39,30 @@ class Settings(BaseSettings):
     # it says which setting is empty rather than failing somewhere obscure.
     gemini_api_key: SecretStr | None = None
 
+    # 6.2: the backend is the only thing that writes to Storage or signs a
+    # URL for it. Optional so the app starts without it; the scan endpoints
+    # say which setting is empty when they need it.
+    supabase_service_role_key: SecretStr | None = None
+
+    # 6.2 · D72: every limit below says whether it was measured or guessed.
+    # The gate on what a phone may send. A real iPhone photo was 18.7 MB
+    # (measured); 30 MB leaves room for cameras we have not seen (a margin,
+    # not a measurement). Only the backend sees these bytes — the bucket
+    # never does.
+    max_upload_bytes: int = 30 * 1024 * 1024
+    # Must equal the invoice-scans bucket's own limit (asserted by
+    # test_storage_db). Measured: the largest file the shrink can produce —
+    # 3000 x 3000 of pure noise at q88 — is 7.5 MB.
+    stored_max_bytes: int = 10 * 1024 * 1024
+    # D68: the copy kept as evidence, and the smaller one the AI reads.
+    original_max_edge_px: int = 3000
+    original_jpeg_quality: int = 88
+    ai_image_max_edge_px: int = 1600
+    ai_image_jpeg_quality: int = 80
+    # A signed link to a private image lives this long, and a fresh one is
+    # made on every read.
+    signed_url_ttl_seconds: int = 600
+
     @field_validator("database_url", "supabase_url", "store_timezone", mode="before")
     @classmethod
     def _not_blank(cls, value):
