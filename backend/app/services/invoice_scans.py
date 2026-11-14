@@ -180,13 +180,18 @@ def _row(scan_id: UUID, page_no: int, kind: str, path: str, stored, prepared: Pr
         "source_width_px": source.width_px,
         "source_height_px": source.height_px,
         "source_sha256": source.sha256,
+        "picture_sha256": stored.picture_sha256,
+        "source_picture_sha256": source.picture_sha256,
+        # D75: the phone does not shrink yet, so nothing claims it did.
+        "client_reported_resized": False,
     }
 
 
 _IMAGE_COLUMNS = (
     "scan_id", "page_no", "kind", "storage_path", "content_type", "bytes", "width_px",
     "height_px", "reencoded", "source_content_type", "source_bytes", "source_width_px",
-    "source_height_px", "source_sha256",
+    "source_height_px", "source_sha256", "picture_sha256", "source_picture_sha256",
+    "client_reported_resized",
 )
 _INSERT_IMAGE = (
     "INSERT INTO public.invoice_scan_images (" + ", ".join(_IMAGE_COLUMNS) + ")"

@@ -23,6 +23,14 @@ it would send us to fix the prompt instead of the picture.
 
 For_ai is made from the decoded upload, not from the stored original, so it
 is compressed once rather than twice.
+
+Metadata, on every stored file whichever path made it:
+  original  GPS removed (EXIF and XMP); camera, model and date kept — they
+            help when checking a photo later
+  for_ai    every describing segment removed. It is the one file that leaves
+            our hands, and nothing in it helps a machine read a delivery note
+Both are done without re-encoding (app/scan/jpeg.py), so a file kept as it
+came is still "not re-encoded": its picture fingerprint equals the upload's.
 """
 
 import hashlib
@@ -30,6 +38,8 @@ import io
 from dataclasses import dataclass
 
 from PIL import Image, ImageOps, UnidentifiedImageError
+
+from app.scan.jpeg import JpegStructureError, picture_sha256, strip_gps, strip_metadata
 
 JPEG = "image/jpeg"
 
@@ -92,6 +102,9 @@ class Source:
     width_px: int
     height_px: int
     sha256: str
+    # Fingerprint of the parts that decode the picture (jpeg.picture_sha256).
+    # None when the upload is not a JPEG.
+    picture_sha256: str | None
 
 
 @dataclass(frozen=True)
@@ -101,6 +114,7 @@ class Stored:
     width_px: int
     height_px: int
     reencoded: bool
+    picture_sha256: str
 
     @property
     def bytes(self) -> int:
@@ -140,15 +154,24 @@ def _orientation(image: Image.Image) -> int:
         return 1
 
 
-def _as_is(data: bytes, sniffed: str, width: int, height: int, orientation: int,
-           max_edge: int, max_bytes: int) -> Stored | None:
+def _finish(data: bytes, width: int, height: int, reencoded: bool, strip) -> Stored:
+    trimmed = strip(data)
+    return Stored(trimmed, JPEG, width, height, reencoded, picture_sha256(trimmed))
+
+
+def _as_is(data: bytes, source: Source, sniffed: str, orientation: int,
+           max_edge: int, max_bytes: int, strip) -> Stored | None:
     if (
         sniffed == "jpeg"
-        and max(width, height) <= max_edge
+        and source.picture_sha256 is not None
+        and max(source.width_px, source.height_px) <= max_edge
         and len(data) <= max_bytes
         and orientation == 1
     ):
-        return Stored(data, JPEG, width, height, reencoded=False)
+        try:
+            return _finish(data, source.width_px, source.height_px, False, strip)
+        except JpegStructureError:
+            return None  # cannot trim it in place — write it fresh instead
     return None
 
 
@@ -162,7 +185,8 @@ def _flatten(image: Image.Image) -> Image.Image:
     return image.convert("RGB")
 
 
-def _encode(upright: Image.Image, max_edge: int, quality: int, max_bytes: int, sniffed: str) -> Stored:
+def _encode(upright: Image.Image, max_edge: int, quality: int, max_bytes: int, sniffed: str,
+            strip) -> Stored:
     image = upright.copy()
     image.thumbnail((max_edge, max_edge), Image.LANCZOS)
     buffer = io.BytesIO()
@@ -174,7 +198,18 @@ def _encode(upright: Image.Image, max_edge: int, quality: int, max_bytes: int, s
         # Measured not to happen (7.5 MB worst case against 10 MB). If it
         # ever does, refuse rather than hand the bucket something it rejects.
         raise ImageRejected("too_large_after_shrink", sniffed)
-    return Stored(data, JPEG, image.width, image.height, reencoded=True)
+    # Pillow can carry a comment across from the upload; the strip runs here
+    # too, so what is stored never depends on which path made it.
+    return _finish(data, image.width, image.height, True, strip)
+
+
+def _source_picture(data: bytes, sniffed: str) -> str | None:
+    if sniffed != "jpeg":
+        return None
+    try:
+        return picture_sha256(data)
+    except JpegStructureError:
+        return None
 
 
 def prepare(data: bytes, limits: Limits) -> Prepared:
@@ -196,13 +231,14 @@ def prepare(data: bytes, limits: Limits) -> Prepared:
         width_px=width,
         height_px=height,
         sha256=hashlib.sha256(data).hexdigest(),
+        picture_sha256=_source_picture(data, sniffed),
     )
     orientation = _orientation(image)
 
-    original = _as_is(data, sniffed, width, height, orientation,
-                      limits.original_max_edge_px, limits.stored_max_bytes)
-    for_ai = _as_is(data, sniffed, width, height, orientation,
-                    limits.ai_image_max_edge_px, limits.stored_max_bytes)
+    original = _as_is(data, source, sniffed, orientation,
+                      limits.original_max_edge_px, limits.stored_max_bytes, strip_gps)
+    for_ai = _as_is(data, source, sniffed, orientation,
+                    limits.ai_image_max_edge_px, limits.stored_max_bytes, strip_metadata)
 
     if original is None or for_ai is None:
         try:
@@ -220,10 +256,12 @@ def prepare(data: bytes, limits: Limits) -> Prepared:
 
         if original is None:
             original = _encode(upright, limits.original_max_edge_px,
-                               limits.original_jpeg_quality, limits.stored_max_bytes, sniffed)
+                               limits.original_jpeg_quality, limits.stored_max_bytes, sniffed,
+                               strip_gps)
         if for_ai is None:
             for_ai = _encode(upright, limits.ai_image_max_edge_px,
-                             limits.ai_image_jpeg_quality, limits.stored_max_bytes, sniffed)
+                             limits.ai_image_jpeg_quality, limits.stored_max_bytes, sniffed,
+                             strip_metadata)
     else:
         # Stored as it came — still make sure it is a whole picture, so a
         # truncated file is refused here and not discovered by the AI.

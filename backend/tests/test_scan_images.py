@@ -11,6 +11,8 @@ import hashlib
 import io
 import os
 
+import struct
+
 import pytest
 from PIL import Image
 
@@ -265,3 +267,164 @@ def test_a_shrink_that_still_does_not_fit_is_refused():
     with pytest.raises(ImageRejected) as caught:
         prepare(_png(_noise(800, 600)), Limits(3000, 88, 1600, 80, stored_max_bytes=1000))
     assert caught.value.reason == "too_large_after_shrink"
+
+
+# --- metadata: GPS out of the evidence copy, everything out of the AI copy ---
+#
+# A real JPEG carrying a position the ways a phone or an editing app writes
+# one: the GPS block of EXIF, an XMP block naming the coordinates, plus a
+# comment and an IPTC block. Every check reads the stored file back with
+# Pillow's own readers and also searches the raw bytes.
+
+def _with_position(width=1200, height=900, quality=90) -> bytes:
+    exif = Image.Exif()
+    exif[0x010F] = "Apple"
+    exif[0x0110] = "iPhone 15"
+    exif[0x0132] = "2026:11:15 10:00:00"
+    gps = exif.get_ifd(0x8825)
+    gps[1], gps[2] = "N", (13.0, 45.0, 12.5)
+    gps[3], gps[4] = "E", (100.0, 30.0, 1.25)
+    buffer = io.BytesIO()
+    _noise(width, height).save(buffer, "JPEG", quality=quality, exif=exif.tobytes(), comment=b"shop counter")
+    data = buffer.getvalue()
+    xmp = (b"http://ns.adobe.com/xap/1.0/\x00<x:xmpmeta><rdf:Description "
+           b'exif:GPSLatitude="13,45.2N" exif:GPSLongitude="100,30.0E"/></x:xmpmeta>')
+    iptc = b"Photoshop 3.0\x008BIM\x04\x04\x00\x00\x00\x00\x00\x0c\x1c\x02\x5a\x00\x07Bangkok"
+    extra = b"".join(
+        bytes([0xFF, marker]) + struct.pack(">H", len(body) + 2) + body
+        for marker, body in ((0xE1, xmp), (0xED, iptc))
+    )
+    return data[:2] + extra + data[2:]
+
+
+def _header(data: bytes) -> bytes:
+    """Everything before the compressed picture. Byte searches look only
+    here: random-noise pictures compress to random bytes, and a few MB of
+    those contain "GPS" by chance often enough to make a test flaky.
+    Walked here independently of app/scan/jpeg.py."""
+    i = 2
+    while data[i + 1] != 0xDA:
+        i += 2 + struct.unpack(">H", data[i + 2:i + 4])[0]
+    return data[:i]
+
+
+def _gps_anywhere(data: bytes) -> list[str]:
+    image = Image.open(io.BytesIO(data))
+    header = _header(data)
+    found = []
+    if 0x8825 in image.getexif():
+        found.append("EXIF GPS block")
+    if b"GPS" in header:
+        found.append("GPS text in the bytes")
+    if b"13,45.2N" in header:
+        found.append("coordinates in the bytes")
+    return found
+
+
+def _metadata_left(data: bytes) -> list[str]:
+    image = Image.open(io.BytesIO(data))
+    left = []
+    if len(image.getexif()):
+        left.append(f"{len(image.getexif())} EXIF tags")
+    for key in ("exif", "xmp", "comment", "photoshop"):
+        if image.info.get(key):
+            left.append(key)
+    for needle in (b"Exif\x00\x00", b"http://ns.adobe.com/xap", b"Photoshop 3.0", b"shop counter"):
+        if needle in _header(data):
+            left.append(needle.decode("latin-1"))
+    return left
+
+
+def _decoded(data: bytes) -> bytes:
+    return _open(data).tobytes()
+
+
+def test_the_test_file_really_carries_a_position():
+    data = _with_position()
+    assert _gps_anywhere(data) == [
+        "EXIF GPS block", "GPS text in the bytes", "coordinates in the bytes",
+    ]
+    assert b"Bangkok" in _header(data), "an IPTC place name too"
+    assert len(_metadata_left(data)) >= 4
+
+
+@pytest.mark.parametrize("size", [(1200, 900), (4000, 3000)], ids=["kept-path", "shrink-path"])
+def test_the_ai_copy_carries_no_metadata_at_all(size):
+    """🔴 Chat A: the for_ai file is the only one that leaves our hands."""
+    for_ai = prepare(_with_position(*size), LIMITS).for_ai
+    assert _metadata_left(for_ai.data) == []
+    assert _gps_anywhere(for_ai.data) == []
+    assert b"Bangkok" not in _header(for_ai.data)
+
+
+def test_the_ai_copy_kept_as_it_came_is_still_not_reencoded():
+    data = _with_position(1200, 900)
+    prepared = prepare(data, LIMITS)
+    for_ai = prepared.for_ai
+    assert for_ai.reencoded is False
+    assert for_ai.bytes < len(data), "metadata really was removed"
+    assert for_ai.picture_sha256 == prepared.source.picture_sha256
+    assert _decoded(for_ai.data) == _decoded(data)
+
+
+def test_the_evidence_copy_loses_only_its_position():
+    data = _with_position(1200, 900)
+    prepared = prepare(data, LIMITS)
+    original = prepared.original
+    assert _gps_anywhere(original.data) == []
+    exif = Image.open(io.BytesIO(original.data)).getexif()
+    assert (exif.get(0x010F), exif.get(0x0110), exif.get(0x0132)) == (
+        "Apple", "iPhone 15", "2026:11:15 10:00:00",
+    )
+    # GPS only, as ruled: a written place name (IPTC, added by editing apps,
+    # not by phones) is not a coordinate and stays. Raised with Chat A.
+    assert b"Bangkok" in _header(original.data)
+
+
+def test_the_evidence_copy_picture_is_the_upload_byte_for_byte():
+    """D74: the stored file and the upload certainly differ (size), so this
+    can only pass if the picture part is what stayed the same."""
+    data = _with_position(1200, 900)
+    prepared = prepare(data, LIMITS)
+    original = prepared.original
+    assert original.reencoded is False
+    assert original.bytes != len(data)
+    assert original.picture_sha256 == prepared.source.picture_sha256
+    assert _decoded(original.data) == _decoded(data)
+
+
+def test_a_shrunk_evidence_copy_has_no_position_either():
+    original = prepare(_with_position(4000, 3000), LIMITS).original
+    assert original.reencoded is True
+    assert _gps_anywhere(original.data) == []
+
+
+def test_the_picture_fingerprint_ignores_metadata_and_sees_the_picture():
+    image = _noise(800, 600)
+    q90, q60 = _jpeg(image, quality=90), _jpeg(image, quality=60)
+    from app.scan.jpeg import picture_sha256, strip_metadata
+    with_meta = _with_position(800, 600, quality=90)
+    # Same picture, metadata removed: same fingerprint.
+    assert picture_sha256(strip_metadata(with_meta)) == picture_sha256(with_meta)
+    # Same size, same pixels in, different compression: different fingerprint (D74).
+    assert Image.open(io.BytesIO(q90)).size == Image.open(io.BytesIO(q60)).size
+    assert picture_sha256(q90) != picture_sha256(q60)
+
+
+def test_a_png_upload_has_no_picture_fingerprint():
+    assert prepare(_png(Image.new("RGB", (400, 300), WHITE)), LIMITS).source.picture_sha256 is None
+
+
+def test_the_fingerprint_sees_a_changed_table_even_with_the_same_scan_bytes():
+    """The bug this guards: trimming metadata and, by mistake, touching a
+    segment that decodes the picture. The compressed scan stays byte for
+    byte the same, the pixels do not — the fingerprint must notice."""
+    from app.scan.jpeg import picture_sha256
+    data = _jpeg(_noise(400, 300), quality=90)
+    dqt = data.index(b"\xff\xdb")
+    tampered = bytearray(data)
+    tampered[dqt + 6] = (tampered[dqt + 6] % 250) + 3  # one quantization step
+    tampered = bytes(tampered)
+    assert data[data.index(b"\xff\xda"):] == tampered[tampered.index(b"\xff\xda"):]
+    assert _decoded(tampered) != _decoded(data)
+    assert picture_sha256(tampered) != picture_sha256(data)

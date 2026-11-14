@@ -14,6 +14,7 @@ import os
 import time
 
 import httpx
+import psycopg
 import pytest
 from dotenv import dotenv_values
 from PIL import Image
@@ -381,3 +382,83 @@ def test_only_for_ai_copies_are_offered_to_an_ai(client, storage):
     offered = service.paths_for_ai(scan_id)
     assert offered == for_ai
     assert not set(offered) & originals
+
+
+# --- metadata: what is stored, read back from the bucket (Chat A, ข้อ C) -----
+
+def _with_position(width=1200, height=900) -> bytes:
+    exif = Image.Exif()
+    exif[0x010F] = "Apple"
+    exif[0x0110] = "iPhone 15"
+    gps = exif.get_ifd(0x8825)
+    gps[1], gps[2] = "N", (13.0, 45.0, 12.5)
+    gps[3], gps[4] = "E", (100.0, 30.0, 1.25)
+    buffer = io.BytesIO()
+    Image.frombytes("RGB", (width, height), os.urandom(width * height * 3)).save(
+        buffer, "JPEG", quality=90, exif=exif.tobytes())
+    data = buffer.getvalue()
+    xmp = b'http://ns.adobe.com/xap/1.0/\x00<x:xmpmeta exif:GPSLatitude="13,45.2N"/>'
+    return data[:2] + b"\xff\xe1" + len(xmp + b"..").to_bytes(2, "big") + xmp + data[2:]
+
+
+def _header(data: bytes) -> bytes:
+    """Bytes before the compressed picture (noise could hold "GPS" by chance)."""
+    i = 2
+    while data[i + 1] != 0xDA:
+        i += 2 + int.from_bytes(data[i + 2:i + 4], "big")
+    return data[:i]
+
+
+def _stored(storage, row) -> bytes:
+    return httpx.get(storage.signed_url(row["storage_path"], 60), timeout=60).content
+
+
+def test_the_stored_ai_copy_has_no_metadata_and_the_original_no_position(client, storage):
+    data = _with_position()
+    scan_id = _new_scan(client)
+    assert _upload(client, scan_id, data).status_code == 201
+    rows = {r["kind"]: r for r in _rows(scan_id)}
+
+    for_ai = _stored(storage, rows["for_ai"])
+    assert len(Image.open(io.BytesIO(for_ai)).getexif()) == 0
+    assert not any(n in _header(for_ai) for n in (b"Exif\x00\x00", b"http://ns.adobe.com/xap", b"GPS"))
+
+    original = _stored(storage, rows["original"])
+    exif = Image.open(io.BytesIO(original)).getexif()
+    assert 0x8825 not in exif and b"GPS" not in _header(original)
+    assert exif.get(0x0110) == "iPhone 15", "camera model kept as evidence"
+
+
+def test_trimmed_files_are_recorded_as_the_same_picture(client, storage):
+    """Both copies kept as they came (1200 px is under both edges): fewer
+    bytes than arrived, same picture — and the database accepted the rows."""
+    data = _with_position()
+    scan_id = _new_scan(client)
+    assert _upload(client, scan_id, data).status_code == 201
+    from app.scan.jpeg import picture_sha256
+    for row in _rows(scan_id):
+        stored = _stored(storage, row)
+        assert row["reencoded"] is False
+        assert row["bytes"] == len(stored) < len(data)
+        assert row["picture_sha256"] == row["source_picture_sha256"] == picture_sha256(data)
+        assert row["picture_sha256"] == picture_sha256(stored)
+        assert row["client_reported_resized"] is False
+
+
+def test_a_strip_that_changes_the_picture_is_refused_by_the_database(client, storage, monkeypatch):
+    """Chat A: put in a bug that trims GPS and changes the picture with it.
+    The code still calls the file not re-encoded; the database must refuse,
+    and no file may be left behind."""
+    from app.scan import images, jpeg
+
+    def gps_strip_that_also_edits_a_table(data: bytes) -> bytes:
+        trimmed = bytearray(jpeg.strip_gps(data))
+        dqt = trimmed.index(b"\xff\xdb")
+        trimmed[dqt + 6] = (trimmed[dqt + 6] % 250) + 3
+        return bytes(trimmed)
+
+    monkeypatch.setattr(images, "strip_gps", gps_strip_that_also_edits_a_table)
+    scan_id = _new_scan(client)
+    with pytest.raises(psycopg.errors.CheckViolation):
+        _upload(client, scan_id, _with_position())
+    assert _rows(scan_id) == [] and _objects() == []
