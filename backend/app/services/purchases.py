@@ -15,6 +15,7 @@ from psycopg.errors import UniqueViolation
 from app import db
 from app.audit import write_audit
 from app.business_date import fetch_business_today
+from app.doc_numbers import NumberedDocument, lock_running_number
 from app.errors import AppError
 from app.money import MAX_AMOUNT, money
 from app.schemas.purchase import PurchaseIn
@@ -318,7 +319,9 @@ def purchase_no_prefix(business_today: date) -> str:
 
 
 def next_purchase_no(cur, business_today: date) -> str:
-    """Read inside the confirm transaction, never before it."""
+    """Read inside the confirm transaction, never before it — and under the
+    numbering lock (D79), so two confirms cannot read the same number."""
+    lock_running_number(cur, NumberedDocument.PURCHASE, business_today)
     prefix = purchase_no_prefix(business_today)
     cur.execute(
         """
@@ -538,9 +541,9 @@ def _is_purchase_no_clash(exc: UniqueViolation) -> bool:
 
 
 def confirm_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
-    """Two people can confirm different purchases at the same instant and read
-    the same running number; the unique index rejects the loser and the whole
-    confirm replays rather than committing without a number."""
+    """The numbering lock in next_purchase_no stops two confirms reading the
+    same running number (D79). The unique index and this replay stay behind
+    it, for a writer that ever skips the lock."""
     for attempt in range(1, MAX_PURCHASE_NO_ATTEMPTS + 1):
         try:
             return _confirm_purchase_once(purchase_id, actor_id)

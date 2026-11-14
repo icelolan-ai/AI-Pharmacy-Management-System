@@ -16,14 +16,17 @@ from app import db
 from app.audit import write_audit
 from app.auth import CurrentUser
 from app.business_date import fetch_business_today, store_day_start_sql
+from app.doc_numbers import NumberedDocument, lock_running_number
 from app.errors import AppError
 from app.money import MAX_AMOUNT, money
 from app.schemas.sale import SaleIn
 from app.services import fefo
 
 
-# D26: เลขที่บิล S-YYMMDD-NNN. The unique index is the real guard against two
-# sales claiming the same number; on a clash the whole transaction is retried.
+# D26: เลขที่บิล S-YYMMDD-NNN. next_sale_no takes the numbering lock, so two
+# sales no longer read the same number (D79). The unique index stays the last
+# guard, and the retry stays behind it: a clash can now only come from a
+# writer that skipped the lock, and replaying is better than failing.
 SALE_NO_UNIQUE_CONSTRAINT = "sales_sale_no_key"
 MAX_SALE_NO_ATTEMPTS = 5
 BE_OFFSET = 543
@@ -37,7 +40,9 @@ def sale_no_prefix(business_today: date) -> str:
 
 def next_sale_no(cur, business_today: date) -> str:
     """The next running number for this business day, read inside the sale's
-    own transaction so it cannot be stale by the time the row is written."""
+    own transaction so it cannot be stale by the time the row is written.
+    The lock first (D79): one transaction at a time reads and uses it."""
+    lock_running_number(cur, NumberedDocument.SALE, business_today)
     prefix = sale_no_prefix(business_today)
     cur.execute(
         """
