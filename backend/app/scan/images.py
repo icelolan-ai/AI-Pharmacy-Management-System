@@ -25,8 +25,9 @@ For_ai is made from the decoded upload, not from the stored original, so it
 is compressed once rather than twice.
 
 Metadata, on every stored file whichever path made it:
-  original  GPS removed (EXIF and XMP); camera, model and date kept — they
-            help when checking a photo later
+  original  only EXIF kept, its GPS block removed; camera, model and date
+            stay — they help when checking a photo later. XMP, IPTC and
+            comments go whole (Chat A: position in any form)
   for_ai    every describing segment removed. It is the one file that leaves
             our hands, and nothing in it helps a machine read a delivery note
 Both are done without re-encoding (app/scan/jpeg.py), so a file kept as it
@@ -40,7 +41,7 @@ from dataclasses import dataclass
 
 from PIL import Image, ImageOps, UnidentifiedImageError
 
-from app.scan.jpeg import JpegStructureError, picture_sha256, strip_gps, strip_metadata
+from app.scan.jpeg import JpegStructureError, picture_sha256, strip_location, strip_metadata
 
 JPEG = "image/jpeg"
 
@@ -268,7 +269,7 @@ def prepare(data: bytes, limits: Limits) -> Prepared:
     orientation = _orientation(image)
 
     original = _as_is(data, source, sniffed, orientation,
-                      limits.original_max_edge_px, limits.stored_max_bytes, strip_gps)
+                      limits.original_max_edge_px, limits.stored_max_bytes, strip_location)
     for_ai = _as_is(data, source, sniffed, orientation,
                     limits.ai_image_max_edge_px, limits.stored_max_bytes, strip_metadata)
 
@@ -290,7 +291,7 @@ def prepare(data: bytes, limits: Limits) -> Prepared:
         if original is None:
             original = _encode(upright, fit_within(*full, limits.original_max_edge_px),
                                limits.original_jpeg_quality, limits.stored_max_bytes, sniffed,
-                               strip_gps)
+                               strip_location)
         if for_ai is None:
             for_ai = _encode(upright, fit_within(*full, limits.ai_image_max_edge_px),
                              limits.ai_image_jpeg_quality, limits.stored_max_bytes, sniffed,

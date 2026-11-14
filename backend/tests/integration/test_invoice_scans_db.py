@@ -10,7 +10,6 @@ before the first test too, in case an earlier run was cut short.
 
 import hashlib
 import io
-import os
 import time
 
 import httpx
@@ -27,6 +26,7 @@ from app.scan.storage import BUCKET, Storage
 from app.services import invoice_scans as service
 from tests.db_guard import ENV_TEST_PATH, TEST_PROJECT_REF, ref_from_supabase_url
 from tests.integration.conftest import TEST_CONFIG, api, count_rows, headers
+from tests.seed import seeded_bytes
 
 pytestmark = pytest.mark.db
 
@@ -79,14 +79,16 @@ def _page_image() -> bytes:
     return _jpeg(Image.new("RGB", (1200, 900), WHITE))
 
 
-def _noise_jpeg(width, height, quality=95) -> bytes:
-    return _jpeg(Image.frombytes("RGB", (width, height), os.urandom(width * height * 3)), quality)
+def _noise_jpeg(width, height, quality=95, salt=None) -> bytes:
+    """Seeded noise (D77): TEST_SEED repeats it exactly."""
+    return _jpeg(Image.frombytes("RGB", (width, height), seeded_bytes(width * height * 3, salt)), quality)
 
 
 @pytest.fixture(scope="module")
 def phone_sized_noise() -> bytes:
     """A genuine 48 MP JPEG of pure noise, about 57 MB."""
-    return _noise_jpeg(8064, 6048)
+    # A fixed salt: module-scoped, so made by whichever test asks first.
+    return _noise_jpeg(8064, 6048, salt="phone_sized_noise")
 
 
 def _upload(client, scan_id, data, content_type="image/jpeg", role="owner"):
@@ -394,7 +396,7 @@ def _with_position(width=1200, height=900) -> bytes:
     gps[1], gps[2] = "N", (13.0, 45.0, 12.5)
     gps[3], gps[4] = "E", (100.0, 30.0, 1.25)
     buffer = io.BytesIO()
-    Image.frombytes("RGB", (width, height), os.urandom(width * height * 3)).save(
+    Image.frombytes("RGB", (width, height), seeded_bytes(width * height * 3)).save(
         buffer, "JPEG", quality=90, exif=exif.tobytes())
     data = buffer.getvalue()
     xmp = b'http://ns.adobe.com/xap/1.0/\x00<x:xmpmeta exif:GPSLatitude="13,45.2N"/>'
@@ -452,12 +454,12 @@ def test_a_strip_that_changes_the_picture_is_refused_by_the_database(client, sto
     from app.scan import images, jpeg
 
     def gps_strip_that_also_edits_a_table(data: bytes) -> bytes:
-        trimmed = bytearray(jpeg.strip_gps(data))
+        trimmed = bytearray(jpeg.strip_location(data))
         dqt = trimmed.index(b"\xff\xdb")
         trimmed[dqt + 6] = (trimmed[dqt + 6] % 250) + 3
         return bytes(trimmed)
 
-    monkeypatch.setattr(images, "strip_gps", gps_strip_that_also_edits_a_table)
+    monkeypatch.setattr(images, "strip_location", gps_strip_that_also_edits_a_table)
     scan_id = _new_scan(client)
     with pytest.raises(psycopg.errors.CheckViolation):
         _upload(client, scan_id, _with_position())
@@ -492,7 +494,7 @@ def test_the_phones_claim_is_recorded_as_said(client, storage):
 def test_a_photo_the_phone_already_shrank_is_kept_as_it_came(client, storage):
     """What a phone sends after D75: JPEG, long edge 3000, no EXIF. The
     evidence copy is then the phone's picture itself, not a second encode."""
-    data = _jpeg(Image.frombytes("RGB", (3000, 2250), os.urandom(3000 * 2250 * 3)), quality=88)
+    data = _jpeg(Image.frombytes("RGB", (3000, 2250), seeded_bytes(3000 * 2250 * 3)), quality=88)
     scan_id = _new_scan(client)
     assert _upload(client, scan_id, data).status_code == 201
     original = next(r for r in _rows(scan_id) if r["kind"] == "original")

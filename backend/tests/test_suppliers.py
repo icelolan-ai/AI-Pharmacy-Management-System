@@ -1,6 +1,5 @@
 """Unit tests for suppliers endpoints (task 3.6). No real database."""
 
-import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,8 +9,9 @@ from app.auth import get_current_user
 from app.main import app
 from app.services import suppliers as supplier_service
 from tests.helpers import NOW, FakeCursor, assert_error, fake_transaction, make_user
+from tests.seed import seeded_uuid
 
-SUP_ID = uuid.uuid4()
+SUP_ID = seeded_uuid()
 
 
 def supplier_row(**overrides):
@@ -97,8 +97,8 @@ def test_pharmacist_can_create_supplier(client, monkeypatch):
         {"name": "X", "email": "not-an-email"},
         {"name": "X", "email": "a@b"},
         {"name": "X", "lead_time_days": -1},
-        {"name": "X", "id": str(uuid.uuid4())},
-        {"name": "X", "store_id": str(uuid.uuid4())},
+        {"name": "X", "id": str(seeded_uuid())},
+        {"name": "X", "store_id": str(seeded_uuid())},
     ],
     ids=["name-empty", "name-missing", "email-bad", "email-no-tld", "lead-negative", "id-sent", "store_id-sent"],
 )
@@ -144,7 +144,7 @@ def test_create_supplier_writes_audit(monkeypatch):
 
     cursor = FakeCursor(fetchone=[supplier_row(), supplier_row()])
     monkeypatch.setattr(db, "get_transaction", fake_transaction(cursor))
-    actor = uuid.uuid4()
+    actor = seeded_uuid()
     supplier_service.create_supplier(SupplierCreate(name="ABC Pharma"), actor)
     audit_params = cursor.executed[1][1]
     assert "audit_logs" in str(cursor.executed[1][0])

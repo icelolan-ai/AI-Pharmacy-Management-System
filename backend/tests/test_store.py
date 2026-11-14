@@ -1,6 +1,5 @@
 """Unit tests for the store profile endpoints (ข้อมูลร้าน). No real database."""
 
-import uuid
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,9 +10,10 @@ from app.main import app
 from app.schemas.store import StoreProfileUpdate
 from app.services import store as store_service
 from tests.helpers import NOW, FakeCursor, MatchCursor, assert_error, fake_transaction, make_user
+from tests.seed import seeded_uuid
 
-STORE_ID = uuid.uuid4()
-ACTOR_ID = uuid.uuid4()
+STORE_ID = seeded_uuid()
+ACTOR_ID = seeded_uuid()
 
 
 def store_row(**overrides):
@@ -121,10 +121,10 @@ def test_get_returns_200_with_null_fields_when_never_saved(client, monkeypatch):
         {"name": ""},
         {"name": "   "},
         {"name": None},
-        {"id": str(uuid.uuid4())},
+        {"id": str(seeded_uuid())},
         {"name": "X", "updated_at": "2026-01-01T00:00:00Z"},
-        {"name": "X", "updated_by": str(uuid.uuid4())},
-        {"name": "X", "pharmacy_id": str(uuid.uuid4())},
+        {"name": "X", "updated_by": str(seeded_uuid())},
+        {"name": "X", "pharmacy_id": str(seeded_uuid())},
     ],
     ids=[
         "empty-body",

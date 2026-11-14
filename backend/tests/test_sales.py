@@ -16,13 +16,14 @@ from app.errors import AppError
 from app.main import app
 from app.services import sales as sale_service
 from tests.helpers import NOW, assert_error, make_user
+from tests.seed import seeded_uuid
 
 TODAY = date(2026, 9, 17)
 MED_A = uuid.UUID("00000000-0000-0000-0000-00000000000a")
 MED_B = uuid.UUID("00000000-0000-0000-0000-00000000000b")
-MED_NO_PRICE = uuid.uuid4()
-MED_INACTIVE = uuid.uuid4()
-SALE_ID = uuid.uuid4()
+MED_NO_PRICE = seeded_uuid()
+MED_INACTIVE = seeded_uuid()
+SALE_ID = seeded_uuid()
 
 
 class DuplicateSaleNo(UniqueViolation):
@@ -40,7 +41,7 @@ MEDICINES = {
 
 def lot(medicine_id, lot_number, exp_days, remaining, received_days_ago=10):
     return {
-        "id": uuid.uuid4(), "medicine_id": medicine_id, "lot_number": lot_number,
+        "id": seeded_uuid(), "medicine_id": medicine_id, "lot_number": lot_number,
         "quantity_remaining": remaining, "expiry_date": TODAY + timedelta(days=exp_days),
         "received_date": TODAY - timedelta(days=received_days_ago), "status": "active",
     }
@@ -75,7 +76,7 @@ class SalesCursor:
                          "total_amount": params[2], "created_by": params[3]}
         elif "INSERT INTO public.sale_items" in text:
             keys = ("sale_id", "medicine_id", "medicine_lot_id", "quantity", "unit_price", "subtotal")
-            row = {"id": uuid.uuid4(), **dict(zip(keys, params))}
+            row = {"id": seeded_uuid(), **dict(zip(keys, params))}
             self.sale_items.append(row)
             self._one = row
         elif "UPDATE public.medicine_lots" in text:
@@ -319,7 +320,7 @@ def test_unknown_or_inactive_medicine_returns_400(client, monkeypatch):
     use_db(monkeypatch, {})
     body = assert_error(
         client.post("/api/v1/sales", json=sale(
-            {"medicine_id": str(MED_INACTIVE), "quantity": 1}, {"medicine_id": str(uuid.uuid4()), "quantity": 1}
+            {"medicine_id": str(MED_INACTIVE), "quantity": 1}, {"medicine_id": str(seeded_uuid()), "quantity": 1}
         )),
         400, "VALIDATION_ERROR",
     )
@@ -368,7 +369,7 @@ def test_invalid_item_values_return_400(client, item):
 def test_items_empty_or_over_100_returns_400(client):
     login_as("owner")
     assert_error(client.post("/api/v1/sales", json=sale()), 400, "VALIDATION_ERROR")
-    many = [{"medicine_id": str(uuid.uuid4()), "quantity": 1} for _ in range(101)]
+    many = [{"medicine_id": str(seeded_uuid()), "quantity": 1} for _ in range(101)]
     assert_error(client.post("/api/v1/sales", json=sale(*many)), 400, "VALIDATION_ERROR")
 
 
@@ -405,7 +406,7 @@ def test_get_unknown_sale_returns_404(client, monkeypatch):
         yield Empty()
 
     monkeypatch.setattr(db, "get_transaction", tx)
-    assert_error(client.get(f"/api/v1/sales/{uuid.uuid4()}"), 404, "NOT_FOUND")
+    assert_error(client.get(f"/api/v1/sales/{seeded_uuid()}"), 404, "NOT_FOUND")
 
 
 def test_list_dates_are_store_local_days(client, monkeypatch):

@@ -1,6 +1,5 @@
 """Unit tests for reports (task 3.9, spec 9.7). No real database."""
 
-import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -12,10 +11,11 @@ from app.auth import get_current_user
 from app.main import app
 from app.services import reports as report_service
 from tests.helpers import MatchCursor, assert_error, fake_transaction, make_user
+from tests.seed import seeded_uuid
 
 TODAY = date(2026, 9, 17)
 TODAY_SQL = "((now()) AT TIME ZONE 'Asia/Bangkok')::date"
-MED = uuid.uuid4()
+MED = seeded_uuid()
 VALUE_FIELDS = ("available_value", "expired_value", "stock_value", "total_value", "sellable_value", "cost")
 
 
@@ -47,7 +47,7 @@ def stock_row(**overrides):
 
 
 def lot_row(days, **overrides):
-    row = {"lot_id": uuid.uuid4(), "medicine_id": MED, "medicine_name": "TEST", "unit": "กล่อง",
+    row = {"lot_id": seeded_uuid(), "medicine_id": MED, "medicine_name": "TEST", "unit": "กล่อง",
            "lot_number": f"L{days}",
            "quantity_remaining": 3, "expiry_date": TODAY + timedelta(days=days), "received_date": TODAY,
            "days_remaining": days, "stock_value": Decimal("24.75")}
@@ -207,8 +207,8 @@ def test_only_owner_can_view_inventory_value(client, role):
 def test_low_stock_sorted_by_shortage_desc(client, monkeypatch):
     login_as("staff")
     rows = [
-        {"medicine_id": uuid.uuid4(), "name": "B", "unit": "กล่อง", "available_quantity": 0, "reorder_point": 10, "shortage": 10},
-        {"medicine_id": uuid.uuid4(), "name": "A", "unit": "ขวด", "available_quantity": 3, "reorder_point": 5, "shortage": 2},
+        {"medicine_id": seeded_uuid(), "name": "B", "unit": "กล่อง", "available_quantity": 0, "reorder_point": 10, "shortage": 10},
+        {"medicine_id": seeded_uuid(), "name": "A", "unit": "ขวด", "available_quantity": 3, "reorder_point": 5, "shortage": 2},
     ]
     cursor = use_rules(monkeypatch, [("count(*) AS total", {"total": 2}), ("ORDER BY shortage", rows)])
     body = client.get("/api/v1/reports/low-stock").json()

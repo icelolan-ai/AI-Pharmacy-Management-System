@@ -3,7 +3,6 @@
 No real database: business "today", lookups and the cursor are faked.
 """
 
-import uuid
 from contextlib import contextmanager
 from datetime import date, timedelta
 from decimal import Decimal
@@ -19,6 +18,7 @@ from app.errors import AppError
 from app.main import app
 from app.services import purchases as purchase_service
 from tests.helpers import NOW, assert_error, make_user
+from tests.seed import seeded_uuid
 
 
 class DuplicatePurchaseNo(UniqueViolation):
@@ -29,11 +29,11 @@ class DuplicatePurchaseNo(UniqueViolation):
         return SimpleNamespace(constraint_name=purchase_service.PURCHASE_NO_UNIQUE_CONSTRAINT)
 
 TODAY = date(2026, 9, 17)
-SUPPLIER_ID = uuid.uuid4()
-MED_A = uuid.uuid4()
-MED_B = uuid.uuid4()
-INACTIVE_MED = uuid.uuid4()
-PURCHASE_ID = uuid.uuid4()
+SUPPLIER_ID = seeded_uuid()
+MED_A = seeded_uuid()
+MED_B = seeded_uuid()
+INACTIVE_MED = seeded_uuid()
+PURCHASE_ID = seeded_uuid()
 
 
 # --- fakes -------------------------------------------------------------------------------------
@@ -62,12 +62,12 @@ class RecordingCursor:
         elif "INSERT INTO public.purchase_items" in text:
             keys = ("purchase_id", "medicine_id", "quantity_invoiced", "quantity_actual",
                     "unit_cost", "lot_number", "expiry_date", "subtotal")
-            self._next = {"id": uuid.uuid4(), **dict(zip(keys, params)), "created_at": NOW}
+            self._next = {"id": seeded_uuid(), **dict(zip(keys, params)), "created_at": NOW}
         elif "INSERT INTO public.medicine_lots" in text:
             keys = ("medicine_id", "supplier_id", "purchase_item_id", "lot_number",
                     "quantity_received", "quantity_remaining", "cost_per_unit",
                     "expiry_date", "received_date")
-            self._next = {"id": uuid.uuid4(), **dict(zip(keys, params)), "status": "active"}
+            self._next = {"id": seeded_uuid(), **dict(zip(keys, params)), "status": "active"}
         elif "last_running" in text:
             # D29: highest running number issued for this business day so far
             self._next = {"last_running": self.last_running}
@@ -150,12 +150,12 @@ def purchase_body(items=None, **overrides):
 
 
 def detail_row(status="draft"):
-    item_id = uuid.uuid4()
+    item_id = seeded_uuid()
     return {
         "id": PURCHASE_ID, "supplier_id": SUPPLIER_ID, "supplier_name": "S",
         "purchase_date": TODAY, "items_subtotal": Decimal("250.00"),
         "discount_amount": Decimal("0.00"), "tax_amount": Decimal("0.00"),
-        "total_amount": Decimal("250.00"), "status": status, "created_by": uuid.uuid4(),
+        "total_amount": Decimal("250.00"), "status": status, "created_by": seeded_uuid(),
         "created_by_name": "ผู้รับทดสอบ", "created_at": NOW,
         "purchase_no": None if status == "draft" else "R-690917-001",
         "invoice_no": "INV-001",
@@ -178,7 +178,7 @@ def stored_purchase(status="draft", invoice_no="INV-001"):
 
 def stored_item(**overrides):
     row = {
-        "id": uuid.uuid4(), "purchase_id": PURCHASE_ID, "medicine_id": MED_A,
+        "id": seeded_uuid(), "purchase_id": PURCHASE_ID, "medicine_id": MED_A,
         "medicine_name": "A", "unit": "กล่อง",
         "quantity_invoiced": 20, "quantity_actual": None, "unit_cost": Decimal("12.50"),
         "lot_number": "L1", "expiry_date": TODAY + timedelta(days=20), "subtotal": Decimal("250.00"),
@@ -252,7 +252,7 @@ def test_create_draft_returns_201_and_money_strings(client, cursor):
 def test_supplier_not_found_returns_404(client, cursor):
     login_as("owner")
     body = assert_error(
-        client.post("/api/v1/purchases", json=purchase_body(supplier_id=str(uuid.uuid4()))),
+        client.post("/api/v1/purchases", json=purchase_body(supplier_id=str(seeded_uuid()))),
         404,
         "NOT_FOUND",
     )
@@ -322,7 +322,7 @@ def test_duplicate_items_return_400(client, cursor):
 
 def test_inactive_or_unknown_medicine_returns_400_with_index(client, cursor):
     login_as("owner")
-    items = [item(), item(medicine_id=str(INACTIVE_MED), lot_number="L2"), item(medicine_id=str(uuid.uuid4()), lot_number="L3")]
+    items = [item(), item(medicine_id=str(INACTIVE_MED), lot_number="L2"), item(medicine_id=str(seeded_uuid()), lot_number="L3")]
     body = assert_error(client.post("/api/v1/purchases", json=purchase_body(items=items)), 400, "VALIDATION_ERROR")
     assert [d["index"] for d in body["error"]["details"]] == [1, 2]
 
@@ -626,7 +626,7 @@ def test_clash_on_the_number_retries_the_whole_confirm(monkeypatch):
         return {"purchase_id": purchase_id, "purchase_no": "R-690917-003"}
 
     monkeypatch.setattr(purchase_service, "_confirm_purchase_once", flaky)
-    result = purchase_service.confirm_purchase(PURCHASE_ID, uuid.uuid4())
+    result = purchase_service.confirm_purchase(PURCHASE_ID, seeded_uuid())
     assert attempts["count"] == 3
     assert result["purchase_no"] == "R-690917-003"
 
@@ -640,7 +640,7 @@ def test_giving_up_after_five_clashes_raises(monkeypatch):
 
     monkeypatch.setattr(purchase_service, "_confirm_purchase_once", always)
     with pytest.raises(AppError) as error:
-        purchase_service.confirm_purchase(PURCHASE_ID, uuid.uuid4())
+        purchase_service.confirm_purchase(PURCHASE_ID, seeded_uuid())
     assert attempts["count"] == purchase_service.MAX_PURCHASE_NO_ATTEMPTS == 5
     assert error.value.code == "INVALID_STATE" and error.value.http_status == 409
 

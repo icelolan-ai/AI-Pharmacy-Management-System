@@ -11,3 +11,6 @@ os.environ["APP_ENV"] = "test"
 os.environ["DATABASE_URL"] = "postgresql://test:test@127.0.0.1:1/test"
 os.environ["SUPABASE_URL"] = "https://test-project.supabase.co"
 os.environ["CORS_ORIGINS"] = "http://localhost:3000"
+
+# D77: one seed for every random value; printed with every run and failure.
+pytest_plugins = ["tests.seed"]

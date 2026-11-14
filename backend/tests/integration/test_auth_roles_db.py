@@ -1,10 +1,10 @@
 """Auth, roles and cost visibility on the real test database (spec 11 #2, #3; D11)."""
 
-import uuid
 
 import pytest
 
 from tests.integration.conftest import api, headers, insert_lot, insert_medicine, make_token
+from tests.seed import seeded_uuid
 
 pytestmark = pytest.mark.db
 
@@ -49,7 +49,7 @@ def test_token_for_inactive_user_returns_403(client):
     [
         ("post", "/api/v1/medicines", {"name": "X"}),
         ("get", "/api/v1/suppliers", None),
-        ("post", "/api/v1/purchases", {"supplier_id": str(uuid.uuid4()), "purchase_date": "2026-09-17", "items": []}),
+        ("post", "/api/v1/purchases", {"supplier_id": str(seeded_uuid()), "purchase_date": "2026-09-17", "items": []}),
         ("get", "/api/v1/reports/inventory-value", None),
         ("get", "/api/v1/audit-logs", None),
     ],

@@ -9,7 +9,6 @@ send and the heaviest the shrink could produce.
 
 import hashlib
 import io
-import os
 
 import json
 import struct
@@ -19,6 +18,7 @@ import pytest
 from PIL import Image
 
 from app.scan.images import ImageRejected, Limits, fit_within, prepare, sniff, upright_size
+from tests.seed import seeded_bytes
 
 LIMITS = Limits(
     original_max_edge_px=3000,
@@ -56,8 +56,9 @@ def _near(pixel, colour, tolerance=40) -> bool:
     return all(abs(a - b) <= tolerance for a, b in zip(pixel[:3], colour))
 
 
-def _noise(width, height) -> Image.Image:
-    return Image.frombytes("RGB", (width, height), os.urandom(width * height * 3))
+def _noise(width, height, salt=None) -> Image.Image:
+    """Seeded noise (D77): TEST_SEED repeats it exactly."""
+    return Image.frombytes("RGB", (width, height), seeded_bytes(width * height * 3, salt))
 
 
 # --- what the bytes say ------------------------------------------------------
@@ -90,7 +91,8 @@ def test_the_type_comes_from_the_bytes(head, expected):
 def phone_sized_noise() -> bytes:
     """8064 x 6048 (48 MP, a current iPhone's full sensor) of pure noise at
     q95 — about 57 MB, three times the 18.7 MB photo a real iPhone sent."""
-    return _jpeg(_noise(8064, 6048), quality=95)
+    # A fixed salt: module-scoped, so made by whichever test asks first.
+    return _jpeg(_noise(8064, 6048, salt="phone_sized_noise"), quality=95)
 
 
 def test_the_large_file_is_really_large(phone_sized_noise):
@@ -346,7 +348,8 @@ def test_the_test_file_really_carries_a_position():
     assert _gps_anywhere(data) == [
         "EXIF GPS block", "GPS text in the bytes", "coordinates in the bytes",
     ]
-    assert b"Bangkok" in _header(data), "an IPTC place name too"
+    # A real IPTC block, read back by Pillow's own IPTC reader: City (2:90).
+    assert _iptc_city(data) == b"Bangkok"
     assert len(_metadata_left(data)) >= 4
 
 
@@ -369,18 +372,40 @@ def test_the_ai_copy_kept_as_it_came_is_still_not_reencoded():
     assert _decoded(for_ai.data) == _decoded(data)
 
 
-def test_the_evidence_copy_loses_only_its_position():
-    data = _with_position(1200, 900)
-    prepared = prepare(data, LIMITS)
-    original = prepared.original
+def _iptc_city(data: bytes):
+    from PIL import IptcImagePlugin
+    info = IptcImagePlugin.getiptcinfo(Image.open(io.BytesIO(data))) or {}
+    return info.get((2, 90))
+
+
+@pytest.mark.parametrize("size", [(1200, 900), (4000, 3000)], ids=["kept-path", "shrink-path"])
+def test_the_evidence_copy_keeps_only_exif_without_its_position(size):
+    """Chat A: position in any form. EXIF stays without its GPS block; XMP,
+    IPTC (a city name here) and comments go whole."""
+    original = prepare(_with_position(*size), LIMITS).original
     assert _gps_anywhere(original.data) == []
-    exif = Image.open(io.BytesIO(original.data)).getexif()
+    assert _iptc_city(original.data) is None
+    image = Image.open(io.BytesIO(original.data))
+    assert not image.info.get("xmp") and not image.info.get("comment") and not image.info.get("photoshop")
+    for needle in (b"http://ns.adobe.com/xap", b"Photoshop 3.0", b"Bangkok", b"shop counter"):
+        assert needle not in _header(original.data), needle
+
+
+def test_the_evidence_copy_keeps_camera_make_model_and_date():
+    exif = Image.open(io.BytesIO(prepare(_with_position(1200, 900), LIMITS).original.data)).getexif()
     assert (exif.get(0x010F), exif.get(0x0110), exif.get(0x0132)) == (
         "Apple", "iPhone 15", "2026:11:15 10:00:00",
     )
-    # GPS only, as ruled: a written place name (IPTC, added by editing apps,
-    # not by phones) is not a coordinate and stays. Raised with Chat A.
-    assert b"Bangkok" in _header(original.data)
+
+
+def test_xmp_goes_from_the_evidence_copy_even_without_a_position():
+    """Removed always, not only when it names a place."""
+    plain = _jpeg(_noise(800, 600))
+    xmp = b"http://ns.adobe.com/xap/1.0/\x00<x:xmpmeta><rdf:Description xmp:CreatorTool=\"Camera\"/></x:xmpmeta>"
+    data = plain[:2] + b"\xff\xe1" + struct.pack(">H", len(xmp) + 2) + xmp + plain[2:]
+    assert b"GPS" not in _header(data) and b"http://ns.adobe.com/xap" in _header(data)
+    original = prepare(data, LIMITS).original
+    assert b"http://ns.adobe.com/xap" not in _header(original.data)
 
 
 def test_the_evidence_copy_picture_is_the_upload_byte_for_byte():

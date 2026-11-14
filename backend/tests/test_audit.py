@@ -1,6 +1,5 @@
 """Unit tests for GET /api/v1/audit-logs (task 3.9, spec 9.8). No real database."""
 
-import uuid
 from datetime import date
 
 import pytest
@@ -10,6 +9,7 @@ from app import db
 from app.auth import get_current_user
 from app.main import app
 from tests.helpers import NOW, MatchCursor, assert_error, fake_transaction, make_user
+from tests.seed import seeded_uuid
 
 TODAY_START = "((%s::date)::timestamp AT TIME ZONE 'Asia/Bangkok')"
 
@@ -34,10 +34,10 @@ def use_logs(monkeypatch, rows):
 
 def log_row():
     return {
-        "id": uuid.uuid4(), "table_name": "medicine_lots", "record_id": uuid.uuid4(), "action": "update",
+        "id": seeded_uuid(), "table_name": "medicine_lots", "record_id": seeded_uuid(), "action": "update",
         "old_value": {"quantity_remaining": 3, "status": "active"},
         "new_value": {"quantity_remaining": 2, "status": "active"},
-        "changed_by": uuid.uuid4(), "changed_by_name": "ice boonak", "reason": "TEST ทดสอบ", "created_at": NOW,
+        "changed_by": seeded_uuid(), "changed_by_name": "ice boonak", "reason": "TEST ทดสอบ", "created_at": NOW,
     }
 
 

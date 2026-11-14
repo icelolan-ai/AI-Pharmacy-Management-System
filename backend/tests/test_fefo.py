@@ -12,14 +12,15 @@ from app.auth import get_current_user
 from app.main import app
 from app.services import fefo
 from tests.helpers import assert_error, make_user
+from tests.seed import seeded_uuid
 
 TODAY = date(2026, 9, 17)
-MED = uuid.uuid4()
+MED = seeded_uuid()
 
 
 def lot(lot_number, exp_days, remaining, *, received_days_ago=10, status="active", lot_id=None):
     return {
-        "id": lot_id or uuid.uuid4(),
+        "id": lot_id or seeded_uuid(),
         "medicine_id": MED,
         "lot_number": lot_number,
         "quantity_remaining": remaining,

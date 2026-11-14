@@ -1,7 +1,6 @@
 """Unit tests for medicines endpoints (task 3.6). No real database."""
 
 import json
-import uuid
 from datetime import date
 from decimal import Decimal
 from types import SimpleNamespace
@@ -18,8 +17,9 @@ from app.schemas.common import escape_like
 from app.schemas.medicine import MedicineCreate
 from app.services import medicines as medicine_service
 from tests.helpers import NOW, FakeCursor, assert_error, fake_transaction, make_user
+from tests.seed import seeded_uuid
 
-MED_ID = uuid.uuid4()
+MED_ID = seeded_uuid()
 
 
 def medicine_row(**overrides):
@@ -128,8 +128,8 @@ def test_unauthenticated_request_returns_401(client):
         {"name": "X", "selling_price": "-1.00"},
         {"name": "X", "selling_price": "95.125"},
         {"name": "X", "reorder_point": -1},
-        {"name": "X", "id": str(uuid.uuid4())},
-        {"name": "X", "store_id": str(uuid.uuid4())},
+        {"name": "X", "id": str(seeded_uuid())},
+        {"name": "X", "store_id": str(seeded_uuid())},
         {"name": "X", "created_at": "2026-01-01T00:00:00Z"},
         {"name": "X", "updated_at": "2026-01-01T00:00:00Z"},
         {"name": "X", "is_active": False},
@@ -159,7 +159,7 @@ def test_patch_rejects_null_name_and_id(client):
         client.patch(f"/api/v1/medicines/{MED_ID}", json={"name": None}), 400, "VALIDATION_ERROR"
     )
     assert_error(
-        client.patch(f"/api/v1/medicines/{MED_ID}", json={"id": str(uuid.uuid4())}),
+        client.patch(f"/api/v1/medicines/{MED_ID}", json={"id": str(seeded_uuid())}),
         400,
         "VALIDATION_ERROR",
     )
@@ -238,7 +238,7 @@ def test_create_writes_audit_in_same_transaction(monkeypatch):
     inserted = {k: v for k, v in medicine_row().items() if k != "available_quantity"}
     cursor = FakeCursor(fetchone=[inserted, medicine_row()])
     monkeypatch.setattr(db, "get_transaction", fake_transaction(cursor))
-    actor = uuid.uuid4()
+    actor = seeded_uuid()
     medicine_service.create_medicine(MedicineCreate(name="Paracetamol 500 mg"), actor)
     queries = [str(q) for q, _ in cursor.executed]
     assert len(cursor.executed) == 3
@@ -255,7 +255,7 @@ def test_patch_writes_old_and_new_values_to_audit(monkeypatch):
     monkeypatch.setattr(db, "get_transaction", fake_transaction(cursor))
     from app.schemas.medicine import MedicineUpdate
 
-    medicine_service.update_medicine(MED_ID, MedicineUpdate(selling_price="99.50"), uuid.uuid4())
+    medicine_service.update_medicine(MED_ID, MedicineUpdate(selling_price="99.50"), seeded_uuid())
     audit_params = cursor.executed[2][1]
     assert audit_params[2] == "update"
     assert audit_params[3].obj["selling_price"] == Decimal("95.00")
@@ -293,7 +293,7 @@ def test_list_search_uses_escaped_pattern(monkeypatch):
 
 
 def test_audit_json_handles_decimal_uuid_dates():
-    uid = uuid.uuid4()
+    uid = seeded_uuid()
     text = dumps_audit_value(
         {"price": Decimal("95.00"), "id": uid, "d": date(2027, 6, 30), "t": NOW, "name": "ยา"}
     )
@@ -316,7 +316,7 @@ def test_create_without_unit_leaves_the_column_to_its_default(monkeypatch):
     cursor = FakeCursor(fetchone=[inserted, medicine_row()])
     monkeypatch.setattr(db, "get_transaction", fake_transaction(cursor))
 
-    row = medicine_service.create_medicine(MedicineCreate(name="Paracetamol 500 mg"), uuid.uuid4())
+    row = medicine_service.create_medicine(MedicineCreate(name="Paracetamol 500 mg"), seeded_uuid())
 
     insert_sql, params = cursor.executed[0]
     assert '"unit"' not in insert_sql.as_string()
@@ -332,7 +332,7 @@ def test_create_with_unit_stores_and_returns_it(monkeypatch):
     monkeypatch.setattr(db, "get_transaction", fake_transaction(cursor))
 
     row = medicine_service.create_medicine(
-        MedicineCreate(name="Paracetamol 500 mg", unit="  ขวด  "), uuid.uuid4()
+        MedicineCreate(name="Paracetamol 500 mg", unit="  ขวด  "), seeded_uuid()
     )
 
     insert_sql, params = cursor.executed[0]

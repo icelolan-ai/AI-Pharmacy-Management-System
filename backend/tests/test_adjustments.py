@@ -1,6 +1,5 @@
 """Unit tests for stock adjustments (task 3.9, spec 10.3). No real database."""
 
-import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -12,10 +11,11 @@ from app.auth import get_current_user
 from app.main import app
 from app.services import lots as lot_service
 from tests.helpers import MatchCursor, assert_error, fake_transaction, make_user
+from tests.seed import seeded_uuid
 
 TODAY = date(2026, 9, 17)
-LOT = uuid.uuid4()
-TX_ID = uuid.uuid4()
+LOT = seeded_uuid()
+TX_ID = seeded_uuid()
 
 
 @pytest.fixture
@@ -32,7 +32,7 @@ def login_as(role):
 
 def use_lot(monkeypatch, *, remaining=3, status="active", exp_days=20):
     stored = {
-        "id": LOT, "medicine_id": uuid.uuid4(), "lot_number": "L2", "quantity_received": 10,
+        "id": LOT, "medicine_id": seeded_uuid(), "lot_number": "L2", "quantity_received": 10,
         "quantity_remaining": remaining, "expiry_date": TODAY + timedelta(days=exp_days),
         "received_date": TODAY, "status": status, "cost_per_unit": Decimal("8.25"), "supplier_id": None,
     }

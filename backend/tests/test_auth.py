@@ -9,7 +9,6 @@ import hashlib
 import hmac
 import json
 import time
-import uuid
 from types import SimpleNamespace
 from typing import Annotated
 
@@ -25,16 +24,17 @@ from app.auth import CurrentUser, require_roles
 from app.config import get_settings
 from app.errors import register_error_handlers
 from app.main import app
+from tests.seed import seeded_uuid
 
 KID = "test-kid-1"
 PRIVATE_KEY = ec.generate_private_key(ec.SECP256R1())
 PUBLIC_KEY = PRIVATE_KEY.public_key()
 ISSUER = f"{get_settings().supabase_url.rstrip('/')}/auth/v1"
 
-OWNER_ID = uuid.uuid4()
-NO_PROFILE_ID = uuid.uuid4()
-INACTIVE_ID = uuid.uuid4()
-STAFF_ID = uuid.uuid4()
+OWNER_ID = seeded_uuid()
+NO_PROFILE_ID = seeded_uuid()
+INACTIVE_ID = seeded_uuid()
+STAFF_ID = seeded_uuid()
 
 PROFILES = {
     OWNER_ID: {"full_name": "Test Owner", "role": "owner", "is_active": True},

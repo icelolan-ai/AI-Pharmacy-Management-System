@@ -31,7 +31,6 @@ _SOI = b"\xff\xd8"
 _SOS = 0xDA
 _GPS_IFD = 0x8825
 _EXIF_PREFIX = b"Exif\x00\x00"
-_XMP_PREFIXES = (b"http://ns.adobe.com/xap/1.0/\x00", b"http://ns.adobe.com/xmp/extension/\x00")
 
 
 class JpegStructureError(ValueError):
@@ -77,20 +76,19 @@ def picture_sha256(data: bytes) -> str:
     return hashlib.sha256(_join(kept)).hexdigest()
 
 
-def _is_xmp(segment: bytes) -> bool:
-    return segment[1] == 0xE1 and segment[4:].startswith(_XMP_PREFIXES)
-
-
 def strip_metadata(data: bytes) -> bytes:
     """Every describing segment removed: EXIF, XMP, IPTC, comments.
     For the copy that leaves our hands (for_ai)."""
     return _join([(m, s) for m, s in _segments(data) if m not in _METADATA_MARKERS])
 
 
-def strip_gps(data: bytes) -> bytes:
-    """Only the position removed: the GPS block of EXIF, and any XMP block
-    that names a position. Camera make, model and date stay — they help when
-    checking a photo later. For the evidence copy (original)."""
+def strip_location(data: bytes) -> bytes:
+    """For the evidence copy (original): keep only EXIF, with its GPS block
+    removed. Camera make, model and date stay — they help when checking a
+    photo later. Every other describing block goes whole, every time: XMP,
+    IPTC (which can name a city or a place), comments. Chat A: the rule is
+    "position in any form", and dropping whole blocks is simpler and harder
+    to get wrong than reading each one for fields that name a place."""
     out: list[tuple[int, bytes]] = []
     for marker, segment in _segments(data):
         body = segment[4:]
@@ -103,7 +101,7 @@ def strip_gps(data: bytes) -> bytes:
                 if len(rebuilt) + 2 > 0xFFFF:
                     raise JpegStructureError("EXIF too large to rewrite")
                 segment = b"\xff\xe1" + struct.pack(">H", len(rebuilt) + 2) + rebuilt
-        elif _is_xmp(segment) and b"GPS" in body:
+        elif marker in _METADATA_MARKERS:
             continue
         out.append((marker, segment))
     return _join(out)

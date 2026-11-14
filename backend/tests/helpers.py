@@ -1,16 +1,16 @@
 """Shared test helpers: fake users, fake DB cursor, error-format assertion."""
 
-import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 
 from app.auth import CurrentUser
+from tests.seed import seeded_uuid
 
 NOW = datetime(2026, 9, 17, 12, 0, tzinfo=timezone.utc)
 
 
 def make_user(role: str) -> CurrentUser:
-    return CurrentUser(id=uuid.uuid4(), email=f"{role}@example.com", full_name=role, role=role)
+    return CurrentUser(id=seeded_uuid(), email=f"{role}@example.com", full_name=role, role=role)
 
 
 def assert_error(resp, status: int, code: str) -> dict:

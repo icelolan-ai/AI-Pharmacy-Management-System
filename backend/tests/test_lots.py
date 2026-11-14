@@ -1,6 +1,5 @@
 """Unit tests for lot views and lot transactions (task 3.9). No real database."""
 
-import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -12,16 +11,17 @@ from app.auth import get_current_user
 from app.main import app
 from app.services import lots as lot_service
 from tests.helpers import NOW, MatchCursor, assert_error, fake_transaction, make_user
+from tests.seed import seeded_uuid
 
 TODAY = date(2026, 9, 17)
-MED = uuid.uuid4()
-LOT = uuid.uuid4()
+MED = seeded_uuid()
+LOT = seeded_uuid()
 
 
 def lot_row(**overrides):
     row = {
         "id": LOT, "medicine_id": MED, "medicine_name": "TEST-Med", "lot_number": "L1",
-        "supplier_id": uuid.uuid4(), "quantity_received": 18, "quantity_remaining": 3,
+        "supplier_id": seeded_uuid(), "quantity_received": 18, "quantity_remaining": 3,
         "expiry_date": TODAY + timedelta(days=20), "received_date": TODAY, "status": "active",
         "cost_per_unit": Decimal("12.5"), "days_remaining": 20, "sellable": True,
     }
@@ -130,9 +130,9 @@ def test_staff_cannot_view_lot_transactions(client):
 def test_manager_views_transactions_newest_first(client, monkeypatch):
     login_as("pharmacist")
     tx = {
-        "id": uuid.uuid4(), "medicine_lot_id": LOT, "transaction_type": "sale", "quantity_change": -2,
-        "quantity_before": 5, "quantity_after": 3, "reference_type": "sale", "reference_id": uuid.uuid4(),
-        "notes": None, "created_by": uuid.uuid4(), "created_at": NOW,
+        "id": seeded_uuid(), "medicine_lot_id": LOT, "transaction_type": "sale", "quantity_change": -2,
+        "quantity_before": 5, "quantity_after": 3, "reference_type": "sale", "reference_id": seeded_uuid(),
+        "notes": None, "created_by": seeded_uuid(), "created_at": NOW,
     }
     cursor = use_rules(monkeypatch, [
         ("SELECT 1 AS found FROM public.medicine_lots", {"found": 1}),
