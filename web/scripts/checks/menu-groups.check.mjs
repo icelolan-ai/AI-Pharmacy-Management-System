@@ -311,10 +311,27 @@ check.ok(
   "D43: a div with onClick is not reachable from a keyboard",
 );
 check.ok(
-  "บอกสถานะเป็นข้อความ ไม่ใช่ลูกศรอย่างเดียว",
+  "จอคอม: บอกสถานะเป็นข้อความ เปิดอยู่ / พับอยู่",
   /เปิดอยู่/.test(headingBlock) && /พับอยู่/.test(headingBlock),
-  "D34: an arrow on its own leaves the state to be guessed",
+  "D34: the sidebar spells the state out",
 );
+// D78 round 2: on a phone the state is an arrow, ▸ turning to ▾. It is a
+// shape, not a colour (D34), and it is driven by the button's own
+// aria-expanded={open} — the very value a screen reader announces — so the
+// arrow and the announced state cannot come apart (D43-d: the real state,
+// not a second copy of it).
+{
+  const css = source("app/globals.css");
+  const turn = css.match(/button\[aria-expanded="true"\] \.group-chevron \{\s*transform: rotate\(90deg\);\s*\}/);
+  const chevronInButton = /aria-expanded=\{open\}[\s\S]*?<span aria-hidden="true" className="group-chevron">\s*▸\s*<\/span>[\s\S]*?<\/button>/.test(headingBlock);
+  check.ok("มือถือ: ลูกศร ▸ อยู่ในปุ่มหัวข้อเดียวกับ aria-expanded", chevronInButton);
+  check.ok("มือถือ: ลูกศรหมุนเป็น ▾ ตาม aria-expanded ของปุ่มเองเท่านั้น", turn !== null);
+  check.eq(
+    "มือถือ: ไม่มีที่อื่นตัดสินทิศลูกศร",
+    (css.match(/\.group-chevron[^{]*\{[^}]*transform:\s*rotate/g) ?? []).length + (nav.match(/group-chevron[^"]*\$\{/g) ?? []).length,
+    1,
+  );
+}
 check.ok(
   // The rule itself is proved by running isFoldable/isGroupOpen above. What
   // is checked here is that the menu asks them instead of deciding again.
@@ -324,8 +341,11 @@ check.ok(
   "a second copy of the rule inside the component is one the tests never see",
 );
 check.ok(
-  "กลุ่มที่กำลังดูอยู่ ยังบอกได้ว่าดูหน้านี้อยู่ แต่พับได้ (D47-1)",
-  /holdsCurrentPage[\s\S]{0,40}ดูหน้านี้อยู่/.test(headingBlock),
+  "กลุ่มที่กำลังดูอยู่ ยังบอกได้ว่าดูหน้านี้อยู่ แต่พับได้ (D47-1) — ทั้งจอคอมและมือถือ",
+  // Matched by structure, not by distance: nesting deeper moved it past a
+  // character count while nothing about it changed (D43-b).
+  /holdsCurrentPage\s*\?\s*"เปิดอยู่ · ดูหน้านี้อยู่"/.test(headingBlock)
+    && /\{holdsCurrentPage \? \(\s*<span[^>]*>ดูหน้านี้อยู่<\/span>/.test(headingBlock),
 );
 check.ok(
   "กลุ่มที่พับแล้ว บอกว่าพับอยู่ ไม่ใช่ยังบอกว่าเปิดอยู่",

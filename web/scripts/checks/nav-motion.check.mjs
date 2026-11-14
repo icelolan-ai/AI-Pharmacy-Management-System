@@ -121,8 +121,25 @@ check.eq(
   [],
 );
 const moves = (value) => value && !/^none( !important)?$/.test(value);
+// What counts as movement under reduced motion:
+//   - any transition or animation, except one that only hides (skeleton-wait
+//     sets visibility — nothing travels);
+//   - a transform only where a state change would make it jump (the tab
+//     lift and the press). The sheet's transform is its drag position under
+//     the finger, not movement of its own.
+// One named exception: the menu arrow's quarter turn IS the open/folded
+// state (D34: shape, not colour). Under reduced motion it turns at once —
+// its transition is removed — but it must still turn.
+const HIDES_ONLY = /^skeleton-wait var\(--skeleton-wait\) linear$/;
+const STATE_TRANSFORM = /\.tab-item(:active|\[aria-current="page"\]|\[data-open\])/;
+const ARROW_IS_STATE = 'button[aria-expanded="true"] .group-chevron';
+const isMovement = (rule, prop, value) =>
+  moves(value) &&
+  !(prop === "animation" && HIDES_ONLY.test(value)) &&
+  !(prop === "transform" && (!STATE_TRANSFORM.test(rule.selector) || rule.selector === ARROW_IS_STATE));
+const NAV_MOVERS = /\.tab-|::view-transition|\.menu-sheet|\.menu-backdrop|\.group-chevron|\[data-slot="skeleton"\]/;
 const moving = rules.filter(
-  (r) => !reduce(r) && /\.tab-|::view-transition/.test(r.selector) && [r.decls.transition, r.decls.animation, r.decls.transform].some(moves),
+  (r) => !reduce(r) && NAV_MOVERS.test(r.selector) && ["transition", "animation", "transform"].some((p) => isMovement(r, p, r.decls[p])),
 );
 const stilled = rules.filter(reduce);
 // ::view-transition-new(*) stills every ::view-transition-new(…), whatever its name.
@@ -131,18 +148,79 @@ const covers = (still, selector) =>
   (/^::view-transition-(old|new|group)\(\*\)$/.test(still) && selector.startsWith(still.replace("(*)", "(")));
 const stillFor = (selector, prop) =>
   stilled.some(
-    (r) => r.selector.split(",").map((s) => s.trim()).some((still) => covers(still, selector)) && /^none( !important)?$/.test(r.decls[prop] ?? ""),
+    (r) =>
+      r.selector.split(",").map((s) => s.trim()).some((still) => covers(still, selector)) &&
+      (/^none( !important)?$/.test(r.decls[prop] ?? "") || (prop === "animation" && HIDES_ONLY.test(r.decls[prop] ?? ""))),
   );
 const notStilled = moving.flatMap((r) =>
   r.selector.split(",").map((s) => s.trim()).flatMap((selector) =>
-    ["transition", "animation", "transform"].filter((p) => moves(r.decls[p]) && !stillFor(selector, p)).map((p) => `${selector} { ${p} }`),
+    ["transition", "animation", "transform"]
+      .filter((p) => isMovement({ ...r, selector }, p, r.decls[p]) && !stillFor(selector, p))
+      .map((p) => `${selector} { ${p} }`),
   ),
 );
-check.ok("เจอการเคลื่อนไหวที่ต้องตรวจ", moving.length >= 4, `${moving.length}`);
+check.ok("เจอการเคลื่อนไหวที่ต้องตรวจ", moving.length >= 6, `${moving.length}`);
+check.ok(
+  "ลูกศรเมนูหมุนทันทีในโหมดลดการเคลื่อนไหว (ไม่มี transition) แต่ยังบอกสถานะ",
+  stillFor(".group-chevron", "transition"),
+);
 check.eq("🔴 โหมดลดการเคลื่อนไหว ปิดการเคลื่อนไหวทุกตัว", notStilled, []);
 check.ok(
   "โหมดลดการเคลื่อนไหว ปิดการเลื่อนเปลี่ยนหน้าด้วย",
   ["::view-transition-group(*)", "::view-transition-old(*)", "::view-transition-new(*)"].every((s) => stillFor(s, "animation")),
 );
+
+// --- 5. D78 round 2: what the iPhone video showed ---------------------------
+// Pages never show through each other while sliding.
+const vt = (kind, cls) => rules.find((r) => r.selector.split(",").map((s) => s.trim()).includes(`::view-transition-${kind}(.${cls})`) && r.decls["mix-blend-mode"]);
+check.eq(
+  "🔴 ระหว่างเลื่อนหน้า ห้ามผสมสองหน้าเข้าด้วยกัน (mix-blend-mode: normal)",
+  [vt("old", "nav-forward"), vt("new", "nav-forward"), vt("old", "nav-back"), vt("new", "nav-back")].map((r) => r?.decls["mix-blend-mode"]),
+  ["normal", "normal", "normal", "normal"],
+);
+const zOf = (selector) => Number(rules.find((r) => r.selector === selector && r.decls["z-index"])?.decls["z-index"] ?? 0);
+check.ok("ไปข้างหน้า: หน้าใหม่อยู่บนหน้าเก่า", zOf("::view-transition-new(.nav-forward)") > zOf("::view-transition-old(.nav-forward)"));
+check.ok("ย้อนกลับ: หน้าที่กำลังออกอยู่บนหน้าแม่", zOf("::view-transition-old(.nav-back)") > zOf("::view-transition-new(.nav-back)"));
+const surface = rules.find((r) => r.selector === ".page-surface" && r.decls.background);
+check.eq("🔴 หน้าที่เลื่อนมีพื้นทึบ", surface?.decls.background, "var(--background)");
+check.ok("หน้าทุกหน้าห่อด้วยพื้นทึบตอนเลื่อน", /<div className="page-surface">\{children\}<\/div>/.test(source("components/nav/PageSlide.tsx")));
+check.ok("หน้าเก่าหรี่ลงตอนถูกทับ", /filter:\s*var\(--nav-dim\)/.test(css) && /brightness\(/.test(root["--nav-dim"] ?? ""));
+const ease = (root["--nav-ease"] ?? "").match(/cubic-bezier\(([^)]+)\)/)?.[1].split(",").map(Number) ?? [];
+check.ok(
+  "เส้นโค้งความเร็วแบบ iOS: เริ่มเร็ว ค่อย ๆ ช้าลงตอนจบ",
+  ease.length === 4 && ease[1] / Math.max(ease[0], 0.01) > 1.5 && ease[3] >= 0.99 && ease[2] < 0.5,
+  root["--nav-ease"],
+);
+// Grey boxes only when loading is slow.
+const wait = ms(root["--skeleton-wait"] ?? "");
+check.ok("กล่องโหลดสีเทารอราว 300ms ก่อนขึ้น", wait >= 250 && wait <= 400, root["--skeleton-wait"]);
+const skeleton = rules.find((r) => r.selector === '[data-slot="skeleton"]' && phone(r));
+check.ok("กล่องโหลดซ่อนไว้ช่วงรอ ด้วย animation ที่ใช้ค่ารอกลาง", /skeleton-wait var\(--skeleton-wait\)/.test(skeleton?.decls.animation ?? ""));
+check.ok("ช่วงรอคือซ่อน (visibility) ไม่ใช่การเคลื่อนไหว", /@keyframes skeleton-wait\s*\{\s*from,\s*to\s*\{\s*visibility:\s*hidden;\s*\}\s*\}/.test(css));
+// The bar: icon and word close together, the home-bar space added once.
+const barHeight = parseFloat(root["--tab-bar-height"]) * 16;
+check.ok("แถบล่างไม่สูงเกิน: 44–56px ต่อปุ่ม", barHeight >= 44 && barHeight <= 56, `${barHeight}px`);
+check.eq(
+  "เว้นแถบโฮมของ iPhone ครั้งเดียว (ที่ตัวแถบ ไม่ใช่ในปุ่ม)",
+  rules
+    .filter((r) => r.selector.split(",").map((x) => x.trim()).some((x) => /^\.tab-(bar|item|icon|label)(\[|:|\s|$)/.test(x)))
+    .filter((r) => Object.values(r.decls).some((v) => /safe-area-inset-bottom/.test(v)))
+    .map((r) => r.selector),
+  [".tab-bar"],
+);
+// Cards and margins from one place.
+const cardList = rules.find((r) => r.selector === ".card-list" && phone(r));
+check.eq("ระยะห่างระหว่างการ์ดมาจากตัวแปรกลาง", cardList?.decls.gap, "var(--card-gap)");
+const gutter = rules.find((r) => r.selector === ".page-gutter" && phone(r));
+check.eq("ระยะขอบซ้ายขวามาจากตัวแปรกลาง", gutter?.decls["padding-inline"], "var(--page-gutter)");
+check.ok("ทุกหน้าในแอปใช้ระยะขอบกลาง", /<main className="[^"]*\bpage-gutter\b/.test(source("app/(app)/layout.tsx")));
+const table = source("components/common/DataTable.tsx");
+check.ok("ตารางเป็นการ์ดบนมือถือ", /<ul className="card-list sm:hidden"/.test(table));
+check.ok("จอคอมยังเป็นตารางเหมือนเดิม", /<div className="hidden overflow-x-auto [^"]*sm:block">\s*<Table>/.test(table));
+check.ok("การ์ดหนึ่งใบต่อหนึ่งแถว ชื่อเด่นบรรทัดบน", /rows\.map\(\(row\) => \(\s*<li/.test(table) && /font-semibold[^"]*">\{title\.cell\(row\)\}/.test(table));
+// Home: bigger, no new data (rule 60).
+const home = source("app/(app)/page.tsx");
+check.eq("หน้าแรกไม่ได้ดึงข้อมูลใหม่เพิ่ม (มีแค่การตรวจการเชื่อมต่อ)", (home.match(/useSection\(/g) ?? []).length, 1);
+check.ok("ปุ่มงานหน้าแรกเต็มพื้นที่ระหว่างแถบบนกับแถบล่าง", /\.home-tasks \{[^}]*min-height: calc\(100dvh/.test(css));
 
 process.exit(check.done() ? 1 : 0);

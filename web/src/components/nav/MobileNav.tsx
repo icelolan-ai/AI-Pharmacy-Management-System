@@ -7,7 +7,7 @@ import { Boxes, House, Menu, PackagePlus, ShoppingCart, X, type LucideIcon } fro
 import { AppNav } from "@/components/nav/AppNav";
 import { Button } from "@/components/ui/button";
 import type { NavGroup } from "@/lib/nav/items";
-import { currentTab, visibleTabs, type TabIcon } from "@/lib/nav/tabs";
+import { currentTab, hrefsOnTabBar, visibleTabs, type TabIcon } from "@/lib/nav/tabs";
 import { roleLabel } from "@/lib/roles";
 import { useStore } from "@/lib/store/store-provider";
 
@@ -114,9 +114,16 @@ export function MobileNav({
   );
 }
 
-/** Mounted only while open, so it always starts closed and never holds a
- *  stale scroll position or focus from last time. It stops above the tab
- *  bar, which stays usable — its ✕ is how the panel closes. */
+/** The menu as an iOS sheet (D78 round 2). Mounted only while open, so it
+ *  always starts closed and never holds a stale scroll position or focus.
+ *
+ *  It rises from the bottom and stops on top of the tab bar, which stays in
+ *  view — its ✕ closes it, the one control D47-3 asked for. Tapping the dim
+ *  page above it closes it, and so does dragging it down by its top past
+ *  DISMISS_PX, or Escape. It lists only what the bottom bar does not show.
+ */
+const DISMISS_PX = 80;
+
 function MobilePanel({
   groups,
   role,
@@ -135,6 +142,7 @@ function MobilePanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const { store } = useStore();
   const storeName = store?.name?.trim() || null;
+  const [drag, setDrag] = useState<{ startY: number; dy: number } | null>(null);
 
   useEffect(() => {
     panelRef.current?.focus();
@@ -146,44 +154,76 @@ function MobilePanel({
   }, [onClose]);
 
   return (
-    <div
-      ref={panelRef}
-      id={PANEL_ID}
-      role="dialog"
-      aria-modal="true"
-      aria-label="เมนูหลัก"
-      tabIndex={-1}
-      className="menu-panel fixed inset-x-0 top-0 z-50 flex flex-col bg-white outline-none"
-    >
-      <div className="space-y-3 border-b border-slate-200 px-4 py-3">
-        {storeName ? <p className="text-base font-semibold text-slate-900">{storeName}</p> : null}
-        {signed.profileError ? (
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="text-sm font-medium text-slate-900">โหลดข้อมูลผู้ใช้ไม่ได้</p>
-              <p className="text-xs text-slate-600">{signed.profileError}</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={signed.onRetry} disabled={signed.profileLoading}>
-              {signed.profileLoading ? "กำลังลองใหม่..." : "ลองใหม่"}
-            </Button>
-          </div>
-        ) : (
-          <div className="flex items-center justify-between gap-2">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-slate-900">{signed.name ?? "ผู้ใช้"}</p>
-              <p className="text-xs text-slate-600">{signed.role ? roleLabel(signed.role) : "กำลังโหลดสิทธิ์..."}</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={signed.onSignOut}>
-              ออกจากระบบ
-            </Button>
-          </div>
-        )}
-      </div>
+    <>
+      <div aria-hidden="true" className="menu-backdrop" onClick={onClose} />
+      <div
+        ref={panelRef}
+        id={PANEL_ID}
+        role="dialog"
+        aria-modal="true"
+        aria-label="เมนูหลัก"
+        tabIndex={-1}
+        className="menu-sheet flex flex-col outline-none"
+        data-dragging={drag ? "" : undefined}
+        style={{ "--sheet-drag": `${drag?.dy ?? 0}px` } as React.CSSProperties}
+      >
+        {/* The grab area: drag down to put the sheet away. */}
+        <div
+          className="sheet-grab"
+          onPointerDown={(event) => {
+            event.currentTarget.setPointerCapture(event.pointerId);
+            setDrag({ startY: event.clientY, dy: 0 });
+          }}
+          onPointerMove={(event) =>
+            setDrag((current) => (current ? { ...current, dy: Math.max(0, event.clientY - current.startY) } : current))
+          }
+          onPointerUp={() => {
+            if (drag && drag.dy > DISMISS_PX) onClose();
+            setDrag(null);
+          }}
+          onPointerCancel={() => setDrag(null)}
+        >
+          <span aria-hidden="true" className="sheet-handle" />
+        </div>
 
-      <div className="flex-1 overflow-y-auto p-4">
-        <AppNav groups={groups} role={role} userId={userId} pathname={pathname} variant="panel" onNavigate={onClose} />
+        <div className="flex-1 space-y-4 overflow-y-auto px-4 pb-4">
+          <div className="menu-group space-y-3 p-4">
+            {storeName ? <p className="text-base font-semibold text-slate-900">{storeName}</p> : null}
+            {signed.profileError ? (
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-sm font-medium text-slate-900">โหลดข้อมูลผู้ใช้ไม่ได้</p>
+                  <p className="text-xs text-slate-600">{signed.profileError}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={signed.onRetry} disabled={signed.profileLoading}>
+                  {signed.profileLoading ? "กำลังลองใหม่..." : "ลองใหม่"}
+                </Button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-slate-900">{signed.name ?? "ผู้ใช้"}</p>
+                  <p className="text-xs text-slate-600">{signed.role ? roleLabel(signed.role) : "กำลังโหลดสิทธิ์..."}</p>
+                </div>
+                <Button variant="outline" size="sm" onClick={signed.onSignOut}>
+                  ออกจากระบบ
+                </Button>
+              </div>
+            )}
+          </div>
+
+          <AppNav
+            groups={groups}
+            role={role}
+            userId={userId}
+            pathname={pathname}
+            variant="panel"
+            onNavigate={onClose}
+            exclude={hrefsOnTabBar(role)}
+          />
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

@@ -23,6 +23,15 @@ export function visibleItems(items: readonly NavItem[], role: string | null | un
   return items.filter((item) => !item.ability || can(role, item.ability));
 }
 
+/** The same groups without the given addresses — the phone's ☰ menu leaves
+ *  out what its bottom bar already shows (D78 round 2). */
+export function withoutHrefs(groups: readonly NavGroup[], exclude: ReadonlySet<string> | undefined): NavGroup[] {
+  return groups.map((group) => ({
+    ...group,
+    items: exclude ? group.items.filter((item) => !exclude.has(item.href)) : group.items,
+  }));
+}
+
 /** Groups with nothing left in them are dropped entirely, heading and all.
  *  A heading with no links under it is worse than no heading: it tells a
  *  cashier the shop has reports somewhere and they simply cannot find them. */

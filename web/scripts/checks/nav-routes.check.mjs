@@ -110,6 +110,37 @@ check.eq(
   ["/", "/sell", "/stock", "/receiving", null, null],
 );
 
+// D78 round 2: one name everywhere — a tab says exactly what its page is called.
+for (const role of ROLES) {
+  check.eq(
+    `${role}: คำบนแถบล่างตรงกับชื่อหน้าปลายทางทุกปุ่ม`,
+    tabs.visibleTabs(role).filter((tab) => tab.label !== routes.routeFor(tab.href)?.title).map((t) => `${t.href}: ${t.label}`),
+    [],
+  );
+}
+check.eq(
+  "คำบนแถบล่างเรียงตามที่ผู้ใช้เลือก",
+  tabs.visibleTabs("owner").map((tab) => tab.label),
+  ["หน้าแรก", "ขายยา", "รับสินค้า", "คลังยา"],
+);
+
+// The ☰ sheet leaves out what the bar shows — the same filter, run for real.
+for (const role of ROLES) {
+  const onBar = tabs.hrefsOnTabBar(role);
+  const inSheet = items.visibleGroups(items.withoutHrefs(MENU, onBar), role).flatMap((g) => g.items.map((i) => i.href));
+  check.eq(`${role}: ตัดออกจากเมนู = ปุ่มที่อยู่บนแถบล่างพอดี`, [...onBar].sort(), tabs.visibleTabs(role).map((t) => t.href).sort());
+  check.eq(`${role}: เมนูมือถือไม่มีรายการซ้ำกับแถบล่าง`, inSheet.filter((href) => onBar.has(href)), []);
+  check.eq(
+    `${role}: เมนูมือถือ + แถบล่าง = เมนูจอคอมครบทุกรายการ`,
+    [...inSheet, ...onBar].sort(),
+    menuHrefs(role).sort(),
+  );
+}
+check.eq("จอคอม (ไม่ส่งรายการตัดออก) เมนูครบเหมือนเดิม", items.withoutHrefs(MENU, undefined), MENU.map((g) => ({ ...g })));
+
+const nextConfig = source("../next.config.ts");
+check.ok("ปิดตัว N ของ Next.js ที่บังปุ่มหน้าแรก", /\bdevIndicators:\s*false\b/.test(nextConfig));
+
 const mobile = source("components/nav/MobileNav.tsx");
 const layout = source("app/(app)/layout.tsx");
 check.ok("แถบล่างสร้างจาก visibleTabs(role) ไม่ใช่รายการแยก", /visibleTabs\(role\)\.map\(/.test(mobile));

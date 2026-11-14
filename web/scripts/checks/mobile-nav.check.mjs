@@ -75,9 +75,35 @@ check.eq(
   1,
 );
 check.ok("ไม่มีปุ่ม “ปิด” แยกอีกปุ่ม", !/>\s*ปิด\s*</.test(mobile));
+// D78 round 2: the menu is a sheet that stops on top of the tab bar. The
+// bar is drawn above the sheet and its dimmed backdrop, so ✕ still closes it.
+{
+  const css = source("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "");
+  const z = (selector) => Number(css.match(new RegExp(`\\${selector} \\{[^}]*z-index:\\s*(\\d+)`))?.[1]);
+  const barZ = Number(mobile.match(/className="glass-bar tab-bar fixed inset-x-0 bottom-0 z-\[(\d+)\]"/)?.[1]);
+  check.ok(
+    "แถบล่างอยู่เหนือแผ่นเมนูและพื้นหลังหรี่ ปุ่มเดิมจึงใช้ปิดได้",
+    barZ > z(".menu-sheet") && barZ > z(".menu-backdrop"),
+    `bar ${barZ}, sheet ${z(".menu-sheet")}, backdrop ${z(".menu-backdrop")}`,
+  );
+  check.ok(
+    "แผ่นเมนูจบที่ขอบบนของแถบล่าง ไม่ทับแถบ",
+    /\.menu-sheet \{[^}]*bottom: calc\(var\(--tab-bar-height\) \+ env\(safe-area-inset-bottom\)\)/.test(css),
+  );
+}
+check.ok("กดนอกแผ่นเมนูแล้วปิด", /<div aria-hidden="true" className="menu-backdrop" onClick=\{onClose\} \/>/.test(mobile));
 check.ok(
-  "แถบล่างอยู่เหนือแผงเมนู ปุ่มเดิมจึงใช้ปิดได้",
-  /className="glass-bar tab-bar fixed inset-x-0 bottom-0 z-\[60\]"/.test(mobile) && /className="menu-panel fixed inset-x-0 top-0 z-50/.test(mobile),
+  "ปัดแผ่นเมนูลงเกินระยะแล้วปิด",
+  /if \(drag && drag\.dy > DISMISS_PX\) onClose\(\);/.test(mobile) && /const DISMISS_PX = (\d+);/.test(mobile),
+);
+check.ok(
+  "เมนูมือถือไม่ซ้ำกับแถบล่าง: ใช้ตัวกรองเดียวกับแถบล่าง",
+  /exclude=\{hrefsOnTabBar\(role\)\}/.test(mobile),
+);
+check.ok(
+  "เมนูจอคอมยังครบ: แถบข้างไม่ได้ตัดอะไรออก",
+  /<AppNav\s+groups=\{MENU\}[^>]*variant="sidebar"/.test(source("app/(app)/layout.tsx").replace(/\s+/g, " ")) &&
+    !/variant="sidebar"[^>]*exclude=/.test(source("app/(app)/layout.tsx").replace(/\s+/g, " ")),
 );
 check.ok("ชื่อร้านไม่ใช่ปุ่มแล้ว (D47-3 แก้โดย D78)", !/StoreNameButton/.test(mobile));
 

@@ -21,6 +21,9 @@ const devOrigin = process.env.DEV_ALLOWED_ORIGIN?.trim();
 
 const nextConfig: NextConfig = {
   ...(devOrigin ? { allowedDevOrigins: [devOrigin] } : {}),
+  // D78 round 2: the dev-only "N" badge sat over the phone's หน้าแรก tab,
+  // and the owner tests on the development server every day.
+  devIndicators: false,
 };
 
 export default nextConfig;

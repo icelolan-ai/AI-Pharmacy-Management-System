@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { isCurrent, visibleGroups, type NavGroup } from "@/lib/nav/items";
+import { isCurrent, visibleGroups, withoutHrefs, type NavGroup } from "@/lib/nav/items";
 import { useFoldedGroups } from "@/lib/nav/folded-groups";
 import { isFoldable, isGroupOpen } from "@/lib/nav/folding";
 
@@ -31,10 +31,16 @@ const ROW_MIN_HEIGHT = "min-h-12";
  *  green dot at the start of each one.
  *
  *  D34 is why none of that is load-bearing: the dot is decoration beside a
- *  label, the folded state is spelled out in words rather than left to a
- *  chevron, and the row a person is on says "กำลังดูอยู่" as well as turning
+ *  label, and the row a person is on says "กำลังดูอยู่" as well as turning
  *  dark. A group's name is never truncated — if the status will not fit
  *  beside it, the status moves to its own line.
+ *
+ *  The folded state: in the sidebar it is spelled out ("พับอยู่ / เปิดอยู่").
+ *  In the phone's menu (D78 round 2) it is an arrow, ▸ turning to ▾ — a
+ *  shape, not a colour, so D34 still holds — driven by the button's own
+ *  aria-expanded, which is also what a screen reader announces. One state,
+ *  read by both. The phone's groups are rounded boxes like iPhone Settings,
+ *  and leave out what the bottom bar already shows (`exclude`).
  */
 export function AppNav({
   groups,
@@ -43,6 +49,7 @@ export function AppNav({
   pathname,
   variant,
   onNavigate,
+  exclude,
 }: {
   groups: readonly NavGroup[];
   role: string | null | undefined;
@@ -50,13 +57,14 @@ export function AppNav({
   pathname: string;
   variant: "sidebar" | "panel";
   onNavigate?: () => void;
+  /** Addresses to leave out — the phone's bottom bar passes its own. */
+  exclude?: ReadonlySet<string>;
 }) {
   const panel = variant === "panel";
   const { exceptions, toggle } = useFoldedGroups(userId, variant);
-
   return (
     <nav aria-label="เมนูหลัก" className="space-y-3">
-      {visibleGroups(groups, role).map((group) => {
+      {visibleGroups(withoutHrefs(groups, exclude), role).map((group) => {
         const holdsCurrentPage = group.items.some((item) => isCurrent(item.href, pathname));
         // Both answers come from lib/nav/folding so a check can run them
         // rather than read them (D43-a). The top block never folds (D43); the
@@ -70,7 +78,7 @@ export function AppNav({
         });
 
         return (
-          <div key={group.heading ?? "__everyday"}>
+          <div key={group.heading ?? "__everyday"} className={panel ? "menu-group" : undefined}>
             {foldable ? (
               <button
                 type="button"
@@ -84,16 +92,34 @@ export function AppNav({
                   "hover:bg-slate-100",
                 ].join(" ")}
               >
-                {/* Never truncated (D44): the name gets the whole width and the
-                    status sits on its own line underneath. */}
-                <span className="block">{group.heading}</span>
-                <span className="block text-xs font-normal text-slate-500">
-                  {open
-                    ? holdsCurrentPage
-                      ? "เปิดอยู่ · ดูหน้านี้อยู่"
-                      : "เปิดอยู่"
-                    : "พับอยู่"}
-                </span>
+                {panel ? (
+                  // Phone: the arrow carries open/folded, as a shape; the
+                  // words left say only that this group holds the page.
+                  <span className="flex w-full items-center justify-between gap-3">
+                    <span className="min-w-0">
+                      <span className="block">{group.heading}</span>
+                      {holdsCurrentPage ? (
+                        <span className="block text-xs font-normal text-slate-600">ดูหน้านี้อยู่</span>
+                      ) : null}
+                    </span>
+                    <span aria-hidden="true" className="group-chevron">
+                      ▸
+                    </span>
+                  </span>
+                ) : (
+                  <>
+                    {/* Never truncated (D44): the name gets the whole width and
+                        the status sits on its own line underneath. */}
+                    <span className="block">{group.heading}</span>
+                    <span className="block text-xs font-normal text-slate-500">
+                      {open
+                        ? holdsCurrentPage
+                          ? "เปิดอยู่ · ดูหน้านี้อยู่"
+                          : "เปิดอยู่"
+                        : "พับอยู่"}
+                    </span>
+                  </>
+                )}
               </button>
             ) : null}
 
@@ -103,15 +129,15 @@ export function AppNav({
                   // D44: the tree. A line down the left of the group, and each
                   // link branches off it. Only the headed groups are indented;
                   // the everyday block stays at the left edge where it reads as
-                  // the top level.
-                  foldable ? "ml-3 space-y-0.5 border-l border-slate-200 pt-1" : "space-y-0.5"
+                  // the top level. The phone's boxes list rows plainly instead.
+                  panel ? "menu-group-rows" : foldable ? "ml-3 space-y-0.5 border-l border-slate-200 pt-1" : "space-y-0.5"
                 }
               >
                 {group.items.map((item) => {
                   const current = isCurrent(item.href, pathname);
                   return (
-                    <div key={item.href} className={foldable ? "relative pl-4" : ""}>
-                      {foldable ? (
+                    <div key={item.href} className={foldable && !panel ? "relative pl-4" : ""}>
+                      {foldable && !panel ? (
                         <span
                           aria-hidden="true"
                           className="absolute left-0 top-1/2 h-px w-3 bg-slate-200"

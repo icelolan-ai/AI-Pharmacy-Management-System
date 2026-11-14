@@ -88,7 +88,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           {/* tab-bar-clearance: on a phone the page ends above the bottom
               bar, so a confirm button is never hidden under it. */}
-          <main className="tab-bar-clearance flex-1 p-4 sm:p-6">
+          <main className="tab-bar-clearance page-gutter flex-1 py-4 sm:p-6">
             <PageSlide pathname={pathname}>{children}</PageSlide>
           </main>
         </div>

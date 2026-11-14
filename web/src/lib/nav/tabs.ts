@@ -11,17 +11,17 @@ import { ancestry } from "@/lib/nav/routes";
  *  answers "no permission". An address that is not in the menu shows
  *  nothing (and nav-routes.check.mjs fails).
  *
- *  The bar's labels are shorter than the menu's, chosen by the owner; the
- *  rule for who sees them is not changed by the wording.
+ *  Labels are not written here either: each tab says exactly what its menu
+ *  entry — and so its page title — says (D78 round 2: one name everywhere).
  */
 
 export type TabIcon = "home" | "sell" | "receive" | "stock";
 
-export const TABS: readonly { href: string; label: string; icon: TabIcon }[] = [
-  { href: "/", label: "หน้าแรก", icon: "home" },
-  { href: "/sell", label: "ขาย", icon: "sell" },
-  { href: "/receiving", label: "รับของ", icon: "receive" },
-  { href: "/stock", label: "สต็อก", icon: "stock" },
+export const TABS: readonly { href: string; icon: TabIcon }[] = [
+  { href: "/", icon: "home" },
+  { href: "/sell", icon: "sell" },
+  { href: "/receiving", icon: "receive" },
+  { href: "/stock", icon: "stock" },
 ];
 
 /** The big buttons on the phone's home page, in this order. */
@@ -41,7 +41,13 @@ function allowed(href: string, role: string | null | undefined): boolean {
 }
 
 export function visibleTabs(role: string | null | undefined) {
-  return TABS.filter((tab) => allowed(tab.href, role));
+  return TABS.filter((tab) => allowed(tab.href, role)).map((tab) => ({ ...tab, label: menuItem(tab.href)!.label }));
+}
+
+/** On a phone the ☰ menu leaves out what the bottom bar already shows —
+ *  worked out from the same filter, so the two can never disagree. */
+export function hrefsOnTabBar(role: string | null | undefined): Set<string> {
+  return new Set(visibleTabs(role).map((tab) => tab.href));
 }
 
 export function visibleHomeTasks(role: string | null | undefined): NavItem[] {

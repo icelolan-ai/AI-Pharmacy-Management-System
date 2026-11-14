@@ -49,17 +49,17 @@ export default function HomePage() {
             </AlertDescription>
           </Alert>
         ) : null}
-        <ul className="grid grid-cols-2 gap-3">
+        <ul className="home-tasks">
           {visibleHomeTasks(me?.role).map((task) => {
             const Icon = TASK_ICONS[task.href] ?? Boxes;
             return (
-              <li key={task.href}>
+              <li key={task.href} className="flex">
                 <Link
                   href={task.href}
                   transitionTypes={["nav-forward"]}
-                  className="home-task flex min-h-28 flex-col items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white p-4 text-center text-base font-semibold text-slate-900 shadow-sm active:bg-slate-50"
+                  className="home-task flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-center text-lg font-semibold text-slate-900 shadow-sm active:bg-slate-50"
                 >
-                  <Icon aria-hidden="true" className="size-8 text-emerald-700" strokeWidth={2.25} />
+                  <Icon aria-hidden="true" className="size-12 text-emerald-700" strokeWidth={2} />
                   {task.label}
                 </Link>
               </li>

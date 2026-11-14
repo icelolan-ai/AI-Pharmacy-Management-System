@@ -226,11 +226,17 @@
   --bar-edge: rgb(15 23 42 / 0.12);
   --bar-text: #0f172a;          /* slate-900: the tab a person is on, titles */
   --bar-text-muted: #475569;    /* slate-600: the other tabs */
-  --tab-bar-height: 4rem;       /* 64px: icon + word, and well over 44px to press */
+  --tab-bar-height: 3.25rem;    /* 52px of icon + word, like an iOS tab bar; the home-bar
+                                   space is added once, by .tab-bar, and never inside a tab */
   --top-bar-height: 3.25rem;    /* 52px */
   --nav-motion: 200ms;          /* every movement is short: nobody waits at the till */
-  --nav-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --nav-ease: cubic-bezier(0.32, 0.72, 0, 1);  /* iOS: quick to start, easing into the end */
   --nav-slide: 280ms;           /* a page sliding in or out (D78-6) */
+  --nav-dim: brightness(0.86);  /* the page left behind, as on iOS */
+  --skeleton-wait: 300ms;       /* grey loading boxes only if loading takes longer */
+  --sheet-bg: #f1f5f9;          /* slate-100: the menu sheet, like iOS grouped lists */
+  --page-gutter: 1rem;          /* left/right margin of every page on a phone */
+  --card-gap: 0.75rem;          /* between cards, on every page */
   --tab-raise: scale(1.18) translateY(-0.125rem);  /* the Dock-like lift of the current tab */
   --tab-press: scale(0.92);     /* the dip when pressed */
 }
@@ -318,9 +324,109 @@
     text-decoration-thickness: 2px;
   }
 
-  /* The menu panel stops at the tab bar: the bar's ✕ is how it closes. */
-  .menu-panel {
+  /* D78 round 2 — the menu is an iOS sheet. It rises from the bottom and
+   * stops on top of the tab bar, whose ✕ closes it; the page above dims and
+   * closes it on a tap; dragging the top down puts it away. */
+  .menu-backdrop {
+    position: fixed;
+    inset: 0;
     bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom));
+    z-index: 50;
+    background: rgb(15 23 42 / 0.35);
+    animation: nav-fade-in var(--nav-motion) var(--nav-ease) backwards;
+  }
+  .menu-sheet {
+    position: fixed;
+    inset-inline: 0;
+    bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom));
+    z-index: 55;
+    max-height: calc(100dvh - var(--tab-bar-height) - env(safe-area-inset-bottom) - 3rem);
+    border-radius: 1rem 1rem 0 0;
+    background: var(--sheet-bg);
+    box-shadow: 0 -8px 24px rgb(15 23 42 / 0.12);
+    transform: translateY(var(--sheet-drag, 0px));
+    transition: transform var(--nav-motion) var(--nav-ease);
+    /* backwards, not both: once risen, the drag above may move it again. */
+    animation: sheet-up var(--nav-slide) var(--nav-ease) backwards;
+  }
+  .menu-sheet[data-dragging] {
+    transition: none;
+  }
+  .sheet-grab {
+    display: flex;
+    justify-content: center;
+    padding: 0.625rem 0 0.75rem;
+    min-height: 2.75rem;   /* a finger's worth to grab (D47) */
+    touch-action: none;    /* the drag is ours, not the page's scroll */
+    cursor: grab;
+  }
+  .sheet-handle {
+    width: 2.5rem;
+    height: 0.3125rem;
+    border-radius: 9999px;
+    background: #94a3b8;
+  }
+  /* Groups as rounded boxes, like iPhone Settings. */
+  .menu-group {
+    overflow: hidden;
+    border-radius: 0.875rem;
+    background: #ffffff;
+  }
+  .menu-group-rows > * + * {
+    border-top: 1px solid #e2e8f0;
+  }
+  /* ▸ turning to ▾: read off the button's own aria-expanded, the same
+   * state a screen reader announces — the arrow cannot disagree with it. */
+  .group-chevron {
+    display: inline-block;
+    font-size: var(--text-lg);
+    line-height: 1;
+    color: #475569;
+    transition: transform var(--nav-motion) var(--nav-ease);
+  }
+  button[aria-expanded="true"] .group-chevron {
+    transform: rotate(90deg);
+  }
+
+  /* D78 round 2 — every page's side margin and the gap between cards come
+   * from here (D48), never from a page. */
+  .page-gutter {
+    padding-inline: var(--page-gutter);
+  }
+  .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-gap);
+  }
+
+  /* Grey loading boxes wait before showing: data that arrives within
+   * --skeleton-wait shows no boxes at all, so a quick page does not flash
+   * grey and then its content. Hidden, not faded — nothing moves. */
+  [data-slot="skeleton"] {
+    animation:
+      skeleton-wait var(--skeleton-wait) linear,
+      pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  }
+  @keyframes skeleton-wait {
+    from, to { visibility: hidden; }
+  }
+
+  /* Home: the day's jobs fill the screen — ขายยา across the top, the rest
+   * two by two, together using the height between the bars. */
+  .home-tasks {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--card-gap);
+    min-height: calc(100dvh - var(--top-bar-height) - var(--tab-bar-height)
+      - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 4rem);
+    grid-auto-rows: 1fr;
+  }
+  .home-tasks > :first-child {
+    grid-column: 1 / -1;
+  }
+  .home-task {
+    height: 100%;
+    min-height: 7rem;
   }
 
   /* The page ends above the tab bar, so nothing — a confirm button least
@@ -341,43 +447,88 @@
 ::view-transition-new(root) {
   animation: none;
 }
+/* The browser blends the two pages with plus-lighter by default — made for
+ * cross-fades, it adds two opaque pages together, which is the see-through
+ * double text seen on the iPhone. Normal blending: the page on top hides
+ * the one beneath completely. The page itself is opaque (.page-surface). */
+::view-transition-old(.nav-forward),
+::view-transition-new(.nav-forward),
+::view-transition-old(.nav-back),
+::view-transition-new(.nav-back) {
+  mix-blend-mode: normal;
+}
+/* Forward: the new page slides in on top; the old one drifts a third as
+ * far — so more slowly — and dims. */
 ::view-transition-new(.nav-forward) {
+  z-index: 1;
   animation: nav-in-from-right var(--nav-slide) var(--nav-ease) both;
 }
 ::view-transition-old(.nav-forward) {
   animation: nav-out-to-left var(--nav-slide) var(--nav-ease) both;
 }
+/* Back: the page being left slides away on top; the parent comes back
+ * from beneath, undimming. */
+::view-transition-old(.nav-back) {
+  z-index: 1;
+  animation: nav-out-to-right var(--nav-slide) var(--nav-ease) both;
+}
 ::view-transition-new(.nav-back) {
   animation: nav-in-from-left var(--nav-slide) var(--nav-ease) both;
-}
-::view-transition-old(.nav-back) {
-  animation: nav-out-to-right var(--nav-slide) var(--nav-ease) both;
 }
 @keyframes nav-in-from-right {
   from { transform: translateX(100%); }
 }
 @keyframes nav-out-to-left {
-  to { transform: translateX(-25%); opacity: 0.7; }
+  to { transform: translateX(-30%); filter: var(--nav-dim); }
 }
 @keyframes nav-in-from-left {
-  from { transform: translateX(-25%); opacity: 0.7; }
+  from { transform: translateX(-30%); filter: var(--nav-dim); }
 }
 @keyframes nav-out-to-right {
   to { transform: translateX(100%); }
+}
+@keyframes nav-fade-in {
+  from { opacity: 0; }
+}
+@keyframes sheet-up {
+  from { transform: translateY(100%); }
+}
+
+/* The sliding page: opaque, and at least as tall as the space between the
+ * bars, so nothing of the page beneath shows past a short page's end. */
+.page-surface {
+  background: var(--background);
+}
+@media (width < 40rem) {
+  .page-surface {
+    min-height: calc(100dvh - var(--top-bar-height) - var(--tab-bar-height)
+      - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+  }
 }
 
 /* Reduce motion: nothing moves at all. Some older users really do get dizzy.
  * The current tab still says where you are in words (bold, underlined). */
 @media (prefers-reduced-motion: reduce) {
   .tab-item,
-  .tab-icon {
+  .tab-icon,
+  .group-chevron,
+  .menu-sheet {
     transition: none;
+  }
+  .menu-sheet,
+  .menu-backdrop {
+    animation: none;
+  }
+  /* Still wait before showing grey boxes, but do not pulse them. */
+  [data-slot="skeleton"] {
+    animation: skeleton-wait var(--skeleton-wait) linear;
   }
   .tab-item:active,
   .tab-item[aria-current="page"] .tab-icon,
   .tab-item[data-open] .tab-icon {
     transform: none;
   }
+  /* The arrow still turns — it is the state — but at once, not over time. */
   ::view-transition-group(*),
   ::view-transition-old(*),
   ::view-transition-new(*) {

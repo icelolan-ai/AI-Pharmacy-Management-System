@@ -19,7 +19,8 @@ const SLIDE = { "nav-forward": "nav-forward", "nav-back": "nav-back", default: "
 export function PageSlide({ pathname, children }: { pathname: string; children: React.ReactNode }) {
   return (
     <ViewTransition key={pathname} enter={SLIDE} exit={SLIDE} default="none">
-      {children}
+      {/* Opaque, so the page sliding over another hides it completely. */}
+      <div className="page-surface">{children}</div>
     </ViewTransition>
   );
 }
