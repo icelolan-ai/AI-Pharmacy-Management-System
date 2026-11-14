@@ -35,6 +35,7 @@ came is still "not re-encoded": its picture fingerprint equals the upload's.
 
 import hashlib
 import io
+import math
 from dataclasses import dataclass
 
 from PIL import Image, ImageOps, UnidentifiedImageError
@@ -175,6 +176,38 @@ def _as_is(data: bytes, source: Source, sniffed: str, orientation: int,
     return None
 
 
+def fit_within(width: int, height: int, max_edge: int) -> tuple[int, int]:
+    """The size a picture is shrunk to so its long edge fits `max_edge` —
+    Pillow's own thumbnail rule (Image.thumbnail, preserve_aspect_ratio),
+    restated so the size depends only on the full upright dimensions.
+
+    Why not let thumbnail decide: a large JPEG is decoded at a reduced scale
+    first (draft), and on odd dimensions that rounds the aspect by a hair,
+    so thumbnail could land a pixel away from what the phone computes from
+    the full size (D75). One rule, one input, here and in the web's
+    lib/scan/device-resize.ts — both checked against the same table of
+    sizes produced by real Pillow (tests/fixtures/fit_within_cases.json).
+    """
+    if width <= max_edge and height <= max_edge:
+        return width, height
+
+    def round_aspect(number: float, key) -> int:
+        return max(min(math.floor(number), math.ceil(number), key=key), 1)
+
+    x = y = max_edge
+    aspect = width / height
+    if x / y >= aspect:
+        x = round_aspect(y * aspect, key=lambda n: abs(aspect - n / y))
+    else:
+        y = round_aspect(x / aspect, key=lambda n: 0 if n == 0 else abs(aspect - x / n))
+    return x, y
+
+
+def upright_size(width: int, height: int, orientation: int) -> tuple[int, int]:
+    """Orientations 5-8 turn the picture a quarter: width and height swap."""
+    return (height, width) if orientation in (5, 6, 7, 8) else (width, height)
+
+
 def _flatten(image: Image.Image) -> Image.Image:
     """RGB with any transparency laid on white, as paper would be."""
     if image.mode in ("RGBA", "LA") or (image.mode == "P" and "transparency" in image.info):
@@ -185,10 +218,9 @@ def _flatten(image: Image.Image) -> Image.Image:
     return image.convert("RGB")
 
 
-def _encode(upright: Image.Image, max_edge: int, quality: int, max_bytes: int, sniffed: str,
+def _encode(upright: Image.Image, size: tuple[int, int], quality: int, max_bytes: int, sniffed: str,
             strip) -> Stored:
-    image = upright.copy()
-    image.thumbnail((max_edge, max_edge), Image.LANCZOS)
+    image = upright if upright.size == size else upright.resize(size, Image.LANCZOS)
     buffer = io.BytesIO()
     # No exif= argument: the pixels are already upright, so the orientation
     # tag must not travel with them (it would turn them a second time).
@@ -254,12 +286,13 @@ def prepare(data: bytes, limits: Limits) -> Prepared:
         except (OSError, ValueError, SyntaxError):
             raise ImageRejected("unreadable", sniffed) from None
 
+        full = upright_size(width, height, orientation)
         if original is None:
-            original = _encode(upright, limits.original_max_edge_px,
+            original = _encode(upright, fit_within(*full, limits.original_max_edge_px),
                                limits.original_jpeg_quality, limits.stored_max_bytes, sniffed,
                                strip_gps)
         if for_ai is None:
-            for_ai = _encode(upright, limits.ai_image_max_edge_px,
+            for_ai = _encode(upright, fit_within(*full, limits.ai_image_max_edge_px),
                              limits.ai_image_jpeg_quality, limits.stored_max_bytes, sniffed,
                              strip_metadata)
     else:

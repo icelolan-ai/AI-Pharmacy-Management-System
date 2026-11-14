@@ -6,6 +6,7 @@ import {
   MESSAGE_BY_STATUS,
   NETWORK_ERROR_MESSAGE,
 } from "@/lib/api/client";
+import type { DeviceResizeSettings } from "@/lib/scan/device-resize";
 import { supabase } from "@/lib/supabase";
 
 /** ถ่ายรูปใบส่งของ (6.2).
@@ -38,6 +39,8 @@ export type Scan = {
   created_by_name: string | null;
   pages: ScanPage[];
   url_expires_in_seconds: number;
+  /** D75: what to shrink to before sending — the backend's own settings. */
+  device_resize: DeviceResizeSettings;
 };
 
 export type UploadedPage = {
@@ -59,12 +62,16 @@ export function deleteScanPage(scanId: string, pageNo: number): Promise<void> {
 
 /** Sends one photo as the request body. `onProgress` gets 0..1 as the bytes
  *  leave the phone — XMLHttpRequest, because fetch cannot report that, and a
- *  large photo on a slow connection needs to show it is moving. */
+ *  large photo on a slow connection needs to show it is moving. `onSent`
+ *  fires when the last byte has left, so sending and the server's work can
+ *  be timed apart (D72). `resizedOnDevice` is passed on as the phone's word
+ *  (D75); the backend records it and checks nothing against it (D69). */
 export async function uploadScanPage(
   scanId: string,
   file: Blob,
-  onProgress: (fraction: number) => void,
+  options: { resizedOnDevice: boolean; onProgress: (fraction: number) => void; onSent?: () => void },
 ): Promise<UploadedPage> {
+  const { resizedOnDevice, onProgress, onSent } = options;
   const { data } = await supabase.auth.getSession();
   const token = data.session?.access_token;
   if (!token) {
@@ -74,7 +81,8 @@ export async function uploadScanPage(
 
   const result = await new Promise<{ status: number; body: string }>((resolve, reject) => {
     const request = new XMLHttpRequest();
-    request.open("POST", `${API_BASE_URL}/api/v1/invoice-scans/${scanId}/pages`);
+    const query = resizedOnDevice ? "?resized_on_device=true" : "";
+    request.open("POST", `${API_BASE_URL}/api/v1/invoice-scans/${scanId}/pages${query}`);
     request.setRequestHeader("Authorization", `Bearer ${token}`);
     request.setRequestHeader("Accept", "application/json");
     // The label is only logged; the backend decides from the bytes.
@@ -82,6 +90,7 @@ export async function uploadScanPage(
     request.upload.onprogress = (event) => {
       if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total);
     };
+    request.upload.onload = () => onSent?.();
     request.onload = () => resolve({ status: request.status, body: request.responseText });
     request.onerror = () => reject(new ApiError(NETWORK_ERROR_MESSAGE, "NETWORK_ERROR", 0));
     request.send(file);

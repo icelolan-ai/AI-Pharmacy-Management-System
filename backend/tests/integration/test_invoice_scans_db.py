@@ -462,3 +462,40 @@ def test_a_strip_that_changes_the_picture_is_refused_by_the_database(client, sto
     with pytest.raises(psycopg.errors.CheckViolation):
         _upload(client, scan_id, _with_position())
     assert _rows(scan_id) == [] and _objects() == []
+
+
+# --- D75: the phone shrinks with the backend's own numbers -------------------
+
+def test_the_scan_tells_the_phone_the_backends_own_settings(client, storage, monkeypatch):
+    settings = get_settings()
+    answer = api(client, "post", BASE).json()["device_resize"]
+    assert answer == {"max_edge_px": settings.original_max_edge_px, "jpeg_quality": settings.original_jpeg_quality}
+    # D74: change the setting, and the answer follows — it is read, not copied.
+    monkeypatch.setattr(settings, "original_max_edge_px", 2400)
+    monkeypatch.setattr(settings, "original_jpeg_quality", 70)
+    assert api(client, "post", BASE).json()["device_resize"] == {"max_edge_px": 2400, "jpeg_quality": 70}
+
+
+def test_the_phones_claim_is_recorded_as_said(client, storage):
+    scan_id = _new_scan(client)
+    response = client.post(
+        f"{BASE}/{scan_id}/pages?resized_on_device=true",
+        content=_page_image(),
+        headers={**headers(), "Content-Type": "image/jpeg"},
+    )
+    assert response.status_code == 201
+    assert {r["client_reported_resized"] for r in _rows(scan_id)} == {True}
+    _upload(client, scan_id, _page_image())
+    assert [r["client_reported_resized"] for r in _rows(scan_id) if r["page_no"] == 2] == [False, False]
+
+
+def test_a_photo_the_phone_already_shrank_is_kept_as_it_came(client, storage):
+    """What a phone sends after D75: JPEG, long edge 3000, no EXIF. The
+    evidence copy is then the phone's picture itself, not a second encode."""
+    data = _jpeg(Image.frombytes("RGB", (3000, 2250), os.urandom(3000 * 2250 * 3)), quality=88)
+    scan_id = _new_scan(client)
+    assert _upload(client, scan_id, data).status_code == 201
+    original = next(r for r in _rows(scan_id) if r["kind"] == "original")
+    assert original["reencoded"] is False
+    assert (original["width_px"], original["height_px"]) == (3000, 2250)
+    assert original["source_sha256"] == hashlib.sha256(data).hexdigest()

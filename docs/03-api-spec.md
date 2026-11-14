@@ -445,6 +445,7 @@ Backend → ตรวจลายเซ็น JWT ด้วย Public Key (JWKS)
 - 🔴 **`for_ai` ไม่มีลิงก์ในคำตอบใดเลย** · AI อ่านรูปผ่าน `paths_for_ai()` ใน service เท่านั้น ซึ่งเลือก `kind = 'for_ai'` (D68)
 - 🔴 **เว็บไม่เรียก Storage เองและไม่ประกอบที่อยู่ Storage เอง** — check ถาวรใน `source-rules.check.mjs`
 - 🔴 **ข้อมูลประกอบรูป (migration 013):** `for_ai` ลบทั้งหมดเสมอ (EXIF · XMP · IPTC · คอมเมนต์) — เป็นไฟล์เดียวที่ออกนอกระบบ · `original` ลบเฉพาะพิกัด GPS (ใน EXIF และ XMP) เก็บยี่ห้อ/รุ่น/วันที่ไว้ตรวจย้อนหลัง · ทั้งสองทำโดยไม่เข้ารหัสภาพใหม่ (`app/scan/jpeg.py`) · `reencoded = false` = กว้าง/สูงเท่าเดิม **และลายนิ้วมือของภาพ (`picture_sha256`) ตรงกับที่ได้รับ** — ตัดหัวไฟล์ผ่าน แตะตาราง/พิกเซลถูกฐานข้อมูลปฏิเสธ
+- **ย่อในมือถือก่อนส่ง (D75):** คำตอบของใบ (`POST`/`GET /invoice-scans/{id}`) มี `device_resize: {max_edge_px, jpeg_quality}` = ค่าของ original จาก `config.py` ที่เดียว · มือถือส่ง `?resized_on_device=true` เมื่อไฟล์ที่ส่งถูกย่อแล้ว → `client_reported_resized` (คำบอกของไคลเอนต์ ไม่ตรวจ D69) · ขนาดย่อใช้กฎเดียวกันทั้งสองฝั่ง (`fit_within` = กฎ thumbnail ของ Pillow คิดจากขนาดเต็มที่ตั้งตรงแล้ว · `web/src/lib/scan/device-resize.ts` ถูกตรวจกับตารางเดียวกัน `backend/tests/fixtures/fit_within_cases.json`) · ไฟล์ที่ย่อในมือถือมาถึงเป็น JPEG ≤ 3000 px ไม่มี EXIF → backend เก็บตามเดิม (`reencoded = false`) · ย่อไม่สำเร็จ/ยืนยันทิศไม่ได้/ช้าเกิน 20 วินาที → ส่งไฟล์เดิม backend ย่อให้ ผลเหมือนกัน
 - service_role key อยู่ที่ backend เท่านั้น ส่งใน header `apikey` (ทดสอบกับของจริงแล้ว: Bearer อย่างเดียวถูกปฏิเสธ — D67)
 
 ---

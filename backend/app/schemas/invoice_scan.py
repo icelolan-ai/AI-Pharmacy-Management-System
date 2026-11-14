@@ -34,6 +34,14 @@ class ScanPageOut(BaseModel):
     uploaded_at: datetime
 
 
+class DeviceResizeOut(BaseModel):
+    """D75: what the phone shrinks to before sending — the backend's own
+    evidence-copy settings, so the numbers live in one place (config.py)."""
+
+    max_edge_px: int
+    jpeg_quality: int
+
+
 class ScanDetailOut(BaseModel):
     id: UUID
     status: str
@@ -42,6 +50,7 @@ class ScanDetailOut(BaseModel):
     created_by_name: str | None
     pages: list[ScanPageOut]
     url_expires_in_seconds: int
+    device_resize: DeviceResizeOut
 
 
 class ScanListItemOut(BaseModel):

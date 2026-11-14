@@ -58,13 +58,15 @@ def get_scan(scan_id: UUID, user: Manager):
 
 
 @router.post("/{scan_id}/pages", response_model=PageOut, status_code=status.HTTP_201_CREATED)
-async def post_page(scan_id: UUID, request: Request, user: Manager):
+async def post_page(scan_id: UUID, request: Request, user: Manager, resized_on_device: bool = False):
+    """`resized_on_device` is the phone saying it shrank the photo first
+    (D75). It is recorded as said and checked against nothing (D69)."""
     data = await read_limited_body(request, get_settings().max_upload_bytes)
     if not data:
         raise AppError("EMPTY_UPLOAD", "ไม่ได้ส่งรูปมา ลองถ่ายใหม่อีกครั้ง", 400)
     label = request.headers.get("content-type")
     # Shrinking and the database are blocking work; keep them off the loop.
-    return await run_in_threadpool(service.add_page, scan_id, data, label, user.id)
+    return await run_in_threadpool(service.add_page, scan_id, data, label, user.id, resized_on_device)
 
 
 @router.delete("/{scan_id}/pages/{page_no}", status_code=status.HTTP_204_NO_CONTENT)

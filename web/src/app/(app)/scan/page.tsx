@@ -8,7 +8,8 @@ import { PageHeader } from "@/components/common/PageHeader";
 import { Button } from "@/components/ui/button";
 import { ABILITIES, can } from "@/lib/abilities";
 import { ApiError } from "@/lib/api/client";
-import { createScan, deleteScanPage, uploadScanPage } from "@/lib/api/invoice-scans";
+import { createScan, deleteScanPage, uploadScanPage, type Scan } from "@/lib/api/invoice-scans";
+import { prepareForUpload } from "@/lib/scan/device-resize";
 import { formatBytes, sniffFile, type SniffedFormat } from "@/lib/scan/sniff";
 
 /** ถ่ายรูปใบส่งของ (งาน 6.2)
@@ -27,17 +28,38 @@ import { formatBytes, sniffFile, type SniffedFormat } from "@/lib/scan/sniff";
  *  The scan itself is created with the first photo, not on opening the page,
  *  so looking at this screen leaves nothing behind.
  *
+ *  D75: before sending, a large photo is shrunk on the phone to the
+ *  backend's own evidence-copy size (lib/scan/device-resize.ts), so far
+ *  fewer bytes cross the network; if that cannot be done safely the
+ *  original goes, and the backend shrinks it as before.
+ *
+ *  🔧 Temporary, for measuring D75 (D72) — removed once the numbers are
+ *  reported: each sent page shows its bytes and timings, and adding
+ *  ?resize=off to the address turns phone shrinking off, so the same photo
+ *  can be timed both ways on the same connection.
+ *
  *  Nothing here is on the path of receiving stock by hand.
  */
+
+/** 🔧 Temporary (D75 measurement). */
+type Measure = {
+  originalBytes: number;
+  sentBytes: number;
+  note: string;
+  shrinkMs: number;
+  sendMs: number;
+  serverMs: number;
+};
 
 type Status =
   | { kind: "checking" }
   | { kind: "refused"; message: string }
   | { kind: "queued" }
+  | { kind: "shrinking" }
   | { kind: "sending"; progress: number }
   | { kind: "failed"; message: string }
-  | { kind: "sent"; pageNo: number }
-  | { kind: "deleting"; pageNo: number };
+  | { kind: "sent"; pageNo: number; measure: Measure }
+  | { kind: "deleting"; pageNo: number; measure: Measure };
 
 type Page = {
   id: number;
@@ -72,7 +94,7 @@ export default function ScanPage() {
   const cameraInput = useRef<HTMLInputElement>(null);
   const libraryInput = useRef<HTMLInputElement>(null);
   // Several photos picked at once must still make one scan, not several.
-  const scanPromise = useRef<Promise<string> | null>(null);
+  const scanPromise = useRef<Promise<Scan> | null>(null);
 
   function update(id: number, status: Status) {
     setPages((current) => current.map((p) => (p.id === id ? { ...p, status } : p)));
@@ -86,13 +108,12 @@ export default function ScanPage() {
   });
   useEffect(() => () => pagesRef.current.forEach((page) => URL.revokeObjectURL(page.previewUrl)), []);
 
-  function ensureScan(): Promise<string> {
-    if (scanId) return Promise.resolve(scanId);
+  function ensureScan(): Promise<Scan> {
     if (!scanPromise.current) {
       scanPromise.current = createScan().then(
         (scan) => {
           setScanId(scan.id);
-          return scan.id;
+          return scan;
         },
         (error) => {
           scanPromise.current = null; // let the next try create it again
@@ -121,13 +142,37 @@ export default function ScanPage() {
     try {
       for (let item = queue.current.shift(); item; item = queue.current.shift()) {
         const { id, file } = item;
-        update(id, { kind: "sending", progress: 0 });
         try {
           const scan = await ensureScan();
-          const uploaded = await uploadScanPage(scan, file, (progress) =>
-            update(id, { kind: "sending", progress }),
-          );
-          update(id, { kind: "sent", pageNo: uploaded.page_no });
+          update(id, { kind: "shrinking" });
+          const started = performance.now();
+          const measuringWithoutShrink = new URLSearchParams(window.location.search).get("resize") === "off";
+          const prepared = measuringWithoutShrink
+            ? { body: file, resizedOnDevice: false, note: "ส่งตามเดิม (ปิดการย่อในมือถือเพื่อวัดผล)" }
+            : await prepareForUpload(file, scan.device_resize);
+          const shrunkAt = performance.now();
+          let sentAt = shrunkAt;
+          update(id, { kind: "sending", progress: 0 });
+          const uploaded = await uploadScanPage(scan.id, prepared.body, {
+            resizedOnDevice: prepared.resizedOnDevice,
+            onProgress: (progress) => update(id, { kind: "sending", progress }),
+            onSent: () => {
+              sentAt = performance.now();
+            },
+          });
+          const doneAt = performance.now();
+          update(id, {
+            kind: "sent",
+            pageNo: uploaded.page_no,
+            measure: {
+              originalBytes: file.size,
+              sentBytes: prepared.body.size,
+              note: prepared.note,
+              shrinkMs: shrunkAt - started,
+              sendMs: sentAt - shrunkAt,
+              serverMs: doneAt - sentAt,
+            },
+          });
         } catch (error) {
           update(id, { kind: "failed", message: messageOf(error) });
         }
@@ -172,13 +217,13 @@ export default function ScanPage() {
       forget(page.id);
       return;
     }
-    const { pageNo } = page.status;
+    const { pageNo, measure } = page.status;
     if (!scanId) return;
-    update(page.id, { kind: "deleting", pageNo });
+    update(page.id, { kind: "deleting", pageNo, measure });
     deleteScanPage(scanId, pageNo).then(
       () => forget(page.id),
       (error) => {
-        update(page.id, { kind: "sent", pageNo });
+        update(page.id, { kind: "sent", pageNo, measure });
         window.alert(messageOf(error));
       },
     );
@@ -202,7 +247,9 @@ export default function ScanPage() {
   }
 
   const sentCount = pages.filter((p) => p.status.kind === "sent").length;
-  const busy = pages.some((p) => ["checking", "queued", "sending", "deleting"].includes(p.status.kind));
+  const busy = pages.some((p) =>
+    ["checking", "queued", "shrinking", "sending", "deleting"].includes(p.status.kind),
+  );
 
   return (
     <div className="space-y-6">
@@ -330,6 +377,8 @@ function PageStatus({ status }: { status: Status }) {
       return <p className="text-sm text-slate-600">กำลังตรวจรูป…</p>;
     case "queued":
       return <p className="text-sm text-slate-600">รอส่ง</p>;
+    case "shrinking":
+      return <p className="text-sm text-slate-700">กำลังย่อรูป…</p>;
     case "sending": {
       const percent = Math.round(status.progress * 100);
       return (
@@ -350,7 +399,12 @@ function PageStatus({ status }: { status: Status }) {
     }
     case "sent":
     case "deleting":
-      return <p className="text-sm font-medium text-emerald-700">✓ ส่งแล้ว</p>;
+      return (
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-emerald-700">✓ ส่งแล้ว</p>
+          <MeasureLine measure={status.measure} />
+        </div>
+      );
     case "failed":
       return (
         <p className="text-sm text-red-700" role="alert">
@@ -364,4 +418,17 @@ function PageStatus({ status }: { status: Status }) {
         </p>
       );
   }
+}
+
+const seconds = (ms: number) => `${(ms / 1000).toFixed(1)} วินาที`;
+
+/** 🔧 Temporary (D75 measurement, D72) — removed once the numbers are in. */
+function MeasureLine({ measure }: { measure: Measure }) {
+  return (
+    <p className="rounded bg-amber-50 p-2 text-sm text-slate-800">
+      ส่งไป {formatBytes(measure.sentBytes)} จาก {formatBytes(measure.originalBytes)} · {measure.note}
+      <br />
+      ย่อ {seconds(measure.shrinkMs)} · ส่ง {seconds(measure.sendMs)} · รอระบบ {seconds(measure.serverMs)}
+    </p>
+  );
 }

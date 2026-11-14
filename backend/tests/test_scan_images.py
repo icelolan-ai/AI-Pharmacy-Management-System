@@ -11,12 +11,14 @@ import hashlib
 import io
 import os
 
+import json
 import struct
+from pathlib import Path
 
 import pytest
 from PIL import Image
 
-from app.scan.images import ImageRejected, Limits, prepare, sniff
+from app.scan.images import ImageRejected, Limits, fit_within, prepare, sniff, upright_size
 
 LIMITS = Limits(
     original_max_edge_px=3000,
@@ -428,3 +430,84 @@ def test_the_fingerprint_sees_a_changed_table_even_with_the_same_scan_bytes():
     assert data[data.index(b"\xff\xda"):] == tampered[tampered.index(b"\xff\xda"):]
     assert _decoded(tampered) != _decoded(data)
     assert picture_sha256(tampered) != picture_sha256(data)
+
+
+# --- one size rule for the phone and the backend (D75) ----------------------
+
+FIT_CASES = json.loads((Path(__file__).parent / "fixtures" / "fit_within_cases.json").read_text())["cases"]
+
+
+@pytest.mark.parametrize("case", FIT_CASES, ids=lambda c: f"{c['width']}x{c['height']}@{c['max_edge']}")
+def test_the_size_rule_is_pillows_own(case):
+    """Each row is asked of real Pillow again, and of fit_within. The web's
+    fitWithin is held to the same rows by scan-resize.check.mjs."""
+    image = Image.new("1", (case["width"], case["height"]))
+    image.thumbnail((case["max_edge"], case["max_edge"]))
+    assert list(image.size) == case["expect"]
+    assert list(fit_within(case["width"], case["height"], case["max_edge"])) == case["expect"]
+
+
+def test_a_huge_photo_gets_the_full_size_answer_not_the_drafted_one():
+    """D74: 6001 x 6237 is decoded at half scale (3001 x 3119) first, and
+    thumbnail on that lands at 2887 x 3000 — one pixel off what the phone
+    computes from the full size (2886 x 3000). The stored size must be the
+    full-size answer, whichever side shrank it."""
+    data = _jpeg(Image.new("RGB", (6001, 6237), WHITE), quality=70)
+    drafted = Image.open(io.BytesIO(data))
+    drafted.draft("RGB", (3000, 3000))
+    drafted.load()
+    drafted.thumbnail((3000, 3000))
+    assert drafted.size == (2887, 3000), "the drafted answer really is different"
+    assert fit_within(6001, 6237, 3000) == (2886, 3000)
+    original = prepare(data, LIMITS).original
+    assert (original.width_px, original.height_px) == (2886, 3000)
+
+
+def test_upright_size_swaps_for_a_quarter_turn():
+    assert [upright_size(400, 600, o) for o in range(1, 9)] == [
+        (400, 600), (400, 600), (400, 600), (400, 600),
+        (600, 400), (600, 400), (600, 400), (600, 400),
+    ]
+
+
+# --- D75: a photo shrunk in a real browser is stored the same as one the ----
+# --- backend shrank: same size, same way up ---------------------------------
+
+WEB_FIXTURES = Path(__file__).parents[2] / "web" / "scripts" / "checks" / "fixtures" / "scan"
+BROWSER_OUTPUT = Path(__file__).parent / "fixtures" / "device_resized"
+
+
+def _upright_marks(data: bytes) -> bool:
+    """Red band on top, blue at the bottom, red block top-left, not right."""
+    image = Image.open(io.BytesIO(data)).convert("RGB")
+    w, h = image.size
+    top, bottom = image.getpixel((w // 2, h // 16)), image.getpixel((w // 2, h - h // 16))
+    left, right = image.getpixel((w // 10, h // 4)), image.getpixel((w - w // 10, h // 4))
+    return _near(top, RED) and _near(bottom, BLUE) and _near(left, RED) and _near(right, WHITE)
+
+
+@pytest.mark.parametrize(
+    ("name", "expect"),
+    [
+        ("upright-4000x3000", (3000, 2250)),
+        # Stored by the camera on its side, tag 6: the page is portrait.
+        ("turned6-4000x3000", (2250, 3000)),
+        ("turned3-le-4000x3000", (3000, 2250)),
+    ],
+)
+def test_phone_and_backend_store_the_same_picture(name, expect):
+    original = (WEB_FIXTURES / f"{name}.jpg").read_bytes()
+    from_browser = (BROWSER_OUTPUT / f"{name}.from-browser.jpg").read_bytes()
+    assert _upright_marks(original) is False or name.startswith("upright"), "the fixture really is turned"
+
+    by_backend = prepare(original, LIMITS)
+    by_phone = prepare(from_browser, LIMITS)
+
+    for prepared in (by_backend, by_phone):
+        assert (prepared.original.width_px, prepared.original.height_px) == expect
+        assert _upright_marks(prepared.original.data), "stored upright"
+        assert _upright_marks(prepared.for_ai.data)
+    assert (by_phone.for_ai.width_px, by_phone.for_ai.height_px) == (by_backend.for_ai.width_px, by_backend.for_ai.height_px)
+    # The phone's file already meets the rule: kept as it came, not encoded twice.
+    assert by_phone.original.reencoded is False
+    assert by_phone.original.picture_sha256 == by_phone.source.picture_sha256

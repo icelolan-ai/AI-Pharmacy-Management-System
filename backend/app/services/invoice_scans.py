@@ -19,6 +19,7 @@ the photos are evidence for whatever was read from them.
 """
 
 import logging
+import time
 import uuid
 from typing import Any
 from uuid import UUID
@@ -158,12 +159,23 @@ def get_scan(scan_id: UUID) -> dict[str, Any]:
                     "uploaded_at": row["uploaded_at"],
                 }
             )
-    return {**scan, "pages": pages, "url_expires_in_seconds": get_settings().signed_url_ttl_seconds}
+    settings = get_settings()
+    return {
+        **scan,
+        "pages": pages,
+        "url_expires_in_seconds": settings.signed_url_ttl_seconds,
+        # D75: the phone shrinks with exactly what the backend would use.
+        "device_resize": {
+            "max_edge_px": settings.original_max_edge_px,
+            "jpeg_quality": settings.original_jpeg_quality,
+        },
+    }
 
 
 # --- pages -------------------------------------------------------------------
 
-def _row(scan_id: UUID, page_no: int, kind: str, path: str, stored, prepared: Prepared) -> dict[str, Any]:
+def _row(scan_id: UUID, page_no: int, kind: str, path: str, stored, prepared: Prepared,
+         client_reported_resized: bool) -> dict[str, Any]:
     source = prepared.source
     return {
         "scan_id": scan_id,
@@ -182,8 +194,8 @@ def _row(scan_id: UUID, page_no: int, kind: str, path: str, stored, prepared: Pr
         "source_sha256": source.sha256,
         "picture_sha256": stored.picture_sha256,
         "source_picture_sha256": source.picture_sha256,
-        # D75: the phone does not shrink yet, so nothing claims it did.
-        "client_reported_resized": False,
+        # D75: what the phone says. Unverifiable (D69) — recorded, never trusted.
+        "client_reported_resized": client_reported_resized,
     }
 
 
@@ -209,11 +221,13 @@ def _check_scan_open(cur, scan_id: UUID) -> None:
         raise _locked()
 
 
-def add_page(scan_id: UUID, data: bytes, label: str | None, actor_id: UUID) -> dict[str, Any]:
+def add_page(scan_id: UUID, data: bytes, label: str | None, actor_id: UUID,
+             client_reported_resized: bool = False) -> dict[str, Any]:
     # Refuse early, before the work of shrinking, if the scan is not open.
     with db.get_transaction() as cur:
         _check_scan_open(cur, scan_id)
 
+    started = time.perf_counter()
     try:
         prepared = prepare(data, Limits.from_settings(get_settings()))
     except ImageRejected as exc:
@@ -228,11 +242,13 @@ def add_page(scan_id: UUID, data: bytes, label: str | None, actor_id: UUID) -> d
         "for_ai": f"{scan_id}/{token}-for_ai.jpg",
     }
     uploaded: list[str] = []
+    shrunk = time.perf_counter()
     try:
         storage.upload(paths["original"], prepared.original.data, prepared.original.content_type)
         uploaded.append(paths["original"])
         storage.upload(paths["for_ai"], prepared.for_ai.data, prepared.for_ai.content_type)
         uploaded.append(paths["for_ai"])
+        stored_at = time.perf_counter()
 
         with db.get_transaction() as cur:
             _check_scan_open(cur, scan_id)
@@ -243,7 +259,7 @@ def add_page(scan_id: UUID, data: bytes, label: str | None, actor_id: UUID) -> d
             )
             page_no = cur.fetchone()["next"]
             for kind, stored in (("original", prepared.original), ("for_ai", prepared.for_ai)):
-                row = _row(scan_id, page_no, kind, paths[kind], stored, prepared)
+                row = _row(scan_id, page_no, kind, paths[kind], stored, prepared, client_reported_resized)
                 cur.execute(_INSERT_IMAGE, tuple(row[c] for c in _IMAGE_COLUMNS))
                 inserted = cur.fetchone()
                 write_audit(cur, IMAGE_TABLE, inserted["id"], "insert", None, inserted, actor_id)
@@ -256,6 +272,13 @@ def add_page(scan_id: UUID, data: bytes, label: str | None, actor_id: UUID) -> d
             logger.warning("Could not remove %d file(s) after a failed page upload", len(uploaded))
         raise
 
+    # Where a slow page spent its time (D72: measured, not guessed). Sizes
+    # and milliseconds only.
+    logger.info(
+        "Page stored: %d bytes in (phone says resized=%s), shrink %d ms, storage %d ms, database %d ms",
+        prepared.source.bytes, client_reported_resized,
+        (shrunk - started) * 1000, (stored_at - shrunk) * 1000, (time.perf_counter() - stored_at) * 1000,
+    )
     return {
         "page_no": page_no,
         "width_px": prepared.original.width_px,
