@@ -206,7 +206,8 @@ for (const [label, file, branch] of GROUP_2_CONSUMERS) {
 }
 
 // --- 5. the menu agrees with the pages -------------------------------------
-const layout = source("app/(app)/layout.tsx");
+// D78 moved MENU out of the layout so the bottom bar and the home page read it too.
+const layout = source("lib/nav/menu.ts");
 check.ok(
   "เมนูประวัติรับสินค้าผูกกับ viewReports เหมือนหน้า",
   /\{ href: "\/history\/purchases", label: "[^"]*", ability: ABILITIES\.viewReports \}/.test(layout),

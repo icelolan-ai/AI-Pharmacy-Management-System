@@ -18,7 +18,8 @@ import { createChecker, source } from "./lib.mjs";
 
 const check = createChecker("U-3 — เมนูจัดกลุ่ม และกลุ่มว่างต้องหายไป");
 
-const layout = source("app/(app)/layout.tsx");
+// D78 moved MENU out of the layout so the bottom bar and the home page read it too.
+const layout = source("lib/nav/menu.ts");
 const nav = source("components/nav/AppNav.tsx");
 const abilities = source("lib/abilities.ts");
 
@@ -36,7 +37,7 @@ const can = (role, ability) => !ability || rolesFor(ability).includes(role);
 
 // --- the real menu, parsed out of the layout ------------------------------
 function parseMenu() {
-  const from = layout.indexOf("const MENU: readonly NavGroup[] = [");
+  const from = layout.indexOf("export const MENU: readonly NavGroup[] = [");
   const body = layout.slice(from, layout.indexOf("\n];", from));
   const chunks = body.split(/\n  \{\s*\n?\s*heading:/).slice(1);
   return chunks.map((chunk) => {
@@ -439,7 +440,8 @@ check.ok(
 );
 check.ok(
   "กลุ่มว่างถูกตัดทิ้งในโค้ดจริง ไม่ใช่แค่ซ่อนด้วย CSS",
-  /\.filter\(\(group\) => group\.items\.length > 0\)/.test(nav),
+  // D78 moved visibleGroups to lib/nav/items.ts; AppNav re-exports it.
+  /\.filter\(\(group\) => group\.items\.length > 0\)/.test(source("lib/nav/items.ts")),
 );
 
 // --- D38: the folded state is a per-person convenience, stored safely -----

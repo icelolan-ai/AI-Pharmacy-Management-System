@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
 
 import { AuthProvider } from "@/components/auth-provider";
@@ -10,6 +10,15 @@ const notoSansThai = Noto_Sans_Thai({
   subsets: ["thai", "latin"],
   display: "swap",
 });
+
+/** D78: viewport-fit=cover lets the page reach behind the iPhone's home
+ *  bar, so env(safe-area-inset-bottom) reports its real height — without
+ *  it the value is always 0 and the tab bar would sit on the home bar. */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
 
 export const metadata: Metadata = {
   title: "AI Pharmacy Management System",

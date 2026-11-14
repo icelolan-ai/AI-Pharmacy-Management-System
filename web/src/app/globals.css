@@ -202,3 +202,185 @@
     min-width: 0;
   }
 }
+
+/* D78 — การนำทางบนมือถือแบบแอป iOS: แถบบน (← + ชื่อหน้า) และแถบล่าง 5 ปุ่ม
+ *
+ * Phone only: every rule below sits under (width < 40rem). A wide screen
+ * keeps its sidebar and header exactly as before.
+ *
+ * Frosted glass (backdrop-filter) on the two bars only, never on buttons:
+ * blurring is expensive, and an older phone would stutter while scrolling.
+ * The glass always has a tint underneath — never clear — because the page
+ * behind keeps changing; nav-motion.check.mjs computes the worst case (pure
+ * black behind the bar) against the darkest and the lightest text on it,
+ * from the values below, and needs D34's 4.5:1 for both. A browser that
+ * cannot blur gets the solid colour instead, never a clear bar.
+ *
+ * Every colour and size is a variable here (D48), so the blue theme (D71)
+ * redefines these and nothing else.
+ */
+:root {
+  --bar-tint: 255 255 255;      /* the glass colour, as r g b */
+  --bar-tint-alpha: 0.82;       /* how much of it covers what is behind */
+  --bar-solid: #ffffff;         /* when the browser cannot blur */
+  --bar-edge: rgb(15 23 42 / 0.12);
+  --bar-text: #0f172a;          /* slate-900: the tab a person is on, titles */
+  --bar-text-muted: #475569;    /* slate-600: the other tabs */
+  --tab-bar-height: 4rem;       /* 64px: icon + word, and well over 44px to press */
+  --top-bar-height: 3.25rem;    /* 52px */
+  --nav-motion: 200ms;          /* every movement is short: nobody waits at the till */
+  --nav-ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --nav-slide: 280ms;           /* a page sliding in or out (D78-6) */
+  --tab-raise: scale(1.18) translateY(-0.125rem);  /* the Dock-like lift of the current tab */
+  --tab-press: scale(0.92);     /* the dip when pressed */
+}
+
+@media (width < 40rem) {
+  .glass-bar {
+    background: rgb(var(--bar-tint) / var(--bar-tint-alpha));
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+  }
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-bar {
+      background: var(--bar-solid);
+    }
+  }
+
+  .top-bar {
+    min-height: calc(var(--top-bar-height) + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    border-bottom: 1px solid var(--bar-edge);
+  }
+
+  .back-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    max-width: 45%;
+    min-height: 2.75rem;          /* 44px (D47) */
+    padding: 0 0.5rem;
+    border-radius: 0.5rem;
+    font-size: var(--text-sm);
+    font-weight: 600;
+    color: var(--bar-text);
+  }
+  .back-chevron {
+    font-size: var(--text-2xl);
+    line-height: 1;
+  }
+
+  .tab-bar {
+    padding-bottom: env(safe-area-inset-bottom);  /* clear of the iPhone's home bar */
+    border-top: 1px solid var(--bar-edge);
+  }
+
+  /* The box of every tab is the same size whatever state it is in: the lift
+   * and the dip are transform only, so no other tab moves and no tap target
+   * slides under a finger that is about to press it. */
+  .tab-item {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.125rem;
+    min-height: var(--tab-bar-height);
+    color: var(--bar-text-muted);
+    transition: transform var(--nav-motion) var(--nav-ease);
+  }
+  .tab-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    transition: transform var(--nav-motion) var(--nav-ease);
+  }
+  .tab-label {
+    font-size: var(--text-xs);     /* 14px on a phone (D47-4) */
+    line-height: 1.2;
+  }
+  .tab-item:active {
+    transform: var(--tab-press);
+  }
+  /* Where you are: raised, AND dark, bold and underlined — never shown by
+   * motion or colour alone (D34). */
+  .tab-item[aria-current="page"],
+  .tab-item[data-open] {
+    color: var(--bar-text);
+  }
+  .tab-item[aria-current="page"] .tab-icon,
+  .tab-item[data-open] .tab-icon {
+    transform: var(--tab-raise);
+  }
+  .tab-item[aria-current="page"] .tab-label {
+    font-weight: 700;
+    text-decoration: underline;
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: 2px;
+  }
+
+  /* The menu panel stops at the tab bar: the bar's ✕ is how it closes. */
+  .menu-panel {
+    bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom));
+  }
+
+  /* The page ends above the tab bar, so nothing — a confirm button least
+   * of all — is ever hidden beneath it. */
+  .tab-bar-clearance {
+    padding-bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom) + 1.5rem);
+  }
+}
+
+/* D78-6 — เปลี่ยนหน้าแบบเลื่อนเหมือนแอป (components/nav/PageSlide.tsx)
+ *
+ * Forward: the new page slides in from the right over the old, which
+ * drifts a little to the left. Back (←): the reverse. Only the page area
+ * moves; the bars belong to the root, which is told not to animate, so they
+ * stay still. Navigations without a direction do not animate at all.
+ */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+::view-transition-new(.nav-forward) {
+  animation: nav-in-from-right var(--nav-slide) var(--nav-ease) both;
+}
+::view-transition-old(.nav-forward) {
+  animation: nav-out-to-left var(--nav-slide) var(--nav-ease) both;
+}
+::view-transition-new(.nav-back) {
+  animation: nav-in-from-left var(--nav-slide) var(--nav-ease) both;
+}
+::view-transition-old(.nav-back) {
+  animation: nav-out-to-right var(--nav-slide) var(--nav-ease) both;
+}
+@keyframes nav-in-from-right {
+  from { transform: translateX(100%); }
+}
+@keyframes nav-out-to-left {
+  to { transform: translateX(-25%); opacity: 0.7; }
+}
+@keyframes nav-in-from-left {
+  from { transform: translateX(-25%); opacity: 0.7; }
+}
+@keyframes nav-out-to-right {
+  to { transform: translateX(100%); }
+}
+
+/* Reduce motion: nothing moves at all. Some older users really do get dizzy.
+ * The current tab still says where you are in words (bold, underlined). */
+@media (prefers-reduced-motion: reduce) {
+  .tab-item,
+  .tab-icon {
+    transition: none;
+  }
+  .tab-item:active,
+  .tab-item[aria-current="page"] .tab-icon,
+  .tab-item[data-open] .tab-icon {
+    transform: none;
+  }
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

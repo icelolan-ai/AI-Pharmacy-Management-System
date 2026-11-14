@@ -4,73 +4,15 @@ import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { useAuth } from "@/components/auth-provider";
-import { AppNav, type NavGroup } from "@/components/nav/AppNav";
-import { MobileNav } from "@/components/nav/MobileNav";
+import { AppNav } from "@/components/nav/AppNav";
+import { MobileNav, MobileTopBar } from "@/components/nav/MobileNav";
+import { PageSlide } from "@/components/nav/PageSlide";
 import { SideNavStoreName } from "@/components/store/SideNavStoreName";
 import { Button } from "@/components/ui/button";
-import { ABILITIES } from "@/lib/abilities";
+import { MENU } from "@/lib/nav/menu";
+import { routeFor } from "@/lib/nav/routes";
 import { roleLabel } from "@/lib/roles";
-import { StoreProvider } from "@/lib/store/store-provider";
-
-/** The menu, in the order a shop actually works through its day (U-3).
- *
- *  The first block carries no heading and never folds: selling and looking
- *  something up in the stock list happen all day, and putting them behind a
- *  heading to read past would make the menu worse, not better.
- *
- *  "ยาที่ต้องดูด่วน" is deliberately not filed under reports. Those three
- *  pages are things to act on, not things to look at.
- */
-const MENU: readonly NavGroup[] = [
-  {
-    heading: null,
-    items: [
-      { href: "/", label: "หน้าแรก" },
-      { href: "/sell", label: "ขายยา" },
-      { href: "/stock", label: "คลังยา" },
-    ],
-  },
-  {
-    heading: "หน้าที่ประจำวัน",
-    items: [
-      { href: "/receiving", label: "รับสินค้า", ability: ABILITIES.receiveStock },
-      // 6.2: optional — receiving by hand never depends on it.
-      { href: "/scan", label: "ถ่ายใบส่งของ", ability: ABILITIES.receiveStock },
-    ],
-  },
-  {
-    heading: "ยาที่ต้องดูด่วน",
-    items: [
-      { href: "/reports/low-stock", label: "ยาใกล้หมด", ability: ABILITIES.viewReports },
-      { href: "/expiry", label: "ใกล้หมดอายุ", ability: ABILITIES.viewReports },
-      { href: "/reports/expired", label: "หมดอายุแล้ว", ability: ABILITIES.viewReports },
-    ],
-  },
-  {
-    heading: "รายงานและประวัติ",
-    items: [
-      { href: "/dashboard", label: "ภาพรวมร้าน", ability: ABILITIES.viewReports },
-      {
-        href: "/reports/inventory-value",
-        label: "มูลค่าคลังยา",
-        ability: ABILITIES.viewInventoryValue,
-      },
-      { href: "/history/sales", label: "ประวัติการขาย", ability: ABILITIES.viewReports },
-      { href: "/history/purchases", label: "ประวัติรับสินค้า", ability: ABILITIES.viewReports },
-      { href: "/audit", label: "ตรวจสอบย้อนหลัง", ability: ABILITIES.viewAuditLog },
-    ],
-  },
-  {
-    heading: "ตั้งค่า",
-    items: [
-      { href: "/suppliers", label: "ผู้จำหน่าย", ability: ABILITIES.viewSuppliers },
-      { href: "/settings/store", label: "ข้อมูลร้าน", ability: ABILITIES.manageStoreProfile },
-      // U-8: ทุก role เปิดดูได้ พนักงานขายต้องหาว่ายาอยู่ตรงไหน
-      { href: "/store-map", label: "ผังร้าน" },
-      { href: "/me", label: "ข้อมูลของฉัน" },
-    ],
-  },
-];
+import { StoreProvider, useStore } from "@/lib/store/store-provider";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -104,9 +46,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-slate-200 bg-white px-4 py-3">
-            {/* The phone has no sidebar, so the way out of this page lives here. */}
-            <MobileNav groups={MENU} role={me?.role} userId={me?.id} pathname={pathname} />
+          {/* D78: on a phone, ← and the page's name; the menu, the user and
+              signing out are in the bottom bar's ☰. A wide screen keeps the
+              header below exactly as it was. */}
+          <PhoneTopBar pathname={pathname} />
+          <header className="hidden flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-slate-200 bg-white px-4 py-3 sm:flex">
             {me ? (
               <div className="min-w-0">
                 <p className="truncate text-sm font-medium text-slate-900">
@@ -142,9 +86,37 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </Button>
           </header>
 
-          <main className="flex-1 p-4 sm:p-6">{children}</main>
+          {/* tab-bar-clearance: on a phone the page ends above the bottom
+              bar, so a confirm button is never hidden under it. */}
+          <main className="tab-bar-clearance flex-1 p-4 sm:p-6">
+            <PageSlide pathname={pathname}>{children}</PageSlide>
+          </main>
         </div>
       </div>
+
+      <MobileNav
+        groups={MENU}
+        role={me?.role}
+        userId={me?.id}
+        pathname={pathname}
+        signed={{
+          name: me ? (me.full_name ?? me.email ?? "ผู้ใช้") : null,
+          role: me?.role,
+          profileError,
+          profileLoading,
+          onRetry: () => void reloadProfile(),
+          onSignOut: () => void signOut(),
+        }}
+      />
     </StoreProvider>
   );
+}
+
+/** Reads the shop's name, so it sits inside StoreProvider. */
+function PhoneTopBar({ pathname }: { pathname: string }) {
+  const { store } = useStore();
+  const route = routeFor(pathname);
+  const parent = route?.parent ? routeFor(route.parent) : null;
+  const title = route?.parent === null ? (store?.name?.trim() || route.title) : (route?.title ?? "");
+  return <MobileTopBar title={title} parent={parent ? { href: parent.pattern, title: parent.title } : null} />;
 }

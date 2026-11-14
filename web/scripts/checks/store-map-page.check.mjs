@@ -28,7 +28,8 @@ const check = createChecker("U-8.3 — หน้าผังร้าน");
 const drawing = source("components/store-map/StoreMap2D.tsx");
 const page = source("app/(app)/store-map/page.tsx");
 const client = source("lib/api/store-map.ts");
-const layout = source("app/(app)/layout.tsx");
+// D78 moved MENU out of the layout so the bottom bar and the home page read it too.
+const layout = source("lib/nav/menu.ts");
 
 function element(label, text, pattern) {
   const found = text.match(pattern)?.[0] ?? "";
