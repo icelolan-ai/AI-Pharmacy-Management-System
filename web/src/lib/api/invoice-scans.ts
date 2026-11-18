@@ -116,3 +116,17 @@ export async function uploadScanPage(
     backend?.details,
   );
 }
+
+/** One row of GET /invoice-scans (owner and pharmacist only). */
+export type ScanListItem = {
+  id: string;
+  status: string;
+  created_at: string;
+  created_by: string | null;
+  created_by_name: string | null;
+  page_count: number;
+};
+
+export function listScans(signal?: AbortSignal): Promise<ScanListItem[]> {
+  return apiFetch<ScanListItem[]>("/api/v1/invoice-scans", { signal, cache: "no-store" });
+}

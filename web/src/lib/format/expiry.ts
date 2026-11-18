@@ -20,7 +20,8 @@ const RISK_THRESHOLDS: [number, RiskLevel][] = [
 export const RISK_META: Record<RiskLevel, { label: string; icon: string; className: string }> = {
   expired: { label: "ขายไม่ได้แล้ว", icon: "⛔", className: "text-slate-500" },
   critical: { label: "ใกล้หมดอายุมาก", icon: "🔴", className: "text-red-600" },
-  high_risk: { label: "ใกล้หมดอายุ", icon: "🟠", className: "text-orange-600" },
+  // orange-700: 600 was 3.6:1 on white, under D34's 4.5:1 (D82 check).
+  high_risk: { label: "ใกล้หมดอายุ", icon: "🟠", className: "text-orange-700" },
   warning: { label: "เฝ้าระวัง", icon: "🟡", className: "text-yellow-700" },
   normal: { label: "ปกติ", icon: "🟢", className: "text-green-700" },
 };

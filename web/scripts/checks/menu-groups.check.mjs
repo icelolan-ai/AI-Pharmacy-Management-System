@@ -88,11 +88,11 @@ const staff = seenBy("staff");
 
 check.eq("owner เห็น 5 บล็อก", owner.groups, 5);
 check.eq("owner เห็น 4 หัวข้อ", owner.headings.length, 4);
-check.eq("owner เห็น 17 ลิงก์", owner.links, 17);
+check.eq("owner เห็น 18 ลิงก์ (D82 เพิ่ม การแสดงผล)", owner.links, 18);
 
 check.eq("pharmacist เห็น 5 บล็อก", pharmacist.groups, 5);
 check.eq("pharmacist เห็น 4 หัวข้อ", pharmacist.headings.length, 4);
-check.eq("pharmacist เห็น 14 ลิงก์", pharmacist.links, 14);
+check.eq("pharmacist เห็น 15 ลิงก์ (D82 เพิ่ม การแสดงผล)", pharmacist.links, 15);
 check.eq(
   "pharmacist ไม่เห็นของ owner เท่านั้น",
   pharmacist.labels.filter((l) => ["มูลค่าคลังยา", "ตรวจสอบย้อนหลัง", "ข้อมูลร้าน"].includes(l)),
@@ -102,13 +102,13 @@ check.eq(
 check.eq("staff เห็น 2 บล็อก", staff.groups, 2);
 check.eq("staff เห็น 1 หัวข้อ", staff.headings.length, 1);
 check.eq("staff เห็นหัวข้อเดียวคือ ตั้งค่า", staff.headings, ["ตั้งค่า"]);
-check.eq("staff เห็น 5 ลิงก์", staff.links, 5);
+check.eq("staff เห็น 6 ลิงก์ (D82 เพิ่ม การแสดงผล)", staff.links, 6);
 check.eq(
   "staff เห็นลิงก์ตรงกับที่ทดสอบด้วยมือไว้",
   staff.labels,
   // U-8 added ผังร้าน with no ability: a cashier has to be able to look
   // up where a medicine sits.
-  ["หน้าแรก", "ขายยา", "คลังยา", "ผังร้าน", "ข้อมูลของฉัน"],
+  ["หน้าแรก", "ขายยา", "คลังยา", "ผังร้าน", "ข้อมูลของฉัน", "การแสดงผล"],
 );
 
 // --- no heading may survive its links -------------------------------------

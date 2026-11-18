@@ -227,8 +227,19 @@ check.ok("จอคอมยังเป็นตารางเหมือน�
 check.ok("การ์ดหนึ่งใบต่อหนึ่งแถว ชื่อเด่นบรรทัดบน", /rows\.map\(\(row\) => \(\s*<li/.test(table) && /font-semibold[^"]*">\{title\.cell\(row\)\}/.test(table));
 // Home: bigger, no new data (rule 60).
 const home = source("app/(app)/page.tsx");
-check.eq("หน้าแรกไม่ได้ดึงข้อมูลใหม่เพิ่ม (มีแค่การตรวจการเชื่อมต่อ)", (home.match(/useSection\(/g) ?? []).length, 1);
-check.ok("ปุ่มงานหน้าแรกเต็มพื้นที่ระหว่างแถบบนกับแถบล่าง", /\.home-tasks \{[^}]*min-height: calc\(100dvh/.test(css));
+// D82: two summary numbers, each from an endpoint that already exists and
+// each asked for only when this role may see it — still nothing new (rule 60).
+check.eq("หน้าแรกดึงแค่ การเชื่อมต่อ + ตัวเลขสรุป 2 ตัวจาก endpoint เดิม", (home.match(/useSection\(/g) ?? []).length, 3);
+check.ok(
+  "ตัวเลขสรุปแต่ละตัวถามเฉพาะเมื่อมีสิทธิ์",
+  /listExpiringReport\([^)]*\), \{\s*enabled: cards\.expiring,/.test(home) && /listScans\(signal\), \{\s*enabled: cards\.scans,/.test(home),
+);
+// D82: the big buttons sit under the summary card instead of filling the
+// screen — still two across, the first full width, each at least 7rem.
+check.ok(
+  "ปุ่มงานหน้าแรกยังใหญ่: 2 คอลัมน์ ปุ่มแรกเต็มแถว สูงอย่างน้อย 7rem",
+  /\.home-tasks \{[^}]*grid-template-columns: 1fr 1fr/.test(css) && /\.home-tasks > :first-child \{\s*grid-column: 1 \/ -1;/.test(css) && /\.home-task \{[^}]*min-height: 7rem/.test(css),
+);
 
 // --- 6. the user's "too cramped, make it an app" (walk-through, 18 Nov) ------
 // The font: @theme said --font-sans: var(--font-sans) — itself, so invalid —
@@ -250,8 +261,10 @@ check.ok(
   /const repeatsTopBar = route !== null && \(route\.title === title \|\| !route\.pattern\.includes\("\["\)\);/.test(header),
 );
 check.ok(
-  "หัวข้อที่ซ่อนยังอ่านได้ด้วยโปรแกรมอ่านจอ และยังแสดงบนจอคอม",
-  /repeatsTopBar \? "sr-only [^"]*sm:not-sr-only"/.test(header),
+  // D82: no longer hidden — the page's name as an iOS Large Title on a
+  // phone; the computer's heading class is unchanged.
+  "หัวข้อหน้าหลักเป็นหัวข้อใหญ่บนมือถือ ส่วนจอคอมเหมือนเดิม",
+  /repeatsTopBar \? "large-title text-xl font-semibold text-slate-900"/.test(header),
 );
 // Filter buttons: one row of chips that scrolls, never wrapping a label.
 const chipRule = rules.find((r) => r.selector === ".chip-row" && phone(r));

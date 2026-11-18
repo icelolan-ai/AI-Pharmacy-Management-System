@@ -96,9 +96,10 @@ for (const role of ROLES) {
     tabs.HOME_TASKS.filter((href) => menuHrefs(role).includes(href)),
   );
 }
-check.eq("พนักงานขายไม่มีปุ่มรับของ (แถบเหลือ 3 ปุ่ม + เมนู)", tabs.visibleTabs("staff").map((t) => t.href), ["/", "/sell", "/stock"]);
-check.eq("เภสัชกรมีครบ 4 ปุ่ม + เมนู", tabs.visibleTabs("pharmacist").map((t) => t.href), ["/", "/sell", "/receiving", "/stock"]);
-check.eq("ยังไม่รู้สิทธิ์ = เห็นเฉพาะปุ่มที่ไม่ต้องใช้สิทธิ์", tabs.visibleTabs(undefined).map((t) => t.href), ["/", "/sell", "/stock"]);
+check.eq("พนักงานขายไม่มีปุ่มรับของ (แถบเหลือ 3 ปุ่ม + เมนู)", tabs.visibleTabs("staff").map((t) => t.href), ["/", "/stock", "/sell"]);
+// D82: หน้าแรก · คลังยา · [ขายยา] · รับสินค้า · เมนู
+check.eq("เภสัชกรมีครบ 4 ปุ่ม + เมนู ขายยาอยู่กลาง", tabs.visibleTabs("pharmacist").map((t) => t.href), ["/", "/stock", "/sell", "/receiving"]);
+check.eq("ยังไม่รู้สิทธิ์ = เห็นเฉพาะปุ่มที่ไม่ต้องใช้สิทธิ์", tabs.visibleTabs(undefined).map((t) => t.href), ["/", "/stock", "/sell"]);
 check.eq(
   "ทุกปุ่มในแถบล่างและหน้าแรกชี้ไปรายการที่มีในเมนูจริง",
   [...tabs.TABS.map((t) => t.href), ...tabs.HOME_TASKS].filter((href) => tabs.menuItem(href) === undefined),
@@ -119,9 +120,9 @@ for (const role of ROLES) {
   );
 }
 check.eq(
-  "คำบนแถบล่างเรียงตามที่ผู้ใช้เลือก",
+  "คำบนแถบล่าง: ปุ่มที่ผู้ใช้เลือก ขายยาอยู่กลาง (D82)",
   tabs.visibleTabs("owner").map((tab) => tab.label),
-  ["หน้าแรก", "ขายยา", "รับสินค้า", "คลังยา"],
+  ["หน้าแรก", "คลังยา", "ขายยา", "รับสินค้า"],
 );
 
 // The ☰ sheet leaves out what the bar shows — the same filter, run for real.
@@ -152,7 +153,7 @@ const slotHrefs = (slots) => slots.map((slot) => (slot.kind === "pending" ? `(${
 check.eq(
   "ระหว่างรอสิทธิ์: จองที่ของปุ่มรับสินค้าไว้ ว่าง ๆ",
   slotHrefs(tabs.tabSlots(undefined, false)),
-  ["/", "/sell", "(/receiving)", "/stock"],
+  ["/", "/stock", "/sell", "(/receiving)"],
 );
 check.ok(
   "ที่ที่จองไว้ไม่มีชื่อ ไม่มีไอคอน (ไม่ใช่ปุ่ม)",
@@ -173,7 +174,7 @@ for (const role of ROLES) {
     tabs.tabSlots(undefined, false).filter((slot) => slot.kind === "tab" || loaded.includes(slot.href)).map((slot) => slot.href),
   );
 }
-check.eq("โหลดเสร็จแต่ไม่มีบทบาท: ไม่มีที่จองค้าง", slotHrefs(tabs.tabSlots(null, true)), ["/", "/sell", "/stock"]);
+check.eq("โหลดเสร็จแต่ไม่มีบทบาท: ไม่มีที่จองค้าง", slotHrefs(tabs.tabSlots(null, true)), ["/", "/stock", "/sell"]);
 check.ok(
   "ที่จองในแถบล่างเป็น <li> ว่าง ซ่อนจากโปรแกรมอ่านจอ ไม่มีลิงก์หรือปุ่มข้างใน",
   /tab\.kind === "pending"\)\s*\{[\s\S]{0,200}?return <li key=\{tab\.href\} aria-hidden="true" data-pending="" className="flex flex-1" \/>;/.test(mobile),
@@ -202,7 +203,7 @@ check.ok("ปุ่ม ← บอกชื่อหน้าแม่เป็�
 check.ok("หน้าแม่ของปุ่ม ← มาจาก routeFor ที่เดียว", /const route = routeFor\(pathname\);/.test(layout) && /routeFor\(route\.parent\)/.test(layout));
 
 // --- 4. not on a wide screen ----------------------------------------------
-const topBar = mobile.match(/<header className="[^"]*top-bar[^"]*"/)?.[0] ?? "";
+const topBar = mobile.match(/<header\s+className="[^"]*top-bar[^"]*"/)?.[0] ?? "";
 const bottomRoot = mobile.match(/return \(\s*<div className="([^"]*)">\s*\{open \?/)?.[1] ?? "";
 check.ok("แถบบนแบบมือถือซ่อนบนจอคอม", /\bsm:hidden\b/.test(topBar), topBar || "top bar not found");
 check.eq("แถบล่างและเมนูมือถือซ่อนบนจอคอม", bottomRoot, "sm:hidden");

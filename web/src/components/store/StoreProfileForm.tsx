@@ -223,7 +223,7 @@ export function StoreProfileForm({
               </Button>
               <span className="text-xs text-slate-500">กด Ctrl+S เพื่อบันทึก</span>
               {saved && !saving ? (
-                <span className="text-xs text-emerald-600" role="status">
+                <span className="text-xs text-emerald-700" role="status">
                   บันทึกแล้ว
                 </span>
               ) : null}

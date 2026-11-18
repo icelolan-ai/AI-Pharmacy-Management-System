@@ -1,4 +1,4 @@
-import { visibleItems, type NavItem } from "@/lib/nav/items";
+import { visibleItems, type NavGroup, type NavItem } from "@/lib/nav/items";
 import { MENU } from "@/lib/nav/menu";
 import { ancestry } from "@/lib/nav/routes";
 
@@ -17,31 +17,36 @@ import { ancestry } from "@/lib/nav/routes";
 
 export type TabIcon = "home" | "sell" | "receive" | "stock";
 
-export const TABS: readonly { href: string; icon: TabIcon }[] = [
+/** D82: หน้าแรก · คลังยา · [ขายยา] · รับสินค้า · เมนู — the owner chose the
+ *  five; Chat A moved ขายยา to the middle, the raised disc, because it is
+ *  what the counter does all day. `center` marks the disc. */
+export const TABS: readonly { href: string; icon: TabIcon; center?: true }[] = [
   { href: "/", icon: "home" },
-  { href: "/sell", icon: "sell" },
-  { href: "/receiving", icon: "receive" },
   { href: "/stock", icon: "stock" },
+  { href: "/sell", icon: "sell", center: true },
+  { href: "/receiving", icon: "receive" },
 ];
 
 /** The big buttons on the phone's home page, in this order. */
 export const HOME_TASKS: readonly string[] = ["/sell", "/scan", "/receiving", "/expiry", "/stock"];
 
-export function menuItem(href: string): NavItem | undefined {
-  for (const group of MENU) {
+/** `menu` is MENU in the app; a check passes another to prove that a tab
+ *  follows its entry's permission (no role lacks ขายยา today). */
+export function menuItem(href: string, menu: readonly NavGroup[] = MENU): NavItem | undefined {
+  for (const group of menu) {
     const item = group.items.find((entry) => entry.href === href);
     if (item) return item;
   }
   return undefined;
 }
 
-function allowed(href: string, role: string | null | undefined): boolean {
-  const item = menuItem(href);
+function allowed(href: string, role: string | null | undefined, menu: readonly NavGroup[] = MENU): boolean {
+  const item = menuItem(href, menu);
   return item !== undefined && visibleItems([item], role).length === 1;
 }
 
-export function visibleTabs(role: string | null | undefined) {
-  return TABS.filter((tab) => allowed(tab.href, role)).map((tab) => ({ ...tab, label: menuItem(tab.href)!.label }));
+export function visibleTabs(role: string | null | undefined, menu: readonly NavGroup[] = MENU) {
+  return TABS.filter((tab) => allowed(tab.href, role, menu)).map((tab) => ({ ...tab, label: menuItem(tab.href, menu)!.label }));
 }
 
 /** What the bottom bar draws, slot by slot.
@@ -53,14 +58,18 @@ export function visibleTabs(role: string | null | undefined) {
  *  a link, nothing to press. Once the role is known it becomes the tab, or
  *  — if this role may not use it — the slot goes (Chat A, after D78). */
 export type TabSlot =
-  | { kind: "tab"; href: string; icon: TabIcon; label: string }
+  | { kind: "tab"; href: string; icon: TabIcon; label: string; center?: true }
   | { kind: "pending"; href: string };
 
-export function tabSlots(role: string | null | undefined, roleKnown: boolean): TabSlot[] {
+export function tabSlots(
+  role: string | null | undefined,
+  roleKnown: boolean,
+  menu: readonly NavGroup[] = MENU,
+): TabSlot[] {
   return TABS.flatMap((tab): TabSlot[] => {
-    const item = menuItem(tab.href);
+    const item = menuItem(tab.href, menu);
     if (!item) return [];
-    if (allowed(tab.href, role)) return [{ kind: "tab", ...tab, label: item.label }];
+    if (allowed(tab.href, role, menu)) return [{ kind: "tab", ...tab, label: item.label }];
     return !roleKnown && item.ability ? [{ kind: "pending", href: tab.href }] : [];
   });
 }

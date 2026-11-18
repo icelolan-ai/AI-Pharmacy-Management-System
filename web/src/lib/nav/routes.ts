@@ -42,6 +42,7 @@ const DECLARED: readonly Declared[] = [
   { pattern: "/settings/store", parent: "/" },
   { pattern: "/store-map", parent: "/" },
   { pattern: "/me", parent: "/" },
+  { pattern: "/settings/display", parent: "/" },
 ];
 
 function menuLabel(href: string): string | undefined {

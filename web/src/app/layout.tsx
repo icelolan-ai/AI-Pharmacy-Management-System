@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Noto_Sans_Thai } from "next/font/google";
 
 import { AuthProvider } from "@/components/auth-provider";
+import { THEME_BOOT } from "@/lib/theme";
 import "./globals.css";
 
 // Thai + Latin in one family so Windows renders both clearly.
@@ -27,7 +28,13 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={`${notoSansThai.variable} h-full antialiased`}>
+    // suppressHydrationWarning: THEME_BOOT sets data-theme on <html> before
+    // React arrives, so the server's <html> never has it.
+    <html lang="th" className={`${notoSansThai.variable} h-full antialiased`} suppressHydrationWarning>
+      <head>
+        {/* D71: the theme is set before the first paint — no white flash. */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT }} />
+      </head>
       <body className="min-h-full bg-slate-50 font-sans text-slate-900">
         <AuthProvider>{children}</AuthProvider>
       </body>

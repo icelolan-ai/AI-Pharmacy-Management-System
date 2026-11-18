@@ -57,6 +57,8 @@ export const MENU: readonly NavGroup[] = [
       // U-8: ทุก role เปิดดูได้ พนักงานขายต้องหาว่ายาอยู่ตรงไหน
       { href: "/store-map", label: "ผังร้าน" },
       { href: "/me", label: "ข้อมูลของฉัน" },
+      // D71: every role picks the theme of the phone in their own hand.
+      { href: "/settings/display", label: "การแสดงผล" },
     ],
   },
 ];

@@ -25,8 +25,9 @@ export function MedicineSummaryCards({
   const unsellable = sum(lots, (lot) => !isSellableLot(lot));
   const sellableLotCount = lots.filter(isSellableLot).length;
 
+  // stat-group: on a phone two side by side, the value under them (D82).
   return (
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="stat-group grid gap-3 sm:grid-cols-3">
       <Card>
         <CardContent className="pt-6">
           <p className="text-sm text-slate-600">ขายได้</p>

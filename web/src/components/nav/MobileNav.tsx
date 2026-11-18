@@ -1,14 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { Boxes, House, Menu, PackagePlus, ShoppingCart, X, type LucideIcon } from "lucide-react";
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from "react";
+import { Boxes, ChevronLeft, House, Menu, PackagePlus, ShoppingCart, X, type LucideIcon } from "lucide-react";
 
 import { AppNav } from "@/components/nav/AppNav";
 import { Button } from "@/components/ui/button";
 import type { NavGroup } from "@/lib/nav/items";
 import { currentTab, hrefsOnTabBar, tabSlots, type TabIcon } from "@/lib/nav/tabs";
 import { scrollMemory, tapScrollsToTop } from "@/lib/nav/scroll";
+import { getLargeTitle, subscribeLargeTitle } from "@/lib/nav/large-title";
 import { roleLabel } from "@/lib/roles";
 import { useStore } from "@/lib/store/store-provider";
 
@@ -101,8 +102,17 @@ export function MobileNav({
                     }
                   }}
                   className="tab-item"
+                  data-center={tab.center ? "" : undefined}
                 >
-                  <Icon aria-hidden="true" className="tab-icon" strokeWidth={2.25} />
+                  {/* D82: ขายยา is a raised disc — still with its word under
+                      it, never an icon alone (D34). */}
+                  {tab.center ? (
+                    <span className="tab-center-disc">
+                      <Icon aria-hidden="true" className="tab-icon" strokeWidth={2.5} />
+                    </span>
+                  ) : (
+                    <Icon aria-hidden="true" className="tab-icon" strokeWidth={2.25} />
+                  )}
                   <span className="tab-label">{tab.label}</span>
                 </Link>
               </li>
@@ -256,8 +266,33 @@ export function MobileTopBar({
   title: string;
   parent: { href: string; title: string } | null;
 }) {
+  const largeTitle = useSyncExternalStore(subscribeLargeTitle, getLargeTitle, () => null);
+  const [titleBelow, setTitleBelow] = useState(false);
+  // Layout effect: the first state is decided before the page is painted,
+  // so the bar's title never shows for a moment and then fades away.
+  useLayoutEffect(() => {
+    if (!largeTitle) {
+      setTitleBelow(false);
+      return;
+    }
+    const bar = document.querySelector<HTMLElement>("header.top-bar");
+    const box = largeTitle.getBoundingClientRect();
+    setTitleBelow(box.top >= (bar?.offsetHeight ?? 52) && box.bottom <= window.innerHeight);
+    const watch = new IntersectionObserver(
+      // Whole and below the bar: the bar's own title stays hidden. As soon
+      // as any of it slides under the bar, the bar's title appears (iOS).
+      ([entry]) => setTitleBelow(entry.intersectionRatio >= 0.99),
+      { rootMargin: `-${bar?.offsetHeight ?? 52}px 0px 0px 0px`, threshold: [0, 0.99] },
+    );
+    watch.observe(largeTitle);
+    return () => watch.disconnect();
+  }, [largeTitle]);
+
   return (
-    <header className="glass-bar top-bar sticky top-0 z-40 flex items-center gap-2 px-2 sm:hidden">
+    <header
+      className="glass-bar top-bar sticky top-0 z-40 flex items-center gap-2 px-2 sm:hidden"
+      data-title-below={titleBelow ? "" : undefined}
+    >
       {parent ? (
         <Link
           href={parent.href}
@@ -266,12 +301,17 @@ export function MobileTopBar({
           aria-label={`กลับไปหน้า${parent.title}`}
           className="back-link"
         >
-          <span aria-hidden="true" className="back-chevron">‹</span>
+          {/* D82: ← in a rounded square; the parent's name stays beside it. */}
+          <span aria-hidden="true" className="back-box">
+            <ChevronLeft className="size-6" />
+          </span>
           <span className="truncate">{parent.title}</span>
         </Link>
       ) : null}
-      {/* Text, not a heading: every page carries its own <h1>. */}
-      <p className="min-w-0 flex-1 truncate px-2 text-base font-semibold text-slate-900">{title}</p>
+      {/* Text, not a heading: every page carries its own <h1>. Hidden while
+          the page's large title is still on screen (D82), shown once it has
+          scrolled under the bar. */}
+      <p className="top-bar-title min-w-0 flex-1 truncate px-2 text-base font-semibold text-slate-900">{title}</p>
     </header>
   );
 }

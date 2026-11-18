@@ -259,7 +259,7 @@
   --list-gap: 0.625rem;         /* between tile, words, value and › */
   --control-radius: 0.875rem;   /* fields and selects on a phone: soft, like the list boxes */
   --list-divider: var(--color-slate-200);
-  --list-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px rgb(15 23 42 / 0.05);
+  --list-shadow: 0 1px 2px rgb(15 23 42 / 0.05), 0 8px 24px rgb(15 23 42 / 0.06);  /* soft, never a border */
   --tab-raise: scale(1.18) translateY(-0.125rem);  /* the Dock-like lift of the current tab */
   --tab-press: scale(0.92);     /* the dip when pressed */
 }
@@ -460,9 +460,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: var(--card-gap);
-    min-height: calc(100dvh - var(--top-bar-height) - var(--tab-bar-height)
-      - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 4rem);
-    grid-auto-rows: 1fr;
+    grid-auto-rows: 1fr;           /* D82: under the summary card, no longer filling the screen */
   }
   .home-tasks > :first-child {
     grid-column: 1 / -1;
@@ -503,6 +501,10 @@
     left: calc(var(--list-pad-x) + var(--list-icon) + var(--list-gap));
     border-top: 1px solid var(--list-divider);
   }
+  /* A list without icon tiles: the hairline starts at the text. */
+  .list-group[data-plain] .list-row + .list-row::before {
+    left: var(--list-pad-x);
+  }
   .list-row[data-opens] {
     cursor: pointer;
   }
@@ -516,8 +518,11 @@
     width: var(--list-icon);
     height: var(--list-icon);
     border-radius: 0.75rem;
-    background: var(--color-slate-100);
-    color: var(--color-slate-700);
+    background: var(--accent-soft);  /* D82: the one accent, on the icon only */
+    color: var(--accent-ink);
+  }
+  .list-row-icon svg {
+    stroke-width: 2.5;               /* thicker than the pictures' hairlines (D34) */
   }
   .list-row-main {
     flex: 1;
@@ -708,5 +713,220 @@
   ::view-transition-old(*),
   ::view-transition-new(*) {
     animation: none !important;
+  }
+}
+
+/* ==========================================================================
+ * D82 — ภาษาการออกแบบแอปมือถือ (the owner's reference pictures)
+ *
+ * Large title, white cards on soft grey with a soft shadow and no outline,
+ * black and white with monochrome line icons on soft grey tiles, a raised ขายยา disc in the tab bar, a boxed
+ * ←, pill tabs, and a big-number summary card on the home page.
+ *
+ * Every colour below is a variable. The blue theme (D71) is the same list
+ * with other values — :root[data-theme="blue"] — and touches no size, no
+ * spacing, no layout. The theme is chosen in <head> before the first paint
+ * (lib/theme.ts). Phone only: a wide screen keeps its look, apart from the
+ * colours a person chose for it.
+ *
+ * Kept from D34 against the pictures: text never under 14px and 4.5:1
+ * against what is behind it in BOTH themes (theme-contrast.check.mjs),
+ * thicker icons, nothing decorative (no people, no 3-D, no illustrations),
+ * 44px to press, no cut words.
+ * ======================================================================== */
+:root {
+  /* Icons are monochrome, dark line icons on a soft grey tile — the owner's
+   * picture of 19 Nov (replaces the green Chat A first named). Colour is
+   * left to the statuses, which mean something and carry words (D34). */
+  --accent-ink: var(--color-slate-800);    /* icons and what must stand out */
+  --accent-soft: var(--color-slate-100);   /* the tile behind an icon */
+  --surface: var(--color-white);           /* cards and list boxes */
+  --hero-bg: var(--color-slate-900);       /* the dark half of the two-tone cards */
+  --hero-ink: #ffffff;
+  --hero-ink-soft: var(--color-slate-300);
+  --seg-bg: var(--color-slate-200);        /* the track behind the pill tabs */
+  --large-title: 1.875rem;                 /* 30px: the page's name, iOS Large Title */
+  --hero-number: 3rem;                     /* 48px: the number the summary card is about */
+  --hero-radius: 1.5rem;
+  --tab-center: 3.5rem;                    /* 56px: the raised ขายยา disc */
+  --tab-center-lift: 1.125rem;             /* how far it rises above the bar */
+  --tab-center-bg: var(--color-slate-900);
+  --tab-center-ink: #ffffff;
+  --back-box: 2.75rem;                     /* 44px: the square behind ← */
+  --back-radius: 0.875rem;
+}
+
+/* ธีมฟ้า (D71): blue-grey for slate, navy for black. Every text-slate-*,
+ * bg-slate-*, border-slate-* in the app is a var(--color-slate-*) since
+ * Tailwind v4, so redefining the scale here recolours the whole app and no
+ * component is edited. Status colours (red · orange · yellow · green) are
+ * left alone: they mean something, and always come with words (D34). */
+:root[data-theme="blue"] {
+  --color-slate-50: #eef3f9;
+  --color-slate-100: #e2eaf4;
+  --color-slate-200: #cfdbea;
+  --color-slate-300: #b3c3d9;
+  --color-slate-400: #8095b2;
+  --color-slate-500: #52698b;
+  --color-slate-600: #3f5576;
+  --color-slate-700: #304463;
+  --color-slate-800: #22334f;
+  --color-slate-900: #15233c;
+  --color-slate-950: #0b1527;
+
+  --background: #eef3f9;
+  --foreground: #0f1d33;
+  --card: #ffffff;
+  --card-foreground: #0f1d33;
+  --popover: #ffffff;
+  --popover-foreground: #0f1d33;
+  --primary: #1b2f4e;
+  --primary-foreground: #ffffff;
+  --secondary: #e2eaf4;
+  --secondary-foreground: #15233c;
+  --muted: #e2eaf4;
+  --muted-foreground: #3f5576;
+  --accent: #e2eaf4;
+  --accent-foreground: #15233c;
+  --border: #d3deec;
+  --input: #c3d1e4;
+  --ring: #8095b2;
+
+  --bar-tint: 243 247 252;
+  --bar-solid: #f3f7fc;
+  --bar-edge: rgb(21 35 60 / 0.12);
+  --bar-text: #15233c;
+  --bar-text-muted: #3f5576;
+  --sheet-bg: #e2eaf4;
+  --list-divider: #d3deec;
+  --list-shadow: 0 1px 2px rgb(21 35 60 / 0.06), 0 8px 24px rgb(21 35 60 / 0.08);
+
+  --accent-ink: #1b2f4e;
+  --accent-soft: #e2eaf4;
+  --hero-bg: #1b2f4e;
+  --hero-ink-soft: #c2d0e4;
+  --seg-bg: #d6e1ef;
+  --tab-center-bg: #1b2f4e;
+}
+
+@media (width < 40rem) {
+  /* 1. The page's name, large and bold under the top bar. The top bar's own
+   *    small title appears once the large one starts to slide under it —
+   *    opacity only, nothing moves, so Safari has nothing to jump. At once,
+   *    not faded: a fade also ran on every page load (the bar's title showed
+   *    and then faded away), which read as a flicker. */
+  .large-title {
+    font-size: var(--large-title);
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--color-slate-900);
+  }
+  .top-bar[data-title-below] .top-bar-title {
+    opacity: 0;
+  }
+
+  /* 6. ← in a rounded square, the parent's name beside it (D34: words). */
+  .back-link {
+    gap: 0.5rem;
+    padding: 0;
+  }
+  .back-box {
+    display: grid;
+    flex-shrink: 0;
+    place-items: center;
+    width: var(--back-box);
+    height: var(--back-box);
+    border-radius: var(--back-radius);
+    background: var(--surface);
+    box-shadow: var(--list-shadow);
+    color: var(--bar-text);
+  }
+  .back-box svg {
+    stroke-width: 2.75;
+  }
+
+  /* 4. ขายยา: a raised disc in the middle of the bar, its word under it. */
+  /* The disc takes the icon's room in the layout (the negative margins),
+   * so its word lines up with the other four; the lift is a transform. */
+  .tab-center-disc {
+    display: grid;
+    place-items: center;
+    width: var(--tab-center);
+    height: var(--tab-center);
+    margin-block: calc((1.5rem - var(--tab-center)) / 2);
+    transform: translateY(calc(-1 * var(--tab-center-lift)));
+    border-radius: 9999px;
+    background: var(--tab-center-bg);
+    color: var(--tab-center-ink);
+    box-shadow: 0 0 0 0.25rem var(--page-bg), var(--list-shadow);
+  }
+
+  /* 7. The page's main button: black, full width, its words then →. */
+  .primary-action {
+    justify-content: space-between;
+    min-height: 3.25rem;
+    padding-inline: 1.25rem;
+  }
+
+  /* 8. Filters as pill tabs on one track. */
+  .chip-row {
+    width: fit-content;
+    padding: 0.25rem;
+    gap: 0.25rem;
+    border-radius: 9999px;
+    background: var(--seg-bg);
+  }
+  .chip-row > [data-slot="button"][aria-pressed="false"],
+  .chip-row > [data-slot="button"][aria-selected="false"] {
+    border-color: transparent;
+    background: transparent;
+    box-shadow: none;
+    color: var(--color-slate-700);
+  }
+
+  /* 2. White panels (the till's total, a delivery's header, a scanned
+   *    page): no outline, the same soft shadow and corners as the lists. */
+  .surface-card {
+    border-color: transparent;
+    border-radius: var(--list-radius);
+    box-shadow: var(--list-shadow);
+  }
+
+  /* 9. The home page: a greeting, then the numbers, then the big buttons. */
+  .hero-card {
+    border-radius: var(--hero-radius);
+    padding: 1.25rem;
+    background: var(--hero-bg);
+    color: var(--hero-ink);
+  }
+  .hero-card-light {
+    border-radius: var(--hero-radius);
+    padding: 1.25rem;
+    background: var(--surface);
+    box-shadow: var(--list-shadow);
+  }
+  .hero-number {
+    font-size: var(--hero-number);
+    font-weight: 700;
+    line-height: 1.05;
+  }
+  .hero-sub {
+    font-size: var(--text-sm);
+    color: var(--hero-ink-soft);
+  }
+
+  /* A drug's three numbers: two side by side, the value under them. */
+  .stat-group {
+    grid-template-columns: 1fr 1fr;
+  }
+  .stat-group > :nth-child(3) {
+    grid-column: 1 / -1;
+  }
+  .stat-group [data-slot="card"] {
+    gap: 0;
+    padding-block: 1rem;
+  }
+  .stat-group [data-slot="card-content"] {
+    padding-top: 0;
   }
 }

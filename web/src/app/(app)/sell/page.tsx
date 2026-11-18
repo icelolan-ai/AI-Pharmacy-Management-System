@@ -298,7 +298,7 @@ export default function SellPage() {
         </div>
 
         <aside className="space-y-3 lg:sticky lg:top-4 lg:self-start">
-          <div className="rounded-lg border border-slate-200 bg-white p-4">
+          <div className="surface-card rounded-lg border border-slate-200 bg-white p-4">
             <div className="flex items-center justify-between">
               <span className="text-sm text-slate-600">ยอดโดยประมาณ</span>
               <MoneyText value={cart.estimatedTotal} withUnit className="text-lg font-semibold" />

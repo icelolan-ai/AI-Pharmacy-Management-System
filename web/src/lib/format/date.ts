@@ -137,3 +137,18 @@ export function isoToMonthYearBE(iso: string): { month: number; yearBE: number }
   if (!parts) return null;
   return { month: parts.month, yearBE: parts.year + BE_OFFSET };
 }
+
+const THAI_DAYS = ["อาทิตย์", "จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์"];
+const THAI_MONTHS = [
+  "มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน",
+  "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม",
+];
+
+/** "วันอังคารที่ 18 พฤศจิกายน 2569" — today in the shop's timezone (D9),
+ *  for the home page's greeting (D82). Built from the date parts rather
+ *  than Intl's Thai calendar, whose wording differs between browsers. */
+export function formatTodayLongBE(): string {
+  const { year, month, day } = todayBangkok();
+  const weekday = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
+  return `วัน${THAI_DAYS[weekday]}ที่ ${day} ${THAI_MONTHS[month - 1]} ${year + 543}`;
+}

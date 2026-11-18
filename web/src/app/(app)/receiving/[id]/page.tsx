@@ -403,7 +403,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+          <div className="surface-card flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
             <div className="text-sm text-slate-600">
               รวม {items.length} รายการ · มูลค่ารวม{" "}
               <MoneyText value={estimatedTotal} withUnit className="font-medium text-slate-900" />

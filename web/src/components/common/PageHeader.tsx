@@ -1,23 +1,26 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Plus } from "lucide-react";
+import { ArrowRight, Plus } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { setLargeTitle } from "@/lib/nav/large-title";
 import { routeFor } from "@/lib/nav/routes";
 
 /** A page's heading, what it is for, and its buttons.
  *
- *  On a phone (D78):
- *  - a heading that only repeats the top bar is hidden (screen readers still
- *    get it); one that says more — a medicine's name — stays;
+ *  On a phone (D78, D82):
+ *  - a page of its own shows its name as an iOS Large Title — big and bold
+ *    under the top bar, whose small title only appears once this one has
+ *    scrolled away (lib/nav/large-title.ts). A detail page's heading (a
+ *    medicine's name) stays as it was, and the bar keeps its title;
  *  - on those same pages the line under the heading only explains the page,
  *    and is hidden too (round 3 จ). Hiding it rather than cutting it to one
  *    line: a cut sentence is the cut label D44 forbids. A page whose line is
  *    data, not explanation (the dashboard's "updated at"), says so with
  *    keepDescriptionOnPhone; a detail page's line is always kept;
- *  - the page's main "new …" button is full width under the heading, with
- *    a + and its words (round 3 ง: one rule on every page).
+ *  - the page's main "new …" button is black and full width under the
+ *    heading: its words, then → (D82, from the owner's pictures).
  */
 export function PageHeader({
   title,
@@ -41,7 +44,10 @@ export function PageHeader({
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <h1 className={repeatsTopBar ? "sr-only text-xl font-semibold text-slate-900 sm:not-sr-only" : "text-xl font-semibold text-slate-900"}>
+        <h1
+          ref={repeatsTopBar ? setLargeTitle : undefined}
+          className={repeatsTopBar ? "large-title text-xl font-semibold text-slate-900" : "text-xl font-semibold text-slate-900"}
+        >
           {title}
         </h1>
         {description ? (
@@ -56,8 +62,11 @@ export function PageHeader({
       {primaryAction ? (
         <div className="w-full sm:w-auto sm:shrink-0">
           <Button onClick={primaryAction.onClick} className="primary-action sm:w-auto">
-            <Plus aria-hidden="true" className="size-5 sm:hidden" strokeWidth={2.5} />
-            {primaryAction.label}
+            <span className="flex items-center gap-2">
+              <Plus aria-hidden="true" className="size-5 sm:hidden" strokeWidth={2.5} />
+              {primaryAction.label}
+            </span>
+            <ArrowRight aria-hidden="true" className="size-5 sm:hidden" strokeWidth={2.5} />
           </Button>
         </div>
       ) : null}

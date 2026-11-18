@@ -108,7 +108,7 @@ export function ReviewStep({
         </AlertDescription>
       </Alert>
 
-      <div className="rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
+      <div className="surface-card rounded-lg border border-slate-200 bg-white px-4 py-3 text-sm">
         <p>
           ผู้จำหน่าย <span className="font-medium">{supplierName ?? "-"}</span>
         </p>
@@ -151,7 +151,7 @@ export function ReviewStep({
         }}
       />
 
-      <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
+      <div className="surface-card flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">
         <span className="text-sm text-slate-600">
           รวม {items.length} รายการ · มูลค่าโดยประมาณ
         </span>

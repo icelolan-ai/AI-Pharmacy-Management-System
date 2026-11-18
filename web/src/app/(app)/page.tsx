@@ -8,6 +8,11 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchHealth } from "@/lib/api/client";
+import { listScans } from "@/lib/api/invoice-scans";
+import { listExpiringReport } from "@/lib/api/reports";
+import { formatTodayLongBE } from "@/lib/format/date";
+import { greeting, lotsWithin90Days, openScanCount, summaryCardsFor } from "@/lib/home-summary";
+import { setLargeTitle } from "@/lib/nav/large-title";
 import { visibleHomeTasks } from "@/lib/nav/tabs";
 import { roleLabel } from "@/lib/roles";
 import { useSection } from "@/lib/use-section";
@@ -29,11 +34,27 @@ export default function HomePage() {
   const health = useSection((signal) => fetchHealth(signal), {
     errorMessage: "เชื่อมต่อระบบไม่ได้",
   });
+  // D82: each card asks for its number only if this person may see it.
+  const cards = summaryCardsFor(me?.role);
+  const expiring = useSection((signal) => listExpiringReport({ limit: 1, signal }), {
+    enabled: cards.expiring,
+    errorMessage: "โหลดตัวเลขไม่สำเร็จ",
+  });
+  const scans = useSection((signal) => listScans(signal), {
+    enabled: cards.scans,
+    errorMessage: "โหลดตัวเลขไม่สำเร็จ",
+  });
 
   return (
     <>
-      <div className="space-y-4 sm:hidden">
-        <h1 className="sr-only">หน้าแรก</h1>
+      <div className="page-stack sm:hidden">
+        {/* D82: a short greeting and today's date, as the page's large title. */}
+        <div>
+          <h1 ref={setLargeTitle} className="large-title">
+            {greeting(me?.full_name)}
+          </h1>
+          <p className="text-sm text-slate-600">{formatTodayLongBE()}</p>
+        </div>
         {profileError ? (
           <Alert variant="destructive" role="alert">
             <AlertDescription>{profileError}</AlertDescription>
@@ -49,6 +70,33 @@ export default function HomePage() {
             </AlertDescription>
           </Alert>
         ) : null}
+        {cards.expiring || cards.scans ? (
+          <section aria-label="สรุปวันนี้" className="grid gap-3">
+            {cards.expiring ? (
+              <Link href="/expiry" transitionTypes={["nav-forward"]} className="hero-card block min-h-11">
+                <p className="hero-sub">ล็อตที่ต้องดูภายใน 90 วัน</p>
+                <p className="hero-number mt-1">
+                  {expiring.data ? lotsWithin90Days(expiring.data.summary) : "—"}
+                </p>
+                <p className="hero-sub mt-2">
+                  {expiring.error
+                    ? expiring.error
+                    : expiring.data
+                      ? `🔴 วิกฤต ${expiring.data.summary.critical?.lot_count ?? 0} · 🟠 เสี่ยงสูง ${expiring.data.summary.high_risk?.lot_count ?? 0}`
+                      : "กำลังโหลด…"}
+                </p>
+              </Link>
+            ) : null}
+            {cards.scans ? (
+              <Link href="/scan" transitionTypes={["nav-forward"]} className="hero-card-light block min-h-11">
+                <p className="text-sm text-slate-600">ใบส่งของที่ถ่ายไว้ ยังไม่ได้รับเข้า</p>
+                <p className="hero-number mt-1 text-slate-900">{scans.data ? openScanCount(scans.data) : "—"}</p>
+                {scans.error ? <p className="mt-2 text-sm text-slate-600">{scans.error}</p> : null}
+              </Link>
+            ) : null}
+          </section>
+        ) : null}
+
         <ul className="home-tasks">
           {visibleHomeTasks(me?.role).map((task) => {
             const Icon = TASK_ICONS[task.href] ?? Boxes;
@@ -57,9 +105,11 @@ export default function HomePage() {
                 <Link
                   href={task.href}
                   transitionTypes={["nav-forward"]}
-                  className="home-task flex flex-1 flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 text-center text-lg font-semibold text-slate-900 shadow-sm active:bg-slate-50"
+                  className="home-task hero-card-light flex flex-1 flex-col items-center justify-center gap-3 p-4 text-center text-lg font-semibold text-slate-900 active:bg-slate-50"
                 >
-                  <Icon aria-hidden="true" className="size-12 text-emerald-700" strokeWidth={2} />
+                  <span aria-hidden="true" className="list-row-icon size-14">
+                    <Icon className="size-8" />
+                  </span>
                   {task.label}
                 </Link>
               </li>

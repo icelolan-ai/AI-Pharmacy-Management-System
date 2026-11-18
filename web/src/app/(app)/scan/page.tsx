@@ -306,7 +306,7 @@ export default function ScanPage() {
           {pages.map((page, index) => (
             <li
               key={page.id}
-              className="flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:flex-row"
+              className="surface-card flex flex-col gap-3 rounded-lg border border-slate-200 bg-white p-3 sm:flex-row"
             >
               <div className="flex h-40 w-full shrink-0 items-center justify-center overflow-hidden rounded bg-slate-100 sm:w-32">
                 {page.previewFailed ? (
