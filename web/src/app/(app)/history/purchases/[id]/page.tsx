@@ -1,5 +1,6 @@
 "use client";
 
+import { Pill } from "lucide-react";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 
@@ -48,7 +49,7 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="รายละเอียดใบรับสินค้า" />
         <AccessDenied />
       </div>
@@ -116,7 +117,7 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
   const canPrint = purchase !== null && purchase.status !== "draft";
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title={purchase?.purchase_no ? `ใบรับ ${purchase.purchase_no}` : "รายละเอียดใบรับสินค้า"}
         description={
@@ -124,7 +125,8 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
         }
         action={
           <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => router.push("/history/purchases")}>
+            {/* On a phone ← in the top bar already does this. */}
+            <Button variant="outline" className="max-sm:hidden" onClick={() => router.push("/history/purchases")}>
               กลับไปประวัติ
             </Button>
             {canPrint ? (
@@ -206,6 +208,31 @@ export default function PurchaseDetailPage({ params }: { params: Promise<{ id: s
             rows={purchase.items}
             rowKey={(item) => item.id}
             caption="รายการในใบรับสินค้า"
+            phoneRow={{
+              icon: () => <Pill className="size-5" />,
+              title: (item) => item.medicine_name ?? "-",
+              subtitle: (item) => (
+                <>
+                  <span className="whitespace-nowrap">Lot {item.lot_number}</span>{" "}
+                  <span className="whitespace-nowrap">· ตามใบส่งของ {item.quantity_invoiced} · รับจริง {receivedQuantity(item)}</span>{" "}
+                  <span className="whitespace-nowrap">· ต้นทุน <MoneyText value={item.unit_cost} />/หน่วย</span>
+                </>
+              ),
+              trailing: (item) => {
+                const difference = itemDifference(item);
+                return (
+                  <>
+                    <MoneyText value={item.subtotal} className="text-base font-semibold text-slate-900" />
+                    {itemHasMismatch(item) ? (
+                      <span className="text-sm font-medium text-amber-700">
+                        ⚠️ {difference < 0 ? "ขาด" : "เกิน"} {Math.abs(difference)}
+                      </span>
+                    ) : null}
+                  </>
+                );
+              },
+              badge: (item) => <ExpiryCell expiryDate={item.expiry_date} />,
+            }}
           />
 
           {/* The same two numbers as the table, drawn so the gaps are visible

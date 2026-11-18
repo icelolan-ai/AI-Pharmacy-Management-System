@@ -58,7 +58,7 @@ export function UnfinishedDraftBanner({
   busy: boolean;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3">
+    <div className="notice-box flex flex-wrap items-center justify-between gap-3 rounded-lg border border-sky-200 bg-sky-50 px-4 py-3">
       <p className="text-sm text-sky-900">
         มีใบรับสินค้าที่ค้างไว้{supplierName ? ` จาก ${supplierName}` : ""}
       </p>

@@ -245,7 +245,10 @@ check.ok(
 // A page heading that only repeats the top bar is hidden on a phone — and
 // only that one: the decision is made by comparing with the top bar's title.
 const header = source("components/common/PageHeader.tsx");
-check.ok("หัวข้อหน้าซ่อนเฉพาะเมื่อซ้ำกับแถบบน", /const repeatsTopBar = routeFor\(usePathname\(\)\)\?\.title === title;/.test(header));
+check.ok(
+  "หัวข้อหน้าซ่อนเฉพาะเมื่อแถบบนบอกชื่อหน้าแล้ว (หน้าหลัก) — หัวข้อหน้ารายละเอียดยังแสดง",
+  /const repeatsTopBar = route !== null && \(route\.title === title \|\| !route\.pattern\.includes\("\["\)\);/.test(header),
+);
 check.ok(
   "หัวข้อที่ซ่อนยังอ่านได้ด้วยโปรแกรมอ่านจอ และยังแสดงบนจอคอม",
   /repeatsTopBar \? "sr-only [^"]*sm:not-sr-only"/.test(header),

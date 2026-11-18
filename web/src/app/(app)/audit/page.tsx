@@ -1,5 +1,6 @@
 "use client";
 
+import { History } from "lucide-react";
 import { useState } from "react";
 
 import { useAuth } from "@/components/auth-provider";
@@ -56,7 +57,7 @@ export default function AuditPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ตรวจสอบย้อนหลัง" />
         <AccessDenied />
       </div>
@@ -120,7 +121,7 @@ export default function AuditPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="ตรวจสอบย้อนหลัง"
         description="ใครแก้อะไร เมื่อไร และเปลี่ยนจากอะไรเป็นอะไร"
@@ -169,7 +170,25 @@ export default function AuditPage() {
         <EmptyState title="ไม่มีการแก้ไขในช่วงวันที่ที่เลือก" />
       ) : (
         <>
-          <DataTable columns={columns} rows={rows} rowKey={(log) => log.id} caption="ประวัติการแก้ไข" />
+          <DataTable
+            columns={columns}
+            rows={rows}
+            rowKey={(log) => log.id}
+            caption="ประวัติการแก้ไข"
+            // No page to open here: every column stays in the row.
+            phoneRow={{
+              icon: () => <History className="size-5" />,
+              title: (log) => `${actionLabel(log.action)} ${tableLabel(log.table_name)} (${entityLabelFrom(log)})`,
+              subtitle: (log) => `${log.changed_by_name ?? "—"} · ${formatDateTimeBE(log.created_at)} น.`,
+              badge: (log) => (
+                <div className="space-y-0.5">
+                  {columns[3].cell(log)}
+                  {log.reason ? <p className="text-sm text-slate-600">เหตุผล: {log.reason}</p> : null}
+                </div>
+              ),
+            }}
+          />
+
           <Pagination
             total={logs.data?.total ?? 0}
             limit={PAGE_SIZE}

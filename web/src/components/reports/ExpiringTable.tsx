@@ -1,5 +1,6 @@
 "use client";
 
+import { CalendarClock } from "lucide-react";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { ExpiryCell } from "@/components/common/ExpiryCell";
 import { MoneyText } from "@/components/common/MoneyText";
@@ -77,6 +78,23 @@ export function ExpiringTable({
       rows={rows}
       rowKey={(row) => row.lot_id}
       caption="ล็อตที่ใกล้หมดอายุ"
+      // No page to open: lot, expiry, quantity, value and the adjust button all stay.
+      phoneRow={{
+        icon: () => <CalendarClock className="size-5" />,
+        title: (row) => row.medicine_name,
+        subtitle: (row) => `ล็อต ${row.lot_number} · ${row.quantity_remaining} ${row.unit}`,
+        trailing: (row) => <MoneyText value={row.stock_value} className="text-base font-semibold text-slate-900" />,
+        badge: (row) => (
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <ExpiryCell expiryDate={row.expiry_date} apiDaysRemaining={row.days_remaining} />
+            {canAdjust ? (
+              <Button variant="outline" size="sm" disabled={adjustBusy} onClick={() => onAdjust(row)}>
+                ปรับ Stock
+              </Button>
+            ) : null}
+          </div>
+        ),
+      }}
     />
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import { Ban } from "lucide-react";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { ExpiryCell } from "@/components/common/ExpiryCell";
 import { MoneyText } from "@/components/common/MoneyText";
@@ -136,6 +137,40 @@ export function LotTable({
         isSellableLot(lot) ? undefined : "bg-slate-50 text-slate-500"
       }
       caption="ล็อตของยานี้"
+      // No page to open: every column stays. The tile carries the FEFO order
+      // (1 = sold first), or ⛔ for a lot that can no longer be sold.
+      phoneRow={{
+        icon: ({ fefoRank }) =>
+          fefoRank !== null ? <span className="text-base font-semibold" title="ลำดับการตัดจ่ายแบบ FEFO">{fefoRank}</span> : <Ban className="size-5" />,
+        title: ({ lot }) => (
+          <span className={isSellableLot(lot) ? undefined : "line-through decoration-slate-400"}>ล็อต {lot.lot_number}</span>
+        ),
+        subtitle: ({ lot }) => (
+          <>
+            <span className="whitespace-nowrap">รับเข้า {formatDateBE(lot.received_date)}</span>
+            {canSeeCost ? (
+              <>
+                {" "}
+                <span className="whitespace-nowrap">· ต้นทุน <MoneyText value={lot.cost_per_unit} />/หน่วย</span>
+              </>
+            ) : null}
+          </>
+        ),
+        trailing: ({ lot }) => <QtyText value={lot.quantity_remaining} unit={unit} className="text-base font-semibold whitespace-nowrap" />,
+        badge: ({ lot }) => (
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <ExpiryCell expiryDate={lot.expiry_date} apiDaysRemaining={lot.days_remaining} />
+              {!isSellableLot(lot) ? <p className="mt-0.5 text-sm text-slate-500">ไม่นับรวมในจำนวนที่ขายได้</p> : null}
+            </div>
+            {canAdjust ? (
+              <Button variant="outline" size="sm" disabled={adjustBusy} onClick={() => onAdjust(lot)}>
+                ปรับ
+              </Button>
+            ) : null}
+          </div>
+        ),
+      }}
     />
   );
 }

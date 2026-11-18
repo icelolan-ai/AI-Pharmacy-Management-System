@@ -1,5 +1,6 @@
 "use client";
 
+import { Pill } from "lucide-react";
 import { use } from "react";
 import { useRouter } from "next/navigation";
 
@@ -37,7 +38,7 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="รายละเอียดบิล" />
         <AccessDenied />
       </div>
@@ -85,13 +86,14 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
   );
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title={sale ? `บิล ${sale.sale_no}` : "รายละเอียดบิล"}
         description={sale ? `${formatDateTimeBE(sale.sale_date)} น.` : undefined}
         action={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => router.push("/history/sales")}>
+            {/* On a phone ← in the top bar already does this. */}
+            <Button variant="outline" className="max-sm:hidden" onClick={() => router.push("/history/sales")}>
               กลับไปประวัติ
             </Button>
             {sale ? (
@@ -153,6 +155,25 @@ export default function SaleDetailPage({ params }: { params: Promise<{ id: strin
             rows={lines}
             rowKey={(line) => `${line.medicine_id}-${line.unit_price}`}
             caption="รายการในบิล"
+            phoneRow={{
+              icon: () => <Pill className="size-5" />,
+              title: (line) => line.medicine_name ?? "-",
+              subtitle: (line) => (
+                <span className="whitespace-nowrap">
+                  {line.quantity} × <MoneyText value={line.unit_price} />
+                </span>
+              ),
+              trailing: (line) => <MoneyText value={line.subtotal} className="text-base font-semibold text-slate-900" />,
+              badge: (line) => (
+                <div>
+                  {line.lots.map((lot) => (
+                    <p key={lot.lot_id} className="text-sm text-slate-500">
+                      Lot {lot.lot_number} · EXP {formatExpiryBE(lot.expiry_date)} · {lot.quantity}
+                    </p>
+                  ))}
+                </div>
+              ),
+            }}
           />
         </>
       ) : null}

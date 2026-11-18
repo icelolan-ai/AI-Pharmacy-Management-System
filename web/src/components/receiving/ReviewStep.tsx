@@ -1,5 +1,6 @@
 "use client";
 
+import { Pill } from "lucide-react";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { ExpiryCell } from "@/components/common/ExpiryCell";
 import { MoneyText } from "@/components/common/MoneyText";
@@ -121,6 +122,33 @@ export function ReviewStep({
         rows={items}
         rowKey={(item) => item.key}
         caption="รายการที่จะรับเข้าคลัง"
+        // The last check before confirming: every column stays.
+        phoneRow={{
+          icon: () => <Pill className="size-5" />,
+          title: (item) => item.medicine_name,
+          subtitle: (item) => (
+            <>
+              <span className="whitespace-nowrap">Lot {item.lot_number || "—"}</span>{" "}
+              <span className="whitespace-nowrap">· ตามใบส่งของ {Number(item.quantity_invoiced || 0)} {item.unit}</span>{" "}
+              <span className="whitespace-nowrap">· ต้นทุน <MoneyText value={item.unit_cost} />/หน่วย</span>
+            </>
+          ),
+          trailing: (item) => {
+            const difference = itemDifference(item);
+            return (
+              <>
+                <QtyText value={Number(item.quantity_actual || 0)} unit={item.unit} className="text-base font-semibold whitespace-nowrap" />
+                {difference !== 0 ? (
+                  <span className="text-sm font-medium text-amber-700">
+                    ⚠️ {difference < 0 ? "ขาด" : "เกิน"} {Math.abs(difference)} {item.unit}
+                  </span>
+                ) : null}
+              </>
+            );
+          },
+          badge: (item) =>
+            item.expiry_date ? <ExpiryCell expiryDate={item.expiry_date} /> : <span className="text-sm text-red-600">หมดอายุ: ยังไม่กรอก</span>,
+        }}
       />
 
       <div className="flex items-center justify-between rounded-lg border border-slate-200 bg-white px-4 py-3">

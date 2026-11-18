@@ -235,7 +235,7 @@ export default function SellPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="ขายยา"
         description="ยิงบาร์โค้ดหรือพิมพ์ชื่อยา แล้วกด F2 หรือ Ctrl+Enter เพื่อยืนยัน"

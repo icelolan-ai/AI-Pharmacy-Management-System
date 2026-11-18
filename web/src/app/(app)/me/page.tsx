@@ -15,7 +15,7 @@ export default function MePage() {
   const { error, loading } = profile;
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <div>
         <h1 className="text-xl font-semibold">ข้อมูลของฉัน</h1>
         <p className="text-sm text-slate-600">ข้อมูลผู้ใช้และสิทธิ์จากระบบหลังบ้าน</p>

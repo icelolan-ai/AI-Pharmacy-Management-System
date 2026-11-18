@@ -124,4 +124,55 @@ check.ok(
   /<p className="[^"]*\bsm:hidden\b[^"]*">ยังไม่มีรายการในบิล<\/p>\s*<div className="hidden sm:block">\s*<EmptyState title="🔍/.test(sell),
 );
 
+// --- every page, not only the samples (the owner: "ทำไมไม่แก้ ux ui ตามที่สั่ง") ---
+const everyTsx = (function walk(dir, out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, out);
+    else if (entry.name.endsWith(".tsx")) out.push(full);
+  }
+  return out;
+})(SRC);
+const rel = (full) => relative(SRC, full).replace(/\\/g, "/");
+const tables = [];
+for (const full of everyTsx) {
+  if (rel(full) === "components/common/DataTable.tsx") continue;
+  const text = readFileSync(full, "utf8");
+  for (const m of text.matchAll(/<DataTable\b[\s\S]*?\n\s*\/>/g)) tables.push({ where: rel(full), hasRow: /\bphoneRow=\{/.test(m[0]) });
+}
+check.ok("พบตารางจริงทั่วแอป (ตัวสแกนไม่ได้ว่างเปล่า)", tables.length >= 14, `found ${tables.length}`);
+check.eq("🔴 ทุกตารางในแอปเป็นแถวแบบ iOS บนมือถือ ไม่เหลือการ์ดแบบฟอร์ม", tables.filter((t) => !t.hasRow).map((t) => t.where), []);
+
+const oldStacks = pages
+  .filter((full) => /return \(\r?\n\s*<div className="space-y-4">/.test(readFileSync(full, "utf8")))
+  .map((full) => rel(full));
+check.eq("ทุกหน้าใช้ระยะห่างกลุ่มเดียวกัน (page-stack)", oldStacks, []);
+
+check.ok(
+  "หน้าหลักซ่อนหัวข้อบนมือถือแม้คำต่างจากแถบบนเล็กน้อย — หน้ารายละเอียดยังแสดง",
+  /const repeatsTopBar = route !== null && \(route\.title === title \|\| !route\.pattern\.includes\("\["\)\);/.test(header),
+);
+const backButtons = [];
+for (const full of pages) {
+  const text = readFileSync(full, "utf8");
+  for (const m of text.matchAll(/<Button(?:=>|[^>])*>\s*กลับไป[^<]*<\/Button>/g)) {
+    if (/<PageHeader[\s\S]*$/.test(text.slice(0, m.index)) && !/max-sm:hidden/.test(m[0]) && !/receiving\/\[id\]/.test(rel(full))) {
+      backButtons.push(rel(full));
+    }
+  }
+}
+check.ok("พบปุ่มกลับไปจริง (ตัวสแกนไม่ได้ว่างเปล่า)", pages.reduce((n, full) => n + [...readFileSync(full, "utf8").matchAll(/<Button(?:=>|[^>])*>\s*กลับไป/g)].length, 0) >= 4);
+check.eq("ปุ่ม \"กลับไป…\" ซ้ำกับ ← ซ่อนบนมือถือ", backButtons, []);
+check.ok(
+  "ช่องกรอก · กล่องแจ้ง · การ์ด มุมโค้งเท่ากันจากตัวแปรกลาง",
+  phone('[data-slot="input"],\n  select,\n  textarea')?.decls["border-radius"] === "var(--control-radius)" ||
+    rules.some((r) => /\[data-slot="input"\]/.test(r.selector) && r.decls["border-radius"] === "var(--control-radius)" && r.at.length),
+);
+check.ok("การ์ดบนมือถือใช้เงาบางแทนเส้นขอบ", phone('[data-slot="card"]')?.decls["box-shadow"] === "var(--list-shadow)");
+const expiry = source("app/(app)/expiry/page.tsx");
+check.ok(
+  "ใกล้หมดอายุ: บนมือถือชิปบอกแค่ชื่อระดับ ช่วงวันของระดับที่เลือกอยู่ใต้แถว",
+  /<span className="sm:hidden">\{RISK_LABEL\[risk\]\.split\(" \("\)\[0\]\}<\/span>/.test(expiry) && /sm:hidden">\s*<span aria-hidden="true">\{RISK_META\[tab\]\.icon\}<\/span> \{RISK_LABEL\[tab\]\}/.test(expiry),
+);
+
 process.exit(check.done() ? 1 : 0);

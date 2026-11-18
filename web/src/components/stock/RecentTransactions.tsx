@@ -1,5 +1,6 @@
 "use client";
 
+import { ArrowLeftRight } from "lucide-react";
 import { DataTable, type Column } from "@/components/common/DataTable";
 import { EmptyState } from "@/components/common/EmptyState";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -87,6 +88,28 @@ export function RecentTransactions({
             rows={transactions}
             rowKey={(row) => row.id}
             caption="ประวัติการเคลื่อนไหวของล็อต"
+            phoneRow={{
+              icon: () => <ArrowLeftRight className="size-5" />,
+              title: (row) => TYPE_LABEL[row.transaction_type],
+              subtitle: (row) => (
+                <>
+                  {formatDateTimeBE(row.created_at)}
+                  {row.notes ? ` · ${row.notes}` : ""}
+                </>
+              ),
+              // + / − in words as well as colour (never colour alone).
+              trailing: (row) => (
+                <>
+                  <span className={`tabular-nums text-base font-semibold ${row.quantity_change < 0 ? "text-red-600" : "text-green-700"}`}>
+                    {row.quantity_change > 0 ? "+" : "−"}
+                    {Math.abs(row.quantity_change)} {unit}
+                  </span>
+                  <span className="tabular-nums text-sm text-slate-600 whitespace-nowrap">
+                    {row.quantity_before} → {row.quantity_after}
+                  </span>
+                </>
+              ),
+            }}
           />
         )}
       </CardContent>

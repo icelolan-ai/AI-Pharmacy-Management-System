@@ -32,7 +32,11 @@ export function PageHeader({
   action?: React.ReactNode;
   primaryAction?: { label: string; onClick: () => void };
 }) {
-  const repeatsTopBar = routeFor(usePathname())?.title === title;
+  // A page of its own (not one drug, one bill): the top bar already names
+  // it, even where the heading words it a little differently ("ยาใกล้หมดอายุ"
+  // under "ใกล้หมดอายุ"). A detail page's heading names the thing itself.
+  const route = routeFor(usePathname());
+  const repeatsTopBar = route !== null && (route.title === title || !route.pattern.includes("["));
   const hideDescription = repeatsTopBar && !keepDescriptionOnPhone;
   return (
     <div className="flex flex-wrap items-start justify-between gap-3">

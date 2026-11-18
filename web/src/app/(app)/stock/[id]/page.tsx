@@ -96,7 +96,7 @@ export default function MedicineStockPage({ params }: { params: Promise<{ id: st
   const unsellableCount = lots.filter((lot) => !isSellableLot(lot)).length;
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title={medicine?.name ?? "รายละเอียดยา"}
         description={
@@ -108,7 +108,8 @@ export default function MedicineStockPage({ params }: { params: Promise<{ id: st
         }
         action={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => router.push("/stock")}>
+            {/* On a phone ← in the top bar already does this. */}
+            <Button variant="outline" className="max-sm:hidden" onClick={() => router.push("/stock")}>
               กลับไปคลังยา
             </Button>
             {medicine && canManage ? (

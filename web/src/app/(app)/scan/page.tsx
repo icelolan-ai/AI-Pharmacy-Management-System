@@ -239,7 +239,7 @@ export default function ScanPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ถ่ายรูปใบส่งของ" />
         <AccessDenied />
       </div>

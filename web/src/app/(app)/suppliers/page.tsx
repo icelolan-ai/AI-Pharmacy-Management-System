@@ -1,5 +1,6 @@
 "use client";
 
+import { Truck } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -37,7 +38,7 @@ export default function SuppliersPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ผู้จำหน่าย" />
         <AccessDenied />
       </div>
@@ -61,7 +62,7 @@ export default function SuppliersPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="ผู้จำหน่าย"
         description="รายชื่อผู้จำหน่ายที่ร้านสั่งซื้อยา"
@@ -94,6 +95,18 @@ export default function SuppliersPage() {
           rowKey={(row) => row.id}
           onRowClick={(row) => router.push(`/suppliers/${row.id}`)}
           caption="รายชื่อผู้จำหน่าย"
+          phoneRow={{
+            icon: () => <Truck className="size-5" />,
+            title: (row) => row.name,
+            subtitle: (row) =>
+              [
+                row.contact_person,
+                row.phone,
+                row.lead_time_days === null ? null : `ส่งของภายใน ${row.lead_time_days} วัน`,
+              ]
+                .filter(Boolean)
+                .join(" · ") || "ยังไม่มีข้อมูลติดต่อ",
+          }}
         />
       ) : null}
 

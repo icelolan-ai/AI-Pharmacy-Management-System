@@ -239,7 +239,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="รับสินค้า" />
         <AccessDenied />
       </div>
@@ -248,7 +248,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
 
   if (result) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="รับสินค้าเรียบร้อย" />
         <div className="space-y-2 rounded-lg border border-green-200 bg-green-50 px-4 py-3">
           <p className="text-sm font-medium text-green-900">
@@ -278,7 +278,7 @@ export default function ReceivingEditorPage({ params }: { params: Promise<{ id: 
   }
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title={step === 1 ? "รับสินค้า — ขั้นที่ 1 ตามใบส่งของ" : "รับสินค้า — ขั้นที่ 2 ตรวจสอบ"}
         description={

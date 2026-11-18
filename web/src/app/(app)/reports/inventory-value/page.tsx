@@ -1,5 +1,6 @@
 "use client";
 
+import { Layers, Pill } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { AccessDenied } from "@/components/common/AccessDenied";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -26,7 +27,7 @@ export default function InventoryValuePage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="มูลค่าคลังยา" />
         <AccessDenied />
       </div>
@@ -84,7 +85,7 @@ export default function InventoryValuePage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="มูลค่าคลังยา"
         description="มูลค่าต้นทุนของยาที่อยู่ในคลังตอนนี้"
@@ -133,6 +134,17 @@ export default function InventoryValuePage() {
                 rows={data.by_medicine.items}
                 rowKey={(row) => row.medicine_id}
                 caption="มูลค่าคลังแยกตามยา"
+                phoneRow={{
+                  icon: () => <Pill className="size-5" />,
+                  title: (row) => row.name,
+                  subtitle: (row) => (
+                    <>
+                      <span className="whitespace-nowrap">ขายได้ <MoneyText value={row.sellable_value} /></span>{" "}
+                      <span className="whitespace-nowrap">· ขายไม่ได้แล้ว <MoneyText value={row.expired_value} /></span>
+                    </>
+                  ),
+                  trailing: (row) => <MoneyText value={row.total_value} className="text-base font-semibold text-slate-900" />,
+                }}
               />
             )}
           </section>
@@ -147,6 +159,17 @@ export default function InventoryValuePage() {
                 rows={data.by_category}
                 rowKey={(row) => row.category}
                 caption="มูลค่าคลังแยกตามหมวดหมู่"
+                phoneRow={{
+                  icon: () => <Layers className="size-5" />,
+                  title: (row) => row.category,
+                  subtitle: (row) => (
+                    <>
+                      <span className="whitespace-nowrap">ขายได้ <MoneyText value={row.sellable_value} /></span>{" "}
+                      <span className="whitespace-nowrap">· ขายไม่ได้แล้ว <MoneyText value={row.expired_value} /></span>
+                    </>
+                  ),
+                  trailing: (row) => <MoneyText value={row.total_value} className="text-base font-semibold text-slate-900" />,
+                }}
               />
             )}
           </section>

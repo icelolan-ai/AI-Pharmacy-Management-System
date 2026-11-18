@@ -65,7 +65,7 @@ export default function ReceivingPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="รับสินค้า" />
         <AccessDenied />
       </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { PackageCheck, PackageOpen } from "lucide-react";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
@@ -68,7 +69,7 @@ export default function PurchaseHistoryPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ประวัติการรับสินค้า" />
         <AccessDenied />
       </div>
@@ -114,7 +115,7 @@ export default function PurchaseHistoryPage() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="ประวัติการรับสินค้า"
         description="ดูอย่างเดียว ใบที่ยืนยันแล้วแก้ไขไม่ได้"
@@ -168,6 +169,27 @@ export default function PurchaseHistoryPage() {
             rowKey={(row) => row.id}
             onRowClick={(row) => router.push(`/history/purchases/${row.id}`)}
             caption="ประวัติการรับสินค้า"
+            // The invoice number is on the page the row opens.
+            phoneRow={{
+              icon: (row) =>
+                row.status === "draft" ? <PackageOpen className="size-5" /> : <PackageCheck className="size-5" />,
+              title: (row) => row.purchase_no ?? "ร่าง ยังไม่มีเลขที่",
+              subtitle: (row) => (
+                <>
+                  {row.supplier_name ?? "ไม่ระบุผู้จำหน่าย"}{" "}
+                  <span className="whitespace-nowrap">· {formatDateBE(row.purchase_date)}</span>
+                </>
+              ),
+              trailing: (row) => (
+                <>
+                  <MoneyText value={row.total_amount} className="text-base font-semibold text-slate-900" />
+                  <Badge variant={row.status === "discrepancy" ? "destructive" : "secondary"}>
+                    {row.status === "discrepancy" ? "⚠️ " : ""}
+                    {STATUS_LABEL[row.status]}
+                  </Badge>
+                </>
+              ),
+            }}
           />
           <Pagination
             total={purchases.data?.total ?? 0}

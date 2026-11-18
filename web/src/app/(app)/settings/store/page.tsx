@@ -17,7 +17,7 @@ export default function StoreSettingsPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ข้อมูลร้าน" />
         <AccessDenied />
       </div>
@@ -25,7 +25,7 @@ export default function StoreSettingsPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="ข้อมูลร้าน"
         description="ชื่อ ที่อยู่ และเลขทะเบียนที่จะพิมพ์บนหัวใบเสร็จ"

@@ -34,7 +34,7 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ผู้จำหน่าย" />
         <AccessDenied />
       </div>
@@ -57,13 +57,14 @@ export default function SupplierDetailPage({ params }: { params: Promise<{ id: s
     : [];
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title={supplier?.name ?? "ผู้จำหน่าย"}
         description="ข้อมูลผู้จำหน่าย"
         action={
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => router.push("/suppliers")}>
+            {/* On a phone ← in the top bar already does this. */}
+            <Button variant="outline" className="max-sm:hidden" onClick={() => router.push("/suppliers")}>
               กลับไปรายการ
             </Button>
             {supplier ? <Button onClick={() => setDialogOpen(true)}>แก้ไข</Button> : null}

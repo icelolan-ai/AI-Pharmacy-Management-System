@@ -141,7 +141,7 @@ export default function DashboardPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ภาพรวมร้าน" />
         <AccessDenied />
       </div>

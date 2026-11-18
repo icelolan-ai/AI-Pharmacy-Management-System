@@ -257,6 +257,7 @@
   --list-pad-y: 0.75rem;
   --list-icon: 2.5rem;          /* the rounded tile at the start of a row */
   --list-gap: 0.625rem;         /* between tile, words, value and › */
+  --control-radius: 0.875rem;   /* fields and selects on a phone: soft, like the list boxes */
   --list-divider: var(--color-slate-200);
   --list-shadow: 0 1px 2px rgb(15 23 42 / 0.04), 0 6px 20px rgb(15 23 42 / 0.05);
   --tab-raise: scale(1.18) translateY(-0.125rem);  /* the Dock-like lift of the current tab */
@@ -566,6 +567,30 @@
     font-size: var(--text-sm);
     font-weight: 500;
     line-height: 1.4;
+  }
+
+  /* The rest of the page in the same soft, rounded look (the owner's
+   * reference pictures): fields, notices and cards round off like the list
+   * boxes; cards lose their outline for the same light shadow. Shapes only —
+   * every colour that carries meaning stays as it was. */
+  [data-slot="input"],
+  select,
+  textarea {
+    border-radius: var(--control-radius);
+  }
+  [data-slot="input"]:not(:disabled),
+  select:not(:disabled),
+  textarea:not(:disabled) {
+    background-color: #ffffff;
+  }
+  [data-slot="alert"],
+  .notice-box {
+    border-radius: var(--list-radius);
+  }
+  [data-slot="card"] {
+    border-radius: var(--list-radius);
+    border-color: transparent;
+    box-shadow: var(--list-shadow);
   }
 
   /* The page's main "new …" button: full width under the heading, the same

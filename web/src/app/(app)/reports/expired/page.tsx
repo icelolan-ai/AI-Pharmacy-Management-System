@@ -1,5 +1,6 @@
 "use client";
 
+import { Ban } from "lucide-react";
 import { useAuth } from "@/components/auth-provider";
 import { AccessDenied } from "@/components/common/AccessDenied";
 import { DataTable, type Column } from "@/components/common/DataTable";
@@ -34,7 +35,7 @@ export default function ExpiredReportPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="หมดอายุแล้ว" />
         <AccessDenied />
       </div>
@@ -105,7 +106,7 @@ export default function ExpiredReportPage() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="ยาที่ขายไม่ได้แล้ว"
         description="ล็อตที่เลยวันขายสุดท้ายแต่ยังมีจำนวนคงเหลือในระบบ"
@@ -146,6 +147,30 @@ export default function ExpiredReportPage() {
           rows={rows}
           rowKey={(row) => row.lot_id}
           caption="ล็อตที่ขายไม่ได้แล้ว"
+          phoneRow={{
+            icon: () => <Ban className="size-5" />,
+            title: (row) => row.medicine_name,
+            subtitle: (row) => (
+              <>
+                ล็อต {row.lot_number}{" "}
+                <span className="whitespace-nowrap">· หมดอายุ {formatDateBE(row.expiry_date)}</span>{" "}
+                <span className="whitespace-nowrap">· ขายไม่ได้มา {row.days_expired} วัน</span>
+              </>
+            ),
+            trailing: (row) => (
+              <>
+                <QtyText value={row.quantity_remaining} unit={row.unit} className="text-base font-semibold whitespace-nowrap" />
+                <MoneyText value={row.stock_value} className="text-sm text-slate-600" />
+              </>
+            ),
+            badge: canAdjust
+              ? (row) => (
+                  <Button variant="outline" size="sm" disabled={adjust.busy} onClick={() => void adjust.openFor(row.lot_id, row.unit)}>
+                    ปรับ Stock
+                  </Button>
+                )
+              : undefined,
+          }}
         />
       ) : null}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { Receipt } from "lucide-react";
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -49,7 +50,7 @@ export default function SalesHistoryPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ประวัติการขาย" />
         <AccessDenied />
       </div>
@@ -81,7 +82,7 @@ export default function SalesHistoryPage() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader title="ประวัติการขาย" description="ดูอย่างเดียว แก้ไขหรือยกเลิกบิลไม่ได้" />
 
       <Alert>
@@ -118,6 +119,12 @@ export default function SalesHistoryPage() {
             rowKey={(row) => row.id}
             onRowClick={(row) => router.push(`/history/sales/${row.id}`)}
             caption="ประวัติการขาย"
+            phoneRow={{
+              icon: () => <Receipt className="size-5" />,
+              title: (row) => row.sale_no,
+              subtitle: (row) => `${formatDateTimeBE(row.sale_date)} น.`,
+              trailing: (row) => <MoneyText value={row.total_amount} className="text-base font-semibold text-slate-900" />,
+            }}
           />
           <Pagination
             total={sales.data?.total ?? 0}

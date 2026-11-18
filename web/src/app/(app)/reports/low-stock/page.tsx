@@ -1,5 +1,6 @@
 "use client";
 
+import { Pill } from "lucide-react";
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 
@@ -39,7 +40,7 @@ export default function LowStockReportPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ยาใกล้หมด" />
         <AccessDenied />
       </div>
@@ -85,7 +86,7 @@ export default function LowStockReportPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="ยาใกล้หมด"
         description="ยาที่คงเหลือถึงหรือต่ำกว่าจุดสั่งซื้อที่ตั้งไว้"
@@ -115,6 +116,24 @@ export default function LowStockReportPage() {
           rowKey={(row) => row.medicine_id}
           onRowClick={(row) => router.push(`/stock/${row.medicine_id}`)}
           caption="ยาที่ต่ำกว่าจุดสั่งซื้อ"
+          phoneRow={{
+            icon: () => <Pill className="size-5" />,
+            title: (row) => row.name,
+            subtitle: (row) => (
+              <>
+                <span className="whitespace-nowrap">จุดสั่งซื้อ {row.reorder_point} {row.unit}</span>{" "}
+                <span className="whitespace-nowrap font-medium text-amber-700">· ⚠️ ขาดอีก {row.shortage} {row.unit}</span>
+              </>
+            ),
+            trailing: (row) => (
+              <QtyText
+                value={row.available_quantity}
+                unit={row.unit}
+                low={row.available_quantity === 0}
+                className="text-base font-semibold whitespace-nowrap"
+              />
+            ),
+          }}
         />
       ) : null}
 

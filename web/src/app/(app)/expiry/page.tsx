@@ -35,7 +35,7 @@ export default function ExpiryPage() {
 
   if (me && !allowed) {
     return (
-      <div className="space-y-4">
+      <div className="page-stack">
         <PageHeader title="ใกล้หมดอายุ" />
         <AccessDenied />
       </div>
@@ -46,7 +46,7 @@ export default function ExpiryPage() {
   const rows = (report.data?.items ?? []).filter((row) => row.risk_level === tab);
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="ยาใกล้หมดอายุ"
         description="ล็อตที่ยังขายได้ แต่เหลือเวลาไม่เกิน 180 วัน"
@@ -72,11 +72,18 @@ export default function ExpiryPage() {
             variant={tab === risk ? "default" : "outline"}
             onClick={() => setTab(risk)}
           >
-            <span aria-hidden="true">{RISK_META[risk].icon}</span> {RISK_LABEL[risk]}
+            <span aria-hidden="true">{RISK_META[risk].icon}</span>{" "}
+            {/* A phone: the level's name only, so all four fit; its day
+                range is spelled out under the row for the one chosen. */}
+            <span className="sm:hidden">{RISK_LABEL[risk].split(" (")[0]}</span>
+            <span className="hidden sm:inline">{RISK_LABEL[risk]}</span>
             <span className="ml-1 tabular-nums">({summary?.[risk]?.lot_count ?? 0})</span>
           </Button>
         ))}
       </div>
+      <p className="-mt-3 px-1 text-sm text-slate-600 sm:hidden">
+        <span aria-hidden="true">{RISK_META[tab].icon}</span> {RISK_LABEL[tab]}
+      </p>
 
       {report.loading ? (
         <SkeletonTable rows={6} columns={5} />
