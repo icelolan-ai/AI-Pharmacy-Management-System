@@ -7,7 +7,10 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-sans);
+  /* Was var(--font-sans) — itself, so invalid, and every screen fell back to
+   * Times New Roman since Phase 5.1. The layout loads Noto Sans Thai as
+   * --font-thai (found in the D78 round 2 walk-through). */
+  --font-sans: var(--font-thai), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-geist-mono);
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -235,7 +238,8 @@
   --nav-dim: brightness(0.86);  /* the page left behind, as on iOS */
   --skeleton-wait: 300ms;       /* grey loading boxes only if loading takes longer */
   --sheet-bg: #f1f5f9;          /* slate-100: the menu sheet, like iOS grouped lists */
-  --page-gutter: 1rem;          /* left/right margin of every page on a phone */
+  --page-gutter: 1.25rem;       /* left/right margin of every page on a phone (20px, as iOS) */
+  --page-bg: var(--color-slate-50); /* the app's page colour — the body's bg-slate-50 */
   --card-gap: 0.75rem;          /* between cards, on every page */
   --tab-raise: scale(1.18) translateY(-0.125rem);  /* the Dock-like lift of the current tab */
   --tab-press: scale(0.92);     /* the dip when pressed */
@@ -399,6 +403,26 @@
     gap: var(--card-gap);
   }
 
+  /* Filter buttons as one row of rounded chips that scrolls sideways —
+   * never wrapping a label onto two lines, never cutting one (D44). */
+  .chip-row {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.5rem;
+    overflow-x: auto;
+    max-width: 100%;
+    scrollbar-width: none;
+  }
+  .chip-row::-webkit-scrollbar {
+    display: none;
+  }
+  .chip-row > [data-slot="button"] {
+    flex-shrink: 0;
+    white-space: nowrap;
+    border-radius: 9999px;
+    padding-inline: 1rem;
+  }
+
   /* Grey loading boxes wait before showing: data that arrives within
    * --skeleton-wait shows no boxes at all, so a quick page does not flash
    * grey and then its content. Hidden, not faded — nothing moves. */
@@ -497,7 +521,9 @@
 /* The sliding page: opaque, and at least as tall as the space between the
  * bars, so nothing of the page beneath shows past a short page's end. */
 .page-surface {
-  background: var(--background);
+  /* The page's own colour, not white: white showed as a panel with grey
+   * strips beside it (seen at 375px, D78 round 2 walk-through). */
+  background: var(--page-bg);
 }
 @media (width < 40rem) {
   .page-surface {

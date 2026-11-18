@@ -182,7 +182,12 @@ const zOf = (selector) => Number(rules.find((r) => r.selector === selector && r.
 check.ok("ไปข้างหน้า: หน้าใหม่อยู่บนหน้าเก่า", zOf("::view-transition-new(.nav-forward)") > zOf("::view-transition-old(.nav-forward)"));
 check.ok("ย้อนกลับ: หน้าที่กำลังออกอยู่บนหน้าแม่", zOf("::view-transition-old(.nav-back)") > zOf("::view-transition-new(.nav-back)"));
 const surface = rules.find((r) => r.selector === ".page-surface" && r.decls.background);
-check.eq("🔴 หน้าที่เลื่อนมีพื้นทึบ", surface?.decls.background, "var(--background)");
+check.eq("🔴 หน้าที่เลื่อนมีพื้นทึบ", surface?.decls.background, "var(--page-bg)");
+check.ok(
+  "พื้นของหน้าที่เลื่อน เป็นสีเดียวกับพื้นของแอป (ไม่เป็นแผ่นขาวมีขอบเทา)",
+  root["--page-bg"] === "var(--color-slate-50)" && /<body className="[^"]*\bbg-slate-50\b/.test(source("app/layout.tsx")),
+  root["--page-bg"],
+);
 check.ok("หน้าทุกหน้าห่อด้วยพื้นทึบตอนเลื่อน", /<div className="page-surface">\{children\}<\/div>/.test(source("components/nav/PageSlide.tsx")));
 check.ok("หน้าเก่าหรี่ลงตอนถูกทับ", /filter:\s*var\(--nav-dim\)/.test(css) && /brightness\(/.test(root["--nav-dim"] ?? ""));
 const ease = (root["--nav-ease"] ?? "").match(/cubic-bezier\(([^)]+)\)/)?.[1].split(",").map(Number) ?? [];
@@ -222,5 +227,41 @@ check.ok("การ์ดหนึ่งใบต่อหนึ่งแถว 
 const home = source("app/(app)/page.tsx");
 check.eq("หน้าแรกไม่ได้ดึงข้อมูลใหม่เพิ่ม (มีแค่การตรวจการเชื่อมต่อ)", (home.match(/useSection\(/g) ?? []).length, 1);
 check.ok("ปุ่มงานหน้าแรกเต็มพื้นที่ระหว่างแถบบนกับแถบล่าง", /\.home-tasks \{[^}]*min-height: calc\(100dvh/.test(css));
+
+// --- 6. the user's "too cramped, make it an app" (walk-through, 18 Nov) ------
+// The font: @theme said --font-sans: var(--font-sans) — itself, so invalid —
+// and every screen fell back to Times New Roman from Phase 5.1 on.
+const themeSans = css.match(/@theme inline \{[\s\S]*?--font-sans:\s*([^;]+);/)?.[1] ?? "";
+const rootLayout = source("app/layout.tsx");
+const loadedAs = rootLayout.match(/Noto_Sans_Thai\(\{[\s\S]*?variable:\s*"(--[\w-]+)"/)?.[1] ?? "";
+check.ok("อ่านชื่อฟอนต์ที่โหลดจริงได้", loadedAs !== "", "Noto_Sans_Thai variable not found");
+check.ok(
+  "🔴 ฟอนต์หลักชี้ไปที่ฟอนต์ไทยที่โหลดจริง ไม่ใช่ชี้หาตัวเอง",
+  themeSans.split(",")[0].trim() === `var(${loadedAs})` && !/var\(--font-sans\)/.test(themeSans),
+  themeSans,
+);
+// A page heading that only repeats the top bar is hidden on a phone — and
+// only that one: the decision is made by comparing with the top bar's title.
+const header = source("components/common/PageHeader.tsx");
+check.ok("หัวข้อหน้าซ่อนเฉพาะเมื่อซ้ำกับแถบบน", /const repeatsTopBar = routeFor\(usePathname\(\)\)\?\.title === title;/.test(header));
+check.ok(
+  "หัวข้อที่ซ่อนยังอ่านได้ด้วยโปรแกรมอ่านจอ และยังแสดงบนจอคอม",
+  /repeatsTopBar \? "sr-only [^"]*sm:not-sr-only"/.test(header),
+);
+// Filter buttons: one row of chips that scrolls, never wrapping a label.
+const chipRule = rules.find((r) => r.selector === ".chip-row" && phone(r));
+const chipButton = rules.find((r) => r.selector === '.chip-row > [data-slot="button"]' && phone(r));
+check.ok(
+  "ปุ่มกรองเรียงแถวเดียว เลื่อนข้างได้ ไม่ตัดคำ",
+  chipRule?.decls["flex-wrap"] === "nowrap" && chipRule?.decls["overflow-x"] === "auto" && chipButton?.decls["white-space"] === "nowrap",
+);
+check.eq(
+  "ทุกแถวปุ่มกรองในแอปใช้แถวชิปเดียวกัน",
+  [source("components/stock/StockFilters.tsx"), source("app/(app)/history/purchases/page.tsx")]
+    .map((text) => (text.match(/<div className="([^"]*)" role="group"/) ?? [])[1] ?? "")
+    .map((cls) => /\bchip-row\b/.test(cls)),
+  [true, true],
+);
+check.ok("ขอบซ้ายขวาอย่างน้อย 20px แบบ iOS", parseFloat(root["--page-gutter"]) * 16 >= 20, root["--page-gutter"]);
 
 process.exit(check.done() ? 1 : 0);

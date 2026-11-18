@@ -133,7 +133,7 @@ export default function PurchaseHistoryPage() {
             setOffset(0);
           }}
         />
-        <div className="flex gap-1 pb-5" role="group" aria-label="กรองตามสถานะ">
+        <div className="chip-row pb-5 sm:gap-1" role="group" aria-label="กรองตามสถานะ">
           {STATUS_FILTERS.map((entry) => (
             <Button
               key={entry.value}

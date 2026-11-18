@@ -33,9 +33,9 @@ export function StockFilters({
 }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-3">
-      <div className="flex flex-wrap items-end gap-3">
+      <div className="flex w-full min-w-0 flex-wrap items-end gap-3 sm:w-auto">
         <MedicineSearchInput value={term} onDebouncedChange={onTermChange} />
-        <div className="flex gap-1" role="group" aria-label="ตัวกรอง">
+        <div className="chip-row sm:gap-1" role="group" aria-label="ตัวกรอง">
           {FILTERS.map((entry) => (
             <Button
               key={entry.value}
