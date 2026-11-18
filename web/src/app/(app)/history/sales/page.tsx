@@ -87,7 +87,7 @@ export default function SalesHistoryPage() {
       <Alert>
         <AlertDescription>
           บิลที่บันทึกแล้วยกเลิกไม่ได้ — หากขายผิด ให้ใช้การปรับ Stock พร้อมระบุเหตุผล{" "}
-          <Link href="/stock" className="underline underline-offset-2">
+          <Link href="/stock" className="inline-flex min-h-11 items-center underline underline-offset-2 sm:min-h-0">
             ไปหน้าคลังยา
           </Link>
         </AlertDescription>

@@ -331,7 +331,7 @@ export default function DashboardPage() {
         {unsetReorderCount > 0 && !stock.loading && !stock.error ? (
           <p className="mt-2 text-xs text-slate-500">
             (นับเฉพาะยาที่ตั้งจุดสั่งซื้อไว้แล้ว — ยังไม่ตั้งค่า {unsetReorderCount} รายการ){" "}
-            <Link href="/stock" className="underline underline-offset-2">
+            <Link href="/stock" className="inline-flex min-h-11 items-center underline underline-offset-2 sm:min-h-0">
               ไปหน้าคลังยา
             </Link>
           </p>

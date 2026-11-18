@@ -143,7 +143,42 @@ check.ok("ปิดตัว N ของ Next.js ที่บังปุ่ม�
 
 const mobile = source("components/nav/MobileNav.tsx");
 const layout = source("app/(app)/layout.tsx");
-check.ok("แถบล่างสร้างจาก visibleTabs(role) ไม่ใช่รายการแยก", /visibleTabs\(role\)\.map\(/.test(mobile));
+check.ok("แถบล่างสร้างจาก tabSlots(role, roleKnown) ไม่ใช่รายการแยก", /tabSlots\(role, roleKnown\)\.map\(/.test(mobile));
+
+// --- 2b. while the role loads, a held slot — never a jump, never a guess ----
+// (Chat A after D78: a tab that turns up late moves the ones after it under
+// a finger about to press. Hold its place, empty; drop it once the answer is no.)
+const slotHrefs = (slots) => slots.map((slot) => (slot.kind === "pending" ? `(${slot.href})` : slot.href));
+check.eq(
+  "ระหว่างรอสิทธิ์: จองที่ของปุ่มรับสินค้าไว้ ว่าง ๆ",
+  slotHrefs(tabs.tabSlots(undefined, false)),
+  ["/", "/sell", "(/receiving)", "/stock"],
+);
+check.ok(
+  "ที่ที่จองไว้ไม่มีชื่อ ไม่มีไอคอน (ไม่ใช่ปุ่ม)",
+  tabs.tabSlots(undefined, false).filter((slot) => slot.kind === "pending").every((slot) => !("label" in slot) && !("icon" in slot)),
+);
+for (const role of ROLES) {
+  check.eq(
+    `${role}: โหลดเสร็จแล้วไม่มีที่จองค้าง และตรงกับ visibleTabs`,
+    slotHrefs(tabs.tabSlots(role, true)),
+    tabs.visibleTabs(role).map((tab) => tab.href),
+  );
+  // Loaded = the waiting bar with each held slot either filled or dropped —
+  // nothing new appears, nothing is reordered.
+  const loaded = tabs.tabSlots(role, true).map((slot) => slot.href);
+  check.eq(
+    `${role}: โหลดเสร็จแล้วปุ่มอยู่ลำดับเดิม ที่จองกลายเป็นปุ่ม หรือหายไปถ้าไม่มีสิทธิ์`,
+    loaded,
+    tabs.tabSlots(undefined, false).filter((slot) => slot.kind === "tab" || loaded.includes(slot.href)).map((slot) => slot.href),
+  );
+}
+check.eq("โหลดเสร็จแต่ไม่มีบทบาท: ไม่มีที่จองค้าง", slotHrefs(tabs.tabSlots(null, true)), ["/", "/sell", "/stock"]);
+check.ok(
+  "ที่จองในแถบล่างเป็น <li> ว่าง ซ่อนจากโปรแกรมอ่านจอ ไม่มีลิงก์หรือปุ่มข้างใน",
+  /tab\.kind === "pending"\)\s*\{[\s\S]{0,200}?return <li key=\{tab\.href\} aria-hidden="true" data-pending="" className="flex flex-1" \/>;/.test(mobile),
+);
+check.ok("รู้สิทธิ์แล้ว = โหลดโปรไฟล์เสร็จ ไม่ใช่แค่มีค่า role", /roleKnown=\{me != null\}/.test(layout));
 check.ok("หน้าแรกสร้างปุ่มจาก visibleHomeTasks", /visibleHomeTasks\(me\?\.role\)\.map\(/.test(source("app/(app)/page.tsx")));
 
 // --- 3. ← is a link to the parent, never history.back ----------------------

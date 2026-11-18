@@ -49,7 +49,7 @@ export default function PrintPurchasePage({ params }: { params: Promise<{ id: st
             {can(me?.role, ABILITIES.manageStoreProfile) ? (
               <Link
                 href="/settings/store"
-                className="mt-1 inline-block text-sm text-amber-900 underline underline-offset-2"
+                className="mt-1 inline-flex min-h-11 items-center text-sm text-amber-900 underline underline-offset-2 sm:min-h-0"
               >
                 ไปตั้งค่าข้อมูลร้าน
               </Link>

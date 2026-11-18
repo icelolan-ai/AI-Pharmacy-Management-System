@@ -97,6 +97,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <MobileNav
         groups={MENU}
         role={me?.role}
+        roleKnown={me != null}
         userId={me?.id}
         pathname={pathname}
         signed={{

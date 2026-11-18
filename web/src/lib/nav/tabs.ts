@@ -44,6 +44,27 @@ export function visibleTabs(role: string | null | undefined) {
   return TABS.filter((tab) => allowed(tab.href, role)).map((tab) => ({ ...tab, label: menuItem(tab.href)!.label }));
 }
 
+/** What the bottom bar draws, slot by slot.
+ *
+ *  Until the profile has loaded nobody knows the role, and a tab that needs
+ *  a permission could go either way. It is neither shown (it may not be
+ *  allowed) nor left out (the tabs after it would jump sideways when it
+ *  arrived, under a finger about to press one). Its slot is kept, empty: not
+ *  a link, nothing to press. Once the role is known it becomes the tab, or
+ *  — if this role may not use it — the slot goes (Chat A, after D78). */
+export type TabSlot =
+  | { kind: "tab"; href: string; icon: TabIcon; label: string }
+  | { kind: "pending"; href: string };
+
+export function tabSlots(role: string | null | undefined, roleKnown: boolean): TabSlot[] {
+  return TABS.flatMap((tab): TabSlot[] => {
+    const item = menuItem(tab.href);
+    if (!item) return [];
+    if (allowed(tab.href, role)) return [{ kind: "tab", ...tab, label: item.label }];
+    return !roleKnown && item.ability ? [{ kind: "pending", href: tab.href }] : [];
+  });
+}
+
 /** On a phone the ☰ menu leaves out what the bottom bar already shows —
  *  worked out from the same filter, so the two can never disagree. */
 export function hrefsOnTabBar(role: string | null | undefined): Set<string> {

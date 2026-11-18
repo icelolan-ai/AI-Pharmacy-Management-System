@@ -7,7 +7,7 @@ import { Boxes, House, Menu, PackagePlus, ShoppingCart, X, type LucideIcon } fro
 import { AppNav } from "@/components/nav/AppNav";
 import { Button } from "@/components/ui/button";
 import type { NavGroup } from "@/lib/nav/items";
-import { currentTab, hrefsOnTabBar, visibleTabs, type TabIcon } from "@/lib/nav/tabs";
+import { currentTab, hrefsOnTabBar, tabSlots, type TabIcon } from "@/lib/nav/tabs";
 import { roleLabel } from "@/lib/roles";
 import { useStore } from "@/lib/store/store-provider";
 
@@ -52,12 +52,15 @@ type Signed = {
 export function MobileNav({
   groups,
   role,
+  roleKnown,
   userId,
   pathname,
   signed,
 }: {
   groups: readonly NavGroup[];
   role: string | null | undefined;
+  /** The profile has loaded, so `role` is the answer, not "not yet". */
+  roleKnown: boolean;
   userId: string | null | undefined;
   pathname: string;
   signed: Signed;
@@ -73,7 +76,12 @@ export function MobileNav({
 
       <nav aria-label="แถบนำทางหลัก" className="glass-bar tab-bar fixed inset-x-0 bottom-0 z-[60]">
         <ul className="flex items-stretch">
-          {visibleTabs(role).map((tab) => {
+          {tabSlots(role, roleKnown).map((tab) => {
+            if (tab.kind === "pending") {
+              // Held for a tab that may or may not be allowed: empty, and
+              // nothing in it to press or to read out.
+              return <li key={tab.href} aria-hidden="true" data-pending="" className="flex flex-1" />;
+            }
             const Icon = ICONS[tab.icon];
             const here = !open && current === tab.href;
             return (
