@@ -7,7 +7,6 @@ import { useAuth } from "@/components/auth-provider";
 import { EmptyState } from "@/components/common/EmptyState";
 import { ErrorState } from "@/components/common/ErrorState";
 import { PageHeader } from "@/components/common/PageHeader";
-import { RequireAbility } from "@/components/common/RequireAbility";
 import { SkeletonTable } from "@/components/common/SkeletonTable";
 import { MedicineFormDialog } from "@/components/medicines/MedicineFormDialog";
 import { StockFilters, type StockFilter } from "@/components/stock/StockFilters";
@@ -43,15 +42,11 @@ export default function StockPage() {
   }, [rows, filter]);
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="คลังยา"
         description="จำนวนที่ขายได้ ล็อต และวันหมดอายุของยาแต่ละรายการ"
-        action={
-          <RequireAbility ability={ABILITIES.manageMedicines}>
-            <Button onClick={() => setDialogOpen(true)}>เพิ่มยาใหม่</Button>
-          </RequireAbility>
-        }
+        primaryAction={canManage ? { label: "เพิ่มยาใหม่", onClick: () => setDialogOpen(true) } : undefined}
       />
 
       <StockFilters

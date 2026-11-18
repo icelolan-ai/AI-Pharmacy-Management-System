@@ -269,7 +269,14 @@ export default function SellPage() {
           {saveError ? <ErrorState message={saveError} /> : null}
 
           {cart.items.length === 0 ? (
-            <EmptyState title="🔍 ยิงบาร์โค้ด หรือ พิมพ์ชื่อยาเพื่อเริ่มขาย" />
+            <>
+              {/* On a phone the search box right above already says this:
+                  one quiet line, not a second box (D78 round 3 ค). */}
+              <p className="px-1 text-sm text-slate-500 sm:hidden">ยังไม่มีรายการในบิล</p>
+              <div className="hidden sm:block">
+                <EmptyState title="🔍 ยิงบาร์โค้ด หรือ พิมพ์ชื่อยาเพื่อเริ่มขาย" />
+              </div>
+            </>
           ) : (
             <div className="space-y-3">
               {cart.items.map((item) => (
@@ -307,7 +314,8 @@ export default function SellPage() {
             >
               ยืนยันการขาย
             </Button>
-            <p className="mt-2 text-center text-xs text-slate-500">กด F2 หรือ Ctrl+Enter</p>
+            {/* A phone has no F2 key (D78 round 3 ข). */}
+            <p className="mt-2 hidden text-center text-xs text-slate-500 sm:block">กด F2 หรือ Ctrl+Enter</p>
             {cart.items.length > 0 && !cart.canConfirm ? (
               <p className="mt-2 text-xs text-amber-700">
                 รอตรวจสอบล็อตของทุกรายการให้เสร็จก่อนจึงจะยืนยันได้

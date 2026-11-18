@@ -186,6 +186,7 @@ export default function DashboardPage() {
       <PageHeader
         title="ภาพรวมร้าน"
         description={loadedAt === null ? "กำลังโหลด..." : `อัปเดตล่าสุด ${formatClockTime(loadedAt)} น.`}
+        keepDescriptionOnPhone
         action={
           <Button variant="outline" onClick={reloadAll}>
             รีเฟรช

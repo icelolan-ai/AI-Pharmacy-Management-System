@@ -65,9 +65,7 @@ export default function SuppliersPage() {
       <PageHeader
         title="ผู้จำหน่าย"
         description="รายชื่อผู้จำหน่ายที่ร้านสั่งซื้อยา"
-        action={
-          <Button onClick={() => setDialogOpen(true)}>เพิ่มผู้จำหน่าย</Button>
-        }
+        primaryAction={{ label: "เพิ่มผู้จำหน่าย", onClick: () => setDialogOpen(true) }}
       />
 
       <div className="flex flex-wrap items-end justify-between gap-3">

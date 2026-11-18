@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PackageCheck, PackageOpen } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
 import { AccessDenied } from "@/components/common/AccessDenied";
@@ -107,11 +108,11 @@ export default function ReceivingPage() {
   ];
 
   return (
-    <div className="space-y-4">
+    <div className="page-stack">
       <PageHeader
         title="รับสินค้า"
         description="บันทึกของที่รับเข้าคลัง 2 ขั้นตอน: ตามใบส่งของ แล้วนับของจริง"
-        action={<Button onClick={() => router.push("/receiving/new")}>รับสินค้าใหม่</Button>}
+        primaryAction={{ label: "รับสินค้าใหม่", onClick: () => router.push("/receiving/new") }}
       />
 
       {actionError ? <ErrorState message={actionError} /> : null}
@@ -130,7 +131,10 @@ export default function ReceivingPage() {
         <ErrorState message={recent.error} onRetry={recent.reload} retrying={recent.loading} />
       ) : null}
 
-      {recent.loading ? (
+      {/* Until the profile is in, the list has not even been asked for —
+          "no deliveries yet" would be a guess, and it flashed before (D78
+          round 3). Grey boxes until there is an answer. */}
+      {recent.loading || !me ? (
         <SkeletonTable rows={5} columns={6} />
       ) : recentRows.length === 0 ? (
         <EmptyState
@@ -145,6 +149,27 @@ export default function ReceivingPage() {
           rowKey={(row) => row.id}
           onRowClick={(row) => router.push(`/receiving/${row.id}`)}
           caption="ประวัติการรับสินค้า"
+          phoneRow={{
+            icon: (row) =>
+              row.status === "draft" ? <PackageOpen className="size-5" /> : <PackageCheck className="size-5" />,
+            title: (row) => row.purchase_no ?? "ร่าง ยังไม่มีเลขที่",
+            // The invoice number is on the page the row opens.
+            // A date moves to the next line whole, never split mid-date.
+            subtitle: (row) => (
+              <>
+                {row.supplier_name ?? "ไม่ระบุผู้จำหน่าย"}{" "}
+                <span className="whitespace-nowrap">· {formatDateBE(row.purchase_date)}</span>
+              </>
+            ),
+            trailing: (row) => (
+              <>
+                <MoneyText value={row.total_amount} className="text-base font-semibold text-slate-900" />
+                <Badge variant={row.status === "discrepancy" ? "destructive" : "secondary"}>
+                  {STATUS_LABEL[row.status]}
+                </Badge>
+              </>
+            ),
+          }}
         />
       )}
     </div>
