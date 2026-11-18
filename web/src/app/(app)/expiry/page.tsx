@@ -62,7 +62,7 @@ export default function ExpiryPage() {
       ) : null}
       {adjust.error ? <ErrorState message={adjust.error} /> : null}
 
-      <div className="flex flex-wrap gap-1" role="tablist" aria-label="ระดับความเสี่ยง">
+      <div className="chip-row sm:flex sm:flex-wrap sm:gap-1" role="tablist" aria-label="ระดับความเสี่ยง">
         {RISK_ORDER.map((risk) => (
           <Button
             key={risk}

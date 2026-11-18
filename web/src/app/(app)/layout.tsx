@@ -7,6 +7,7 @@ import { useAuth } from "@/components/auth-provider";
 import { AppNav } from "@/components/nav/AppNav";
 import { MobileNav, MobileTopBar } from "@/components/nav/MobileNav";
 import { PageSlide } from "@/components/nav/PageSlide";
+import { PageScroll } from "@/components/nav/PageScroll";
 import { SideNavStoreName } from "@/components/store/SideNavStoreName";
 import { Button } from "@/components/ui/button";
 import { MENU } from "@/lib/nav/menu";
@@ -91,6 +92,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <main className="tab-bar-clearance page-gutter flex-1 py-4 sm:p-6">
             <PageSlide pathname={pathname}>{children}</PageSlide>
           </main>
+          {/* After <main>: has the last word on where the new page starts. */}
+          <PageScroll pathname={pathname} />
         </div>
       </div>
 

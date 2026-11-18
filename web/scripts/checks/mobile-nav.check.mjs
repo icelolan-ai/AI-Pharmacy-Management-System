@@ -118,7 +118,7 @@ check.ok(
   /onNavigate=\{onClose\}/.test(mobile) && /onClick=\{onNavigate\}/.test(nav),
   "the panel would stay over the page the user just asked for",
 );
-check.ok("กดปุ่มในแถบล่างตอนเมนูเปิด เมนูปิดด้วย", /href=\{tab\.href\}[\s\S]{0,120}onClick=\{\(\) => setOpen\(false\)\}/.test(mobile));
+check.ok("กดปุ่มในแถบล่างตอนเมนูเปิด เมนูปิดด้วย", /href=\{tab\.href\}[\s\S]{0,120}onClick=\{\(event\) => \{\s*setOpen\(false\);/.test(mobile));
 check.ok("แผงเมนู mount เฉพาะตอนเปิด", /\{open \? \(\s*<MobilePanel/.test(mobile));
 check.ok(
   "ชื่อผู้ใช้และปุ่มออกจากระบบย้ายไปอยู่ในเมนู",

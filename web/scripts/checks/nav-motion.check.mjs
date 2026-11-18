@@ -5,7 +5,9 @@
  *  How it looks and moves on a real iPhone is for a person to judge (D41).
  */
 
-import { createChecker, source } from "./lib.mjs";
+import { readdirSync, readFileSync } from "node:fs";
+import { join, relative } from "node:path";
+import { createChecker, SRC, source } from "./lib.mjs";
 
 const check = createChecker("D78 — กระจกฝ้า · การขยายปุ่ม · ลดการเคลื่อนไหว");
 const css = source("app/globals.css").replace(/\/\*[\s\S]*?\*\//g, "");
@@ -255,12 +257,29 @@ check.ok(
   "ปุ่มกรองเรียงแถวเดียว เลื่อนข้างได้ ไม่ตัดคำ",
   chipRule?.decls["flex-wrap"] === "nowrap" && chipRule?.decls["overflow-x"] === "auto" && chipButton?.decls["white-space"] === "nowrap",
 );
+// Every row of filter buttons in the app — found by scanning, not listed:
+// the list once named two pages and missed ใกล้หมดอายุ (the user's
+// screenshot, 18 Nov: four buttons stacked one per line).
+const filterRows = (function walk(dir, out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, out);
+    else if (entry.name.endsWith(".tsx")) {
+      const text = readFileSync(full, "utf8");
+      for (const m of text.matchAll(/<div className="([^"]*)" role="(?:group|tablist)"/g)) {
+        out.push({ where: relative(SRC, full).replace(/\\/g, "/"), cls: m[1] });
+      }
+    }
+  }
+  return out;
+})(SRC);
+check.ok("พบแถวปุ่มกรองจริง (ตัวสแกนไม่ได้ว่างเปล่า)", filterRows.length >= 3, `found ${filterRows.length}`);
 check.eq(
-  "ทุกแถวปุ่มกรองในแอปใช้แถวชิปเดียวกัน",
-  [source("components/stock/StockFilters.tsx"), source("app/(app)/history/purchases/page.tsx")]
-    .map((text) => (text.match(/<div className="([^"]*)" role="group"/) ?? [])[1] ?? "")
-    .map((cls) => /\bchip-row\b/.test(cls)),
-  [true, true],
+  "ทุกแถวปุ่มกรองในแอปใช้แถวชิปเดียวกัน (บนมือถือไม่ตัดขึ้นบรรทัดใหม่)",
+  filterRows
+    .filter((row) => !/\bchip-row\b/.test(row.cls) || /(^|\s)flex-wrap\b/.test(row.cls))
+    .map((row) => `${row.where}: ${row.cls}`),
+  [],
 );
 check.ok("ขอบซ้ายขวาอย่างน้อย 20px แบบ iOS", parseFloat(root["--page-gutter"]) * 16 >= 20, root["--page-gutter"]);
 

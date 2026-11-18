@@ -8,6 +8,7 @@ import { AppNav } from "@/components/nav/AppNav";
 import { Button } from "@/components/ui/button";
 import type { NavGroup } from "@/lib/nav/items";
 import { currentTab, hrefsOnTabBar, tabSlots, type TabIcon } from "@/lib/nav/tabs";
+import { scrollMemory, tapScrollsToTop } from "@/lib/nav/scroll";
 import { roleLabel } from "@/lib/roles";
 import { useStore } from "@/lib/store/store-provider";
 
@@ -89,7 +90,16 @@ export function MobileNav({
                 <Link
                   href={tab.href}
                   aria-current={here ? "page" : undefined}
-                  onClick={() => setOpen(false)}
+                  onClick={(event) => {
+                    setOpen(false);
+                    // The tab for the page on screen: back to the top, as in
+                    // an iOS app — not the same page loaded again.
+                    if (tapScrollsToTop(pathname, tab.href)) {
+                      event.preventDefault();
+                      const still = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+                      window.scrollTo({ top: 0, behavior: still ? "instant" : "smooth" });
+                    }
+                  }}
                   className="tab-item"
                 >
                   <Icon aria-hidden="true" className="tab-icon" strokeWidth={2.25} />
@@ -252,6 +262,7 @@ export function MobileTopBar({
         <Link
           href={parent.href}
           transitionTypes={["nav-back"]}
+          onClick={() => scrollMemory.returnTo(parent.href)}
           aria-label={`กลับไปหน้า${parent.title}`}
           className="back-link"
         >
