@@ -60,7 +60,7 @@ check.ok("ปุ่มย้อนของเบราว์เซอร์ / �
 check.ok("หน้าที่ข้อมูลมาทีหลัง: ลองตั้งตำแหน่งซ้ำเมื่อหน้ายาวขึ้น และหยุดเมื่อผู้ใช้แตะจอ", /new ResizeObserver/.test(pageScroll) && /"touchstart"/.test(pageScroll));
 
 const mobile = source("components/nav/MobileNav.tsx");
-check.ok("← บอกว่าเป็นการย้อนไปหน้าแม่", /transitionTypes=\{\["nav-back"\]\}\s*onClick=\{\(\) => scrollMemory\.returnTo\(parent\.href\)\}/.test(mobile));
+check.ok("← บอกว่าเป็นการย้อนไปหน้าแม่", /<Link\s+href=\{parent\.href\}\s+onClick=\{\(\) => scrollMemory\.returnTo\(parent\.href\)\}/.test(mobile));
 check.ok(
   "แท็บของหน้าที่อยู่: ไม่โหลดซ้ำ เลื่อนขึ้นบนสุด (และนิ่งเมื่อปิดการเคลื่อนไหว)",
   /if \(tapScrollsToTop\(pathname, tab\.href\)\) \{\s*event\.preventDefault\(\);[\s\S]{0,200}prefers-reduced-motion: reduce[\s\S]{0,120}window\.scrollTo\(\{ top: 0, behavior: still \? "instant" : "smooth" \}\)/.test(mobile),

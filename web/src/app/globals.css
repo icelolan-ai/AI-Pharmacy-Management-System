@@ -249,8 +249,7 @@
   --top-bar-height: 3.25rem;    /* 52px */
   --nav-motion: 200ms;          /* every movement is short: nobody waits at the till */
   --nav-ease: cubic-bezier(0.32, 0.72, 0, 1);  /* iOS: quick to start, easing into the end */
-  --nav-slide: 280ms;           /* a page sliding in or out (D78-6) */
-  --nav-dim: brightness(0.86);  /* the page left behind, as on iOS */
+  --nav-slide: 280ms;           /* the menu sheet rising (pages no longer slide) */
   --skeleton-wait: 300ms;       /* grey loading boxes only if loading takes longer */
   --sheet-bg: #f1f5f9;          /* slate-100: the menu sheet, like iOS grouped lists */
   --page-gutter: 1.25rem;       /* left/right margin of every page on a phone (20px, as iOS) */
@@ -621,56 +620,19 @@
   }
 }
 
-/* D78-6 — เปลี่ยนหน้าแบบเลื่อนเหมือนแอป (components/nav/PageSlide.tsx)
+/* D78-6 เปลี่ยนหน้าแบบเลื่อน — ปิดแล้ว (the owner's iPhone video, 19 Nov)
  *
- * Forward: the new page slides in from the right over the old, which
- * drifts a little to the left. Back (←): the reverse. Only the page area
- * moves; the bars belong to the root, which is told not to animate, so they
- * stay still. Navigations without a direction do not animate at all.
+ * Safari kept drawing the old page faintly behind the new one, under a grey
+ * sheet, and squashed the tab bar mid-change — after two rounds of fixes.
+ * As agreed with Chat A for exactly this case, pages now change at once.
+ * Nothing in the app starts a view transition any more (no <ViewTransition>,
+ * no transitionTypes); should a browser start one anyway, it shows the new
+ * page at once rather than animating between two pictures.
  */
-::view-transition-old(root),
-::view-transition-new(root) {
-  animation: none;
-}
-/* The browser blends the two pages with plus-lighter by default — made for
- * cross-fades, it adds two opaque pages together, which is the see-through
- * double text seen on the iPhone. Normal blending: the page on top hides
- * the one beneath completely. The page itself is opaque (.page-surface). */
-::view-transition-old(.nav-forward),
-::view-transition-new(.nav-forward),
-::view-transition-old(.nav-back),
-::view-transition-new(.nav-back) {
-  mix-blend-mode: normal;
-}
-/* Forward: the new page slides in on top; the old one drifts a third as
- * far — so more slowly — and dims. */
-::view-transition-new(.nav-forward) {
-  z-index: 1;
-  animation: nav-in-from-right var(--nav-slide) var(--nav-ease) both;
-}
-::view-transition-old(.nav-forward) {
-  animation: nav-out-to-left var(--nav-slide) var(--nav-ease) both;
-}
-/* Back: the page being left slides away on top; the parent comes back
- * from beneath, undimming. */
-::view-transition-old(.nav-back) {
-  z-index: 1;
-  animation: nav-out-to-right var(--nav-slide) var(--nav-ease) both;
-}
-::view-transition-new(.nav-back) {
-  animation: nav-in-from-left var(--nav-slide) var(--nav-ease) both;
-}
-@keyframes nav-in-from-right {
-  from { transform: translateX(100%); }
-}
-@keyframes nav-out-to-left {
-  to { transform: translateX(-30%); filter: var(--nav-dim); }
-}
-@keyframes nav-in-from-left {
-  from { transform: translateX(-30%); filter: var(--nav-dim); }
-}
-@keyframes nav-out-to-right {
-  to { transform: translateX(100%); }
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+  animation: none !important;
 }
 @keyframes nav-fade-in {
   from { opacity: 0; }
@@ -679,8 +641,7 @@
   from { transform: translateY(100%); }
 }
 
-/* The sliding page: opaque, and at least as tall as the space between the
- * bars, so nothing of the page beneath shows past a short page's end. */
+/* Every page: opaque, and at least as tall as the space between the bars. */
 .page-surface {
   /* The page's own colour, not white: white showed as a panel with grey
    * strips beside it (seen at 375px, D78 round 2 walk-through). */

@@ -112,7 +112,8 @@ check.ok("พื้นที่กดของปุ่มแถบล่าง�
 // --- 4. short, and nothing at all under reduced motion ---------------------
 const ms = (value) => (/ms$/.test(value) ? parseFloat(value) : parseFloat(value) * 1000);
 check.ok("การเคลื่อนไหวสั้น ไม่เกิน 300ms", ms(root["--nav-motion"] ?? "") <= 300, root["--nav-motion"]);
-check.ok("การเลื่อนเปลี่ยนหน้าสั้น ไม่เกิน 300ms", ms(root["--nav-slide"] ?? "") <= 300, root["--nav-slide"]);
+// --nav-slide now times only the menu sheet rising (pages no longer slide).
+check.ok("แผ่นเมนูขึ้นเร็ว ไม่เกิน 300ms", ms(root["--nav-slide"] ?? "") <= 300, root["--nav-slide"]);
 check.eq(
   "ไม่มีเวลาเคลื่อนไหวตัวเลขตายตัวเกิน 300ms ในกฎของการนำทาง",
   rules
@@ -172,17 +173,33 @@ check.ok(
   ["::view-transition-group(*)", "::view-transition-old(*)", "::view-transition-new(*)"].every((s) => stillFor(s, "animation")),
 );
 
-// --- 5. D78 round 2: what the iPhone video showed ---------------------------
-// Pages never show through each other while sliding.
-const vt = (kind, cls) => rules.find((r) => r.selector.split(",").map((s) => s.trim()).includes(`::view-transition-${kind}(.${cls})`) && r.decls["mix-blend-mode"]);
-check.eq(
-  "🔴 ระหว่างเลื่อนหน้า ห้ามผสมสองหน้าเข้าด้วยกัน (mix-blend-mode: normal)",
-  [vt("old", "nav-forward"), vt("new", "nav-forward"), vt("old", "nav-back"), vt("new", "nav-back")].map((r) => r?.decls["mix-blend-mode"]),
-  ["normal", "normal", "normal", "normal"],
+// --- 5. D78 round 2 + the iPhone video of 19 Nov --------------------------------
+// Pages never show through each other. Round 2 fixed the blend and the
+// stacking of the slide; Safari still drew the old page faintly behind the
+// new one and squashed the tab bar. As agreed for that case, the slide is
+// off: no page ever animates between two pictures again.
+const appFiles = (function walk(dir, out = []) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isDirectory()) walk(full, out);
+    else if (/\.(ts|tsx)$/.test(entry.name)) out.push(full);
+  }
+  return out;
+})(SRC);
+const startsTransition = appFiles
+  // Code only: a comment telling why the slide is gone may name it.
+  .filter((full) =>
+    /<ViewTransition\b|\btransitionTypes=|startViewTransition\(|addTransitionType\(/.test(
+      readFileSync(full, "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, ""),
+    ),
+  )
+  .map((full) => relative(SRC, full).replace(/\\/g, "/"));
+check.eq("🔴 เปลี่ยนหน้าทันที: ไม่มีที่ไหนในแอปสั่งเลื่อนเปลี่ยนหน้า (ViewTransition / transitionTypes)", startsTransition, []);
+const vtStill = rules.find(
+  (r) => r.at.length === 0 && ["::view-transition-group(*)", "::view-transition-old(*)", "::view-transition-new(*)"].every((s) => r.selector.split(",").map((x) => x.trim()).includes(s)),
 );
-const zOf = (selector) => Number(rules.find((r) => r.selector === selector && r.decls["z-index"])?.decls["z-index"] ?? 0);
-check.ok("ไปข้างหน้า: หน้าใหม่อยู่บนหน้าเก่า", zOf("::view-transition-new(.nav-forward)") > zOf("::view-transition-old(.nav-forward)"));
-check.ok("ย้อนกลับ: หน้าที่กำลังออกอยู่บนหน้าแม่", zOf("::view-transition-old(.nav-back)") > zOf("::view-transition-new(.nav-back)"));
+check.ok("ถ้าเบราว์เซอร์เริ่มเปลี่ยนหน้าแบบภาพเอง ก็ไม่เล่นภาพเคลื่อนไหว (ทุกโหมด ไม่ใช่แค่ลดการเคลื่อนไหว)", /^none !important$/.test(vtStill?.decls.animation ?? ""));
+check.ok("ไม่เหลือภาพเคลื่อนไหวของการเลื่อนหน้า", !/@keyframes nav-(in|out)-/.test(css) && !/::view-transition-(old|new)\(\.nav-/.test(css));
 const surface = rules.find((r) => r.selector === ".page-surface" && r.decls.background);
 check.eq("🔴 หน้าที่เลื่อนมีพื้นทึบ", surface?.decls.background, "var(--page-bg)");
 check.ok(
@@ -191,7 +208,8 @@ check.ok(
   root["--page-bg"],
 );
 check.ok("หน้าทุกหน้าห่อด้วยพื้นทึบตอนเลื่อน", /<div className="page-surface">\{children\}<\/div>/.test(source("components/nav/PageSlide.tsx")));
-check.ok("หน้าเก่าหรี่ลงตอนถูกทับ", /filter:\s*var\(--nav-dim\)/.test(css) && /brightness\(/.test(root["--nav-dim"] ?? ""));
+// No page lies under another any more, so nothing dims either.
+check.ok("ไม่มีหน้าเก่าหรี่ซ้อนอยู่ใต้หน้าใหม่", !/--nav-dim/.test(css));
 const ease = (root["--nav-ease"] ?? "").match(/cubic-bezier\(([^)]+)\)/)?.[1].split(",").map(Number) ?? [];
 check.ok(
   "เส้นโค้งความเร็วแบบ iOS: เริ่มเร็ว ค่อย ๆ ช้าลงตอนจบ",

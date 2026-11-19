@@ -296,7 +296,6 @@ export function MobileTopBar({
       {parent ? (
         <Link
           href={parent.href}
-          transitionTypes={["nav-back"]}
           onClick={() => scrollMemory.returnTo(parent.href)}
           aria-label={`กลับไปหน้า${parent.title}`}
           className="back-link"

@@ -1,26 +1,17 @@
 "use client";
 
-import { ViewTransition } from "react";
-
-/** iPhone-style page slides (D78), with the browser's View Transitions and
- *  React's <ViewTransition> — no animation library.
+/** Every page inside one opaque surface — and no slide any more.
  *
- *  Only navigations that say which way they go slide: "nav-forward" (the
- *  home page's big buttons — a page slides in from the right) and
- *  "nav-back" (← — the page slides away to the right). Everything else —
- *  the bottom tabs, the menu, the browser's own back — changes instantly,
- *  as before. A browser without View Transitions changes instantly too.
+ *  D78-6 slid pages in and out with the browser's View Transitions and
+ *  React's <ViewTransition>. On the owner's iPhone (video, 19 Nov) Safari
+ *  still drew the old page faintly behind the new one, under a grey sheet,
+ *  and squashed the tab bar's icons mid-change — after two rounds of fixes.
+ *  As agreed with Chat A for exactly this case, the slide is off: every
+ *  navigation changes the page at once, like a tab switch already did.
  *
- *  Keyed by the path, so each page enters and leaves as a whole. The CSS is
- *  in globals.css, under 300ms, and off entirely under reduced motion.
+ *  The surface stays opaque with the app's own colour (page-surface).
+ *  The `pathname` prop is kept so the layout's call does not change.
  */
-const SLIDE = { "nav-forward": "nav-forward", "nav-back": "nav-back", default: "none" } as const;
-
-export function PageSlide({ pathname, children }: { pathname: string; children: React.ReactNode }) {
-  return (
-    <ViewTransition key={pathname} enter={SLIDE} exit={SLIDE} default="none">
-      {/* Opaque, so the page sliding over another hides it completely. */}
-      <div className="page-surface">{children}</div>
-    </ViewTransition>
-  );
+export function PageSlide({ children }: { pathname: string; children: React.ReactNode }) {
+  return <div className="page-surface">{children}</div>;
 }

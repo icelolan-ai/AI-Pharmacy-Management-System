@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect } from "react";
 import { Boxes, CalendarClock, Camera, PackagePlus, ShoppingCart, type LucideIcon } from "lucide-react";
 
 import { useAuth } from "@/components/auth-provider";
@@ -8,8 +9,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchHealth } from "@/lib/api/client";
-import { listScans } from "@/lib/api/invoice-scans";
-import { listExpiringReport } from "@/lib/api/reports";
+import { listScans, type ScanListItem } from "@/lib/api/invoice-scans";
+import { listExpiringReport, type ExpiringReport } from "@/lib/api/reports";
 import { formatTodayLongBE } from "@/lib/format/date";
 import { greeting, lotsWithin90Days, openScanCount, summaryCardsFor } from "@/lib/home-summary";
 import { setLargeTitle } from "@/lib/nav/large-title";
@@ -29,6 +30,17 @@ const TASK_ICONS: Record<string, LucideIcon> = {
   "/stock": Boxes,
 };
 
+/** The summary's last numbers, kept while the app is open (the owner's
+ *  video, 19 Nov: every return to the home page showed "—" and
+ *  "กำลังโหลด…", then the numbers jumped in). They show at once and are
+ *  refreshed quietly. Kept per signed-in person: another person signing in
+ *  starts empty. Each card is still shown only with its permission. */
+const lastSeen: { userId: string | null; expiring: ExpiringReport | null; scans: ScanListItem[] | null } = {
+  userId: null,
+  expiring: null,
+  scans: null,
+};
+
 export default function HomePage() {
   const { me, profileError } = useAuth();
   const health = useSection((signal) => fetchHealth(signal), {
@@ -44,6 +56,20 @@ export default function HomePage() {
     enabled: cards.scans,
     errorMessage: "โหลดตัวเลขไม่สำเร็จ",
   });
+  // Remembered after each answer arrives (an effect, never during render).
+  useEffect(() => {
+    if (!me) return;
+    if (lastSeen.userId !== me.id) {
+      lastSeen.userId = me.id;
+      lastSeen.expiring = null;
+      lastSeen.scans = null;
+    }
+    if (expiring.data) lastSeen.expiring = expiring.data;
+    if (scans.data) lastSeen.scans = scans.data;
+  }, [me, expiring.data, scans.data]);
+  const remembered = me && lastSeen.userId === me.id ? lastSeen : null;
+  const expiringShown = expiring.data ?? remembered?.expiring ?? null;
+  const scansShown = scans.data ?? remembered?.scans ?? null;
 
   return (
     <>
@@ -73,24 +99,24 @@ export default function HomePage() {
         {cards.expiring || cards.scans ? (
           <section aria-label="สรุปวันนี้" className="grid gap-3">
             {cards.expiring ? (
-              <Link href="/expiry" transitionTypes={["nav-forward"]} className="hero-card block min-h-11">
+              <Link href="/expiry" className="hero-card block min-h-11">
                 <p className="hero-sub">ล็อตที่ต้องดูภายใน 90 วัน</p>
                 <p className="hero-number mt-1">
-                  {expiring.data ? lotsWithin90Days(expiring.data.summary) : "—"}
+                  {expiringShown ? lotsWithin90Days(expiringShown.summary) : "—"}
                 </p>
                 <p className="hero-sub mt-2">
                   {expiring.error
                     ? expiring.error
-                    : expiring.data
-                      ? `🔴 วิกฤต ${expiring.data.summary.critical?.lot_count ?? 0} · 🟠 เสี่ยงสูง ${expiring.data.summary.high_risk?.lot_count ?? 0}`
+                    : expiringShown
+                      ? `🔴 วิกฤต ${expiringShown.summary.critical?.lot_count ?? 0} · 🟠 เสี่ยงสูง ${expiringShown.summary.high_risk?.lot_count ?? 0}`
                       : "กำลังโหลด…"}
                 </p>
               </Link>
             ) : null}
             {cards.scans ? (
-              <Link href="/scan" transitionTypes={["nav-forward"]} className="hero-card-light block min-h-11">
+              <Link href="/scan" className="hero-card-light block min-h-11">
                 <p className="text-sm text-slate-600">ใบส่งของที่ถ่ายไว้ ยังไม่ได้รับเข้า</p>
-                <p className="hero-number mt-1 text-slate-900">{scans.data ? openScanCount(scans.data) : "—"}</p>
+                <p className="hero-number mt-1 text-slate-900">{scansShown ? openScanCount(scansShown) : "—"}</p>
                 {scans.error ? <p className="mt-2 text-sm text-slate-600">{scans.error}</p> : null}
               </Link>
             ) : null}
@@ -104,7 +130,6 @@ export default function HomePage() {
               <li key={task.href} className="flex">
                 <Link
                   href={task.href}
-                  transitionTypes={["nav-forward"]}
                   className="home-task hero-card-light flex flex-1 flex-col items-center justify-center gap-3 p-4 text-center text-lg font-semibold text-slate-900 active:bg-slate-50"
                 >
                   <span aria-hidden="true" className="list-row-icon size-14">
