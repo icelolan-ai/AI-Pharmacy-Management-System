@@ -480,7 +480,7 @@
     gap: var(--group-gap);
   }
   .list-group {
-    background: #ffffff;
+    background: var(--surface);
     border-radius: var(--list-radius);
     box-shadow: var(--list-shadow);
     overflow: hidden;
@@ -928,5 +928,202 @@
   }
   .stat-group [data-slot="card-content"] {
     padding-top: 0;
+  }
+}
+
+/* ==========================================================================
+ * D83 — soft UI (the owner's picture of 19 Nov: "Control Panel · Living Room
+ * · Lamp 1"). Phone only.
+ *
+ * One soft grey for the whole screen. Cards are the same grey, a shade
+ * lighter, raised by a soft light-and-shadow pair instead of an outline or a
+ * dark fill. Fields and the filter track are pressed IN. Titles large but not
+ * heavy. Icons are thin dark line icons in an outlined tile. The one strong
+ * colour is the deep ink of the picture's switches — kept for the ขายยา disc,
+ * confirm buttons and the chosen tab's text.
+ *
+ * Kept from D34 against the picture: the picture's pale grey words are
+ * darkened until every pair passes 4.5:1 on these greys (theme.check.mjs
+ * computes the phone values of both themes); icons stay thicker than its
+ * hairlines; no word under 14px; 44px to press. The chosen filter is raised
+ * AND bold, never told apart by colour alone.
+ * ======================================================================== */
+:root {
+  --soft-bg: #e9eaee;            /* the one grey of the screen */
+  --soft-surface: #f1f2f5;       /* a card: the same grey, a shade lighter */
+  --soft-line: #d6d8df;          /* the thin outline of an icon tile */
+  --soft-dark: 163 167 184;      /* the shadow side, as r g b */
+  --soft-light: 255 255 255;     /* the lit side */
+  --soft-raise: 7px 7px 16px rgb(var(--soft-dark) / 0.45), -7px -7px 16px rgb(var(--soft-light) / 0.9);
+  --soft-raise-sm: 3px 3px 8px rgb(var(--soft-dark) / 0.4), -3px -3px 8px rgb(var(--soft-light) / 0.85);
+  --soft-inset: inset 3px 3px 7px rgb(var(--soft-dark) / 0.4), inset -3px -3px 7px rgb(var(--soft-light) / 0.85);
+  --soft-bar-shadow: 0 -6px 16px rgb(var(--soft-dark) / 0.25);
+  --ink: #24203a;                /* the picture's switches: deep ink */
+  --title-weight: 500;           /* large, not heavy — as in the picture */
+}
+
+@media (width < 40rem) {
+  :root {
+    --page-bg: var(--soft-bg);
+    --surface: var(--soft-surface);
+    --list-shadow: var(--soft-raise);
+    --accent-ink: var(--ink);
+    --accent-soft: var(--surface);
+    --hero-bg: var(--surface);
+    --hero-ink: var(--ink);
+    --hero-ink-soft: var(--color-slate-600);
+    --tab-center-bg: var(--ink);
+  }
+
+  /* ขาว on a phone: the slate greys become the picture's soft greys and
+   * its ink, darkened where the picture is too pale to read (D34). */
+  :root:not([data-theme="blue"]) {
+    --color-slate-50: #e9eaee;
+    --color-slate-100: #e2e3e8;
+    --color-slate-200: #d6d8df;
+    --color-slate-300: #c3c4cf;
+    --color-slate-400: #8a8b9c;
+    --color-slate-500: #5c5d72;
+    --color-slate-600: #4c4c62;
+    --color-slate-700: #3b3a52;
+    --color-slate-800: #2f2b47;
+    --color-slate-900: #24203a;
+    --background: #e9eaee;
+    --foreground: #24203a;
+    --card: #f1f2f5;
+    --card-foreground: #24203a;
+    --primary: #24203a;
+    --primary-foreground: #ffffff;
+    --secondary: #e2e3e8;
+    --secondary-foreground: #24203a;
+    --muted: #e2e3e8;
+    --muted-foreground: #5c5d72;
+    --accent: #e2e3e8;
+    --accent-foreground: #24203a;
+    --border: #d6d8df;
+    --input: #d0d2da;
+    --bar-tint: 233 234 238;
+    --bar-solid: #e9eaee;
+    --bar-text: #24203a;
+    --bar-text-muted: #4c4c62;
+    --sheet-bg: #e2e3e8;
+    --list-divider: #dcdde4;
+    --seg-bg: #e9eaee;
+  }
+
+  /* ฟ้า on a phone: the same soft UI in blue-grey. */
+  :root[data-theme="blue"] {
+    --soft-bg: #e5ebf3;
+    --soft-surface: #edf2f8;
+    --soft-line: #cfd9e6;
+    --soft-dark: 150 166 190;
+    --ink: #15233c;
+    --color-slate-50: #e5ebf3;
+    --background: #e5ebf3;
+    --card: #edf2f8;
+    --bar-tint: 229 235 243;
+    --bar-solid: #e5ebf3;
+    --seg-bg: #e5ebf3;
+    /* The global blue block outranks the plain :root above, so the soft
+     * choices are repeated here for the blue theme. */
+    --list-shadow: var(--soft-raise);
+    --accent-ink: var(--ink);
+    --accent-soft: var(--surface);
+    --hero-bg: var(--surface);
+    --hero-ink: var(--ink);
+    --hero-ink-soft: var(--color-slate-600);
+    --tab-center-bg: var(--ink);
+  }
+
+  .large-title {
+    font-weight: var(--title-weight);
+  }
+  .hero-number {
+    font-weight: var(--title-weight);
+  }
+
+  /* Cards and lists: raised, no outline. */
+  .list-group,
+  .surface-card,
+  .hero-card,
+  .hero-card-light,
+  [data-slot="card"] {
+    background: var(--surface);
+    border-color: transparent;
+    box-shadow: var(--soft-raise);
+  }
+
+  /* The page's main button: a raised soft key with ink words and → (the
+   * picture's "Edit device"); pressed, it sinks in. */
+  .primary-action {
+    border-color: transparent;
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--soft-raise);
+  }
+  .primary-action:active {
+    box-shadow: var(--soft-inset);
+  }
+
+  /* Fields and the filter track are pressed into the page. */
+  [data-slot="input"]:not(:disabled),
+  select:not(:disabled),
+  textarea:not(:disabled) {
+    border-color: transparent;
+    background-color: var(--soft-bg);
+    box-shadow: var(--soft-inset);
+  }
+  .chip-row {
+    background: var(--soft-bg);
+    box-shadow: var(--soft-inset);
+  }
+  /* The chosen filter: raised out of the track AND bold (D34). */
+  .chip-row > [data-slot="button"][aria-pressed="true"],
+  .chip-row > [data-slot="button"][aria-selected="true"] {
+    background: var(--surface);
+    color: var(--ink);
+    box-shadow: var(--soft-raise-sm);
+    font-weight: 700;
+  }
+
+  /* Icons: thin dark line icons in an outlined tile, as in the picture —
+   * at 2px, still thicker than its hairlines (D34). */
+  .list-row-icon {
+    border: 1px solid var(--soft-line);
+    background: var(--surface);
+  }
+  .list-row-icon svg {
+    stroke-width: 2;
+  }
+
+  .back-box {
+    background: var(--surface);
+    box-shadow: var(--soft-raise-sm);
+  }
+
+  /* Plain buttons (รีเฟรช · ทิ้งร่าง …): small raised soft keys. */
+  [data-slot="button"][data-variant="outline"] {
+    border-color: transparent;
+    background: var(--surface);
+    box-shadow: var(--soft-raise-sm);
+  }
+  /* "Nothing here": a pressed-in, empty hollow rather than a dashed box. */
+  .empty-box {
+    border-color: transparent;
+    border-radius: var(--list-radius);
+    background: var(--soft-bg);
+    box-shadow: var(--soft-inset);
+  }
+
+  /* The bars: the screen's own grey, no lines. */
+  .top-bar {
+    border-bottom-color: transparent;
+  }
+  .tab-bar {
+    border-top-color: transparent;
+    box-shadow: var(--soft-bar-shadow);
+  }
+  .tab-center-disc {
+    box-shadow: 0 0 0 0.25rem var(--page-bg), var(--soft-raise-sm);
   }
 }

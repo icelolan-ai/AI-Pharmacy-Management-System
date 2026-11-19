@@ -8,7 +8,7 @@ export function EmptyState({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
+    <div className="empty-box flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-white px-6 py-12 text-center">
       <p className="text-sm font-medium text-slate-900">{title}</p>
       {description ? <p className="max-w-md text-sm text-slate-500">{description}</p> : null}
       {action ? <div className="mt-2">{action}</div> : null}

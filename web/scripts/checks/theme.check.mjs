@@ -71,6 +71,22 @@ const white = Object.assign({}, palette, ...rootBlocks);
 const blueBlock = css.match(/:root\[data-theme="blue"\]\s*\{([^}]*)\}/)?.[1] ?? "";
 const blueOnly = declarations(blueBlock);
 const blue = { ...white, ...blueOnly };
+
+// D83: what a phone actually shows — the soft-UI values under (width < 40rem).
+// Same precedence as the browser: the global blue block outranks the phone's
+// plain :root; the phone's own blue and not-blue blocks outrank both.
+const softRaw = source("app/globals.css");
+const soft = softRaw.slice(softRaw.indexOf("D83 — soft UI")).replace(/\/\*[\s\S]*?\*\//g, "");
+const phoneRoot = declarations(soft.match(/\n {2}:root\s*\{([^}]*)\}/)?.[1] ?? "");
+const phoneWhite = declarations(soft.match(/:root:not\(\[data-theme="blue"\]\)\s*\{([^}]*)\}/)?.[1] ?? "");
+const phoneBlue = declarations(soft.match(/\n {2}:root\[data-theme="blue"\]\s*\{([^}]*)\}/)?.[1] ?? "");
+check.ok(
+  "อ่านค่าบนมือถือ (soft UI) ได้จริงทั้งสองธีม",
+  Object.keys(phoneRoot).length >= 5 && Object.keys(phoneWhite).length >= 20 && Object.keys(phoneBlue).length >= 10,
+  `${Object.keys(phoneRoot).length} / ${Object.keys(phoneWhite).length} / ${Object.keys(phoneBlue).length}`,
+);
+const whitePhone = { ...white, ...phoneRoot, ...phoneWhite };
+const bluePhone = { ...white, ...phoneRoot, ...blueOnly, ...phoneBlue };
 check.ok("อ่านค่าธีมฟ้าได้จริง", Object.keys(blueOnly).length >= 30, `${Object.keys(blueOnly).length} values`);
 
 function resolve(theme, name, depth = 0) {
@@ -90,6 +106,12 @@ const PAIRS = [
   ["--color-slate-500", "--color-white", "ตัวเบา (500) บนการ์ด"],
   ["--color-slate-500", "--page-bg", "ตัวเบา (500) บนพื้นแอป"],
   ["--color-slate-700", "--seg-bg", "แท็บเม็ดยาที่ไม่ได้เลือก บนราง"],
+  ["--color-slate-500", "--surface", "ตัวเบา (500) บนการ์ด/การ์ดนูน"],
+  ["--color-slate-600", "--surface", "ตัวรอง (600) บนการ์ดนูน"],
+  ["--color-slate-500", "--soft-bg", "ตัวเบา (500) ในช่องกรอกที่บุ๋ม", "phone"],
+  ["--muted-foreground", "--soft-bg", "ข้อความตัวอย่างในช่องกรอก", "phone"],
+  ["--ink", "--surface", "ปุ่มหลักนูน: คำสีเข้มบนปุ่ม", "phone"],
+  ["--ink", "--soft-bg", "ตัวเข้มบนพื้นเทา", "phone"],
   ["--primary-foreground", "--primary", "ตัวหนังสือบนปุ่มหลัก / แท็บที่เลือก"],
   ["--hero-ink", "--hero-bg", "ตัวเลขบนการ์ดเข้ม"],
   ["--hero-ink-soft", "--hero-bg", "คำบรรยายบนการ์ดเข้ม"],
@@ -104,9 +126,10 @@ const PAIRS = [
   ["--color-green-700", "--color-white", "สถานะ ปกติ"],
   ["--color-amber-700", "--color-white", "คำเตือน ต่ำกว่าจุดสั่งซื้อ"],
 ];
-for (const [name, theme] of [["ขาว", white], ["ฟ้า", blue]]) {
+for (const [name, theme, onPhone] of [["ขาว", white, false], ["ฟ้า", blue, false], ["ขาว บนมือถือ", whitePhone, true], ["ฟ้า บนมือถือ", bluePhone, true]]) {
   const low = [];
-  for (const [fg, bg, label] of PAIRS) {
+  // Pairs marked "phone" exist only in the phone's soft UI (D83).
+  for (const [fg, bg, label] of PAIRS.filter((pair) => onPhone || pair[3] !== "phone")) {
     const a = resolve(theme, fg);
     const b = resolve(theme, bg);
     if (!a || !b) {
@@ -228,5 +251,27 @@ check.ok("← อยู่ในกล่องมุมมน และยั�
 check.ok("ปุ่มหลัก: คำ แล้วลูกศร →", /\{primaryAction\.label\}\s*<\/span>\s*<ArrowRight aria-hidden="true"/.test(header));
 check.ok("ตัวกรองเป็นแท็บเม็ดยาบนราง", /\.chip-row \{[^}]*background: var\(--seg-bg\)/.test(css));
 check.ok("ไม่มีภาพประกอบ / รูปตกแต่ง ในหน้าแรก", !/<img|<Image|\.png|\.jpg|\.svg"/.test(home));
+
+// --- D83: soft UI (the owner's picture of 19 Nov), phone only ----------------------
+// Everything after the D83 heading is one :root of tokens, then one
+// (width < 40rem) block — so not one soft rule can reach a computer.
+const softTop = soft.replace(/^[\s\S]*?(?=:root)/, "");
+const softOutside = softTop.replace(/^:root\s*\{[^}]*\}\s*/, "");
+check.ok("soft UI ทั้งหมดอยู่ในบล็อกมือถือ (จอคอมไม่เปลี่ยน)", /^@media \(width < 40rem\) \{[\s\S]*\}\s*$/.test(softOutside.trim()) && (softOutside.match(/@media/g) ?? []).length === 1);
+const softRule = (selectorStart) => soft.match(new RegExp(`\\n {2}${selectorStart.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}[^{]*\\{([^}]*)\\}`))?.[1] ?? "";
+check.ok(
+  "การ์ดและรายการนูนด้วยเงานุ่ม ไม่มีเส้นขอบ",
+  /box-shadow: var\(--soft-raise\);/.test(softRule(".list-group,")) && /border-color: transparent;/.test(softRule(".list-group,")),
+);
+check.ok("ปุ่มหลักเป็นปุ่มนูนสีอ่อน คำสีเข้ม และกดแล้วยุบ", /background: var\(--surface\);[\s\S]*color: var\(--ink\);[\s\S]*box-shadow: var\(--soft-raise\);/.test(softRule(".primary-action")) && /box-shadow: var\(--soft-inset\);/.test(softRule(".primary-action:active")));
+check.ok("ช่องกรอกยุบลงในพื้น", /box-shadow: var\(--soft-inset\);/.test(softRule('[data-slot="input"]:not(:disabled),')));
+check.ok(
+  "🔴 ตัวกรองที่เลือก: นูนขึ้น และตัวหนา — ไม่ใช่สีอย่างเดียว (D34)",
+  /box-shadow: var\(--soft-raise-sm\);[\s\S]*font-weight: 700;/.test(softRule('.chip-row > [data-slot="button"][aria-pressed="true"],')),
+);
+check.ok("ไอคอนเป็นเส้นในกรอบเส้นบาง ยังหนากว่าภาพ (2px)", /border: 1px solid var\(--soft-line\);/.test(softRule(".list-row-icon")) && /stroke-width: 2;/.test(softRule(".list-row-icon svg")));
+check.ok("ปุ่มธรรมดา (รีเฟรช · ทิ้งร่าง) เป็นปุ่มนูนเล็ก", /box-shadow: var\(--soft-raise-sm\);/.test(softRule('[data-slot="button"][data-variant="outline"]')) && /data-variant=\{variant \?\? "default"\}/.test(source("components/ui/button.tsx")));
+check.ok("ช่องว่างเปล่าเป็นหลุมยุบ ไม่ใช่กล่องเส้นประ", /box-shadow: var\(--soft-inset\);/.test(softRule(".empty-box")) && /className="empty-box /.test(source("components/common/EmptyState.tsx")));
+check.ok("ไม่มีการ์ดสีเข้มบนมือถือ: การ์ดสรุปเป็นการ์ดนูนสีอ่อน", whitePhone["--hero-bg"] === "var(--surface)" && bluePhone["--hero-bg"] === "var(--surface)");
 
 process.exit(check.done() ? 1 : 0);
