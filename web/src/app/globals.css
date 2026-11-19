@@ -223,11 +223,18 @@
  * redefines these and nothing else.
  */
 /* A page's sections, one under another: 16px apart on a computer (what
- * space-y-4 gave), --group-gap on a phone. */
-.page-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+ * space-y-4 gave), --group-gap on a phone.
+ *
+ * In the components layer, NOT unlayered: it sets display, and an
+ * unlayered display beats every Tailwind utility — `page-stack sm:hidden`
+ * on the home page stayed visible on a computer and drew the phone's home
+ * there, unstyled (the owner's screenshot, 19 Nov). Layered, sm:hidden wins. */
+@layer components {
+  .page-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
 }
 
 :root {

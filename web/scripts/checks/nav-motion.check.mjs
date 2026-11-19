@@ -299,4 +299,18 @@ check.eq(
 );
 check.ok("ขอบซ้ายขวาอย่างน้อย 20px แบบ iOS", parseFloat(root["--page-gutter"]) * 16 >= 20, root["--page-gutter"]);
 
+// --- 7. an unlayered display beats Tailwind's hidden / sm:hidden ------------------
+// `.page-stack { display: flex }` sat outside any layer: `page-stack
+// sm:hidden` kept the phone's home page on a computer, unstyled (the owner's
+// screenshot, 19 Nov). A rule that is neither in a layer nor phone-only may
+// not set display at all.
+const leaks = rules
+  .filter((r) => r.at.length === 0 && r.selector !== ":root" && "display" in r.decls)
+  .map((r) => `${r.selector} { display: ${r.decls.display} }`);
+check.eq("🔴 ไม่มี CSS นอก layer ที่ตั้ง display (จะทับ hidden / sm:hidden)", leaks, []);
+check.ok(
+  "page-stack อยู่ใน layer components (sm:hidden ของหน้าแรกชนะได้)",
+  rules.some((r) => r.selector === ".page-stack" && r.at.includes("@layer components") && r.decls.display === "flex"),
+);
+
 process.exit(check.done() ? 1 : 0);
