@@ -21,6 +21,7 @@ the photos are evidence for whatever was read from them.
 import logging
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any
 from uuid import UUID
 
@@ -212,21 +213,60 @@ _INSERT_IMAGE = (
 )
 
 
-def _check_scan_open(cur, scan_id: UUID) -> None:
-    cur.execute("SELECT status FROM public.invoice_scans WHERE id = %s FOR UPDATE", (scan_id,))
-    scan = cur.fetchone()
+def ensure_open(scan: dict[str, Any] | None) -> None:
     if scan is None:
         raise _not_found()
     if scan["status"] != "uploaded":
         raise _locked()
 
 
+def _check_scan_open(cur, scan_id: UUID) -> None:
+    cur.execute("SELECT status FROM public.invoice_scans WHERE id = %s FOR UPDATE", (scan_id,))
+    ensure_open(cur.fetchone())
+
+
+def profile_and_scan(user_id: UUID, scan_id: UUID) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """The asking person's profile and the scan's status, in one question.
+    Either may be missing; the caller decides what that means, in order."""
+    with db.get_transaction() as cur:
+        cur.execute(
+            """
+            SELECT p.id IS NOT NULL AS has_profile, p.full_name, p.role, p.is_active,
+                   s.id IS NOT NULL AS has_scan, s.status
+            FROM (SELECT %s::uuid AS user_id, %s::uuid AS scan_id) AS asked
+            LEFT JOIN public.user_profiles p ON p.id = asked.user_id
+            LEFT JOIN public.invoice_scans s ON s.id = asked.scan_id
+            """,
+            (user_id, scan_id),
+        )
+        row = cur.fetchone()
+    profile = (
+        {"full_name": row["full_name"], "role": row["role"], "is_active": row["is_active"]}
+        if row["has_profile"] else None
+    )
+    scan = {"status": row["status"]} if row["has_scan"] else None
+    return profile, scan
+
+
+def _upload_both(storage, paths: dict[str, str], prepared: Prepared) -> None:
+    """Both files at once (measured for a 264 KB pair: 351 ms one after the
+    other, 212 ms side by side). Returns only when BOTH calls have ended, even
+    when one fails at once, so nothing is still landing in the bucket when the
+    caller cleans up. Then raises the first failure."""
+    with ThreadPoolExecutor(max_workers=2, thread_name_prefix="scan-upload") as pool:
+        futures = [
+            pool.submit(storage.upload, paths[kind], stored.data, stored.content_type)
+            for kind, stored in (("original", prepared.original), ("for_ai", prepared.for_ai))
+        ]
+    for future in futures:
+        future.result()
+
+
 def add_page(scan_id: UUID, data: bytes, label: str | None, actor_id: UUID,
              client_reported_resized: bool = False) -> dict[str, Any]:
-    # Refuse early, before the work of shrinking, if the scan is not open.
-    with db.get_transaction() as cur:
-        _check_scan_open(cur, scan_id)
-
+    """The endpoint has already refused a scan that is missing or not open,
+    before any shrinking, in the same database question as the user check
+    (open_scan_for). The insert below checks again, under the row lock."""
     started = time.perf_counter()
     try:
         prepared = prepare(data, Limits.from_settings(get_settings()))
@@ -241,13 +281,9 @@ def add_page(scan_id: UUID, data: bytes, label: str | None, actor_id: UUID,
         "original": f"{scan_id}/{token}-original.jpg",
         "for_ai": f"{scan_id}/{token}-for_ai.jpg",
     }
-    uploaded: list[str] = []
     shrunk = time.perf_counter()
     try:
-        storage.upload(paths["original"], prepared.original.data, prepared.original.content_type)
-        uploaded.append(paths["original"])
-        storage.upload(paths["for_ai"], prepared.for_ai.data, prepared.for_ai.content_type)
-        uploaded.append(paths["for_ai"])
+        _upload_both(storage, paths, prepared)
         stored_at = time.perf_counter()
 
         with db.get_transaction() as cur:
@@ -265,11 +301,13 @@ def add_page(scan_id: UUID, data: bytes, label: str | None, actor_id: UUID,
                 write_audit(cur, IMAGE_TABLE, inserted["id"], "insert", None, inserted, actor_id)
     except BaseException:
         # Whatever failed, the files must not outlive the rows that would
-        # have pointed at them.
+        # have pointed at them. Both paths, always: a call that failed may
+        # still have stored its file (a timeout after the bucket took it), and
+        # removing a path that is not there succeeds.
         try:
-            storage.remove(uploaded)
+            storage.remove(list(paths.values()))
         except AppError:
-            logger.warning("Could not remove %d file(s) after a failed page upload", len(uploaded))
+            logger.warning("Could not remove %d file(s) after a failed page upload", len(paths))
         raise
 
     # Where a slow page spent its time (D72: measured, not guessed). Sizes

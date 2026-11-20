@@ -11,6 +11,7 @@ before the first test too, in case an earlier run was cut short.
 import hashlib
 import io
 import time
+from contextlib import contextmanager
 
 import httpx
 import psycopg
@@ -25,7 +26,7 @@ from app.errors import AppError
 from app.scan.storage import BUCKET, Storage
 from app.services import invoice_scans as service
 from tests.db_guard import ENV_TEST_PATH, TEST_PROJECT_REF, ref_from_supabase_url
-from tests.integration.conftest import TEST_CONFIG, api, count_rows, headers
+from tests.integration.conftest import TEST_CONFIG, api, count_rows, headers, make_token
 from tests.seed import seeded_bytes
 
 pytestmark = pytest.mark.db
@@ -355,6 +356,122 @@ def test_files_do_not_outlive_a_failed_save(client, storage, monkeypatch):
     with pytest.raises(RuntimeError):
         _upload(client, scan_id, _page_image())
     assert _rows(scan_id) == [] and _objects() == []
+
+
+# --- after the 2.1 s measurement (Chat A) -------------------------------------
+
+class _OneFails:
+    """The test bucket, with one of the page's two files made to fail.
+
+    fail_at_once: the failing call gives up at once while the other is still
+    on its way (a cleanup that does not wait for it would run before it lands).
+    Otherwise it fails only after the other file is surely in the bucket.
+    """
+
+    def __init__(self, inner, failing_kind, fail_at_once):
+        self.inner, self.failing, self.fail_at_once = inner, f"-{failing_kind}.jpg", fail_at_once
+
+    def upload(self, path, data, content_type):
+        if path.endswith(self.failing):
+            if not self.fail_at_once:
+                time.sleep(1.0)
+            raise AppError("STORAGE_UNAVAILABLE", "test: this file fails", 503, {"step": "upload"})
+        if self.fail_at_once:
+            time.sleep(0.5)
+        self.inner.upload(path, data, content_type)
+
+    def remove(self, paths):
+        self.inner.remove(paths)
+
+
+@pytest.mark.parametrize("failing_kind", ["for_ai", "original"])
+@pytest.mark.parametrize("fail_at_once", [False, True], ids=["fails-after-the-other-landed", "fails-while-the-other-is-on-its-way"])
+def test_one_file_failing_leaves_no_file_and_no_row(client, storage, monkeypatch, failing_kind, fail_at_once):
+    """🔴 The two files go up side by side; if either fails, neither stays."""
+    scan_id = _new_scan(client)
+    monkeypatch.setattr(service, "get_storage", lambda: _OneFails(storage, failing_kind, fail_at_once))
+    assert _upload(client, scan_id, _page_image()).status_code == 503
+    time.sleep(1.0)  # anything still on its way has landed by now
+    assert _objects() == [], "a file outlived the failed page"
+    assert _rows(scan_id) == []
+
+
+def test_the_two_files_go_up_side_by_side(client, storage, monkeypatch):
+    spans = {}
+
+    class Timed:
+        def upload(self, path, data, content_type):
+            start = time.perf_counter()
+            time.sleep(0.3)
+            storage.upload(path, data, content_type)
+            spans[path.rsplit("-", 1)[1]] = (start, time.perf_counter())
+
+        def remove(self, paths):
+            storage.remove(paths)
+
+    monkeypatch.setattr(service, "get_storage", lambda: Timed())
+    assert _upload(client, _new_scan(client), _page_image()).status_code == 201
+    (a_start, a_end), (b_start, b_end) = spans["original.jpg"], spans["for_ai.jpg"]
+    assert max(a_start, b_start) < min(a_end, b_end), "the files went up one after the other"
+
+
+@pytest.mark.parametrize("state", ["sent-for-reading", "missing"])
+def test_a_closed_or_missing_scan_is_refused_before_anything_is_shrunk_or_stored(client, storage, monkeypatch, state):
+    """The gate stays where it was: before the work, not found out after the
+    files are already in the bucket (Chat A: every after-the-fact cleanup is a
+    place an orphan file can be born)."""
+    if state == "missing":
+        scan_id, expected = "00000000-0000-4000-8000-000000000000", 404
+    else:
+        scan_id, expected = _new_scan(client), 409
+        with db.get_transaction() as cur:
+            cur.execute("UPDATE public.invoice_scans SET status = 'extracting' WHERE id = %s", (scan_id,))
+    touched = []
+
+    class Watch:
+        def upload(self, *args):
+            touched.append("stored")
+
+        def remove(self, paths):
+            pass
+
+    monkeypatch.setattr(service, "prepare", lambda *a, **k: touched.append("shrunk"))
+    monkeypatch.setattr(service, "get_storage", lambda: Watch())
+    assert _upload(client, scan_id, _page_image()).status_code == expected
+    assert touched == []
+
+
+@pytest.mark.parametrize(("who", "expected"), [("nobody", 401), ("no-profile", 403), ("staff", 403)])
+def test_the_person_is_checked_before_the_scan(client, storage, who, expected):
+    """Same gates, same order, now in one database question: a missing scan
+    still answers 401/403 to someone who may not ask."""
+    missing = "00000000-0000-4000-8000-000000000000"
+    auth_header = {
+        "nobody": {},
+        "no-profile": {"Authorization": f"Bearer {make_token('00000000-0000-4000-8000-0000000000aa')}"},
+        "staff": headers("staff"),
+    }[who]
+    response = client.post(f"{BASE}/{missing}/pages", content=_page_image(),
+                           headers={**auth_header, "Content-Type": "image/jpeg"})
+    assert response.status_code == expected
+
+
+def test_a_page_asks_the_database_twice(client, storage, monkeypatch):
+    """Who is asking + is the scan open: one question. Saving the rows: the
+    other. Was three (measured ~128 ms each)."""
+    scan_id = _new_scan(client)
+    opened = []
+    real = db.get_transaction
+
+    @contextmanager
+    def counted():
+        opened.append(1)
+        with real() as cur:
+            yield cur
+
+    monkeypatch.setattr(db, "get_transaction", counted)
+    assert _upload(client, scan_id, _page_image()).status_code == 201
+    assert len(opened) == 2
 
 
 def test_an_unknown_scan_is_404(client, storage):

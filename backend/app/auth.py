@@ -29,7 +29,7 @@ LEEWAY_SECONDS = 30
 JWKS_CACHE_SECONDS = 600
 JWKS_TIMEOUT_SECONDS = 5
 
-_bearer = HTTPBearer(auto_error=False, bearerFormat="JWT")
+bearer = HTTPBearer(auto_error=False, bearerFormat="JWT")
 
 
 @dataclass(frozen=True)
@@ -111,16 +111,21 @@ def load_user_profile(user_id: uuid.UUID) -> dict[str, Any] | None:
         return cur.fetchone()
 
 
-def get_current_user(
-    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(_bearer)],
-) -> CurrentUser:
+def claims_from(credentials: HTTPAuthorizationCredentials | None) -> dict[str, Any]:
+    """The verified token's claims, or 401."""
     if credentials is None or not credentials.credentials:
         raise _unauthenticated()
+    return verify_token(credentials.credentials)
 
-    claims = verify_token(credentials.credentials)
-    user_id = uuid.UUID(str(claims["sub"]))
 
-    profile = load_user_profile(user_id)
+def user_id_of(claims: dict[str, Any]) -> uuid.UUID:
+    return uuid.UUID(str(claims["sub"]))
+
+
+def user_from_profile(claims: dict[str, Any], profile: dict[str, Any] | None) -> CurrentUser:
+    """The signed-in person from their profile row, or 403. Shared by every
+    way a profile is loaded, so the rules are written once."""
+    user_id = user_id_of(claims)
     if profile is None:
         raise AppError("FORBIDDEN", "บัญชีนี้ยังไม่ได้รับสิทธิ์ใช้งานระบบ", 403)
     if not profile["is_active"]:
@@ -135,6 +140,19 @@ def get_current_user(
     )
 
 
+def get_current_user(
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
+) -> CurrentUser:
+    claims = claims_from(credentials)
+    return user_from_profile(claims, load_user_profile(user_id_of(claims)))
+
+
+def check_role(user: CurrentUser, allowed: frozenset[str]) -> CurrentUser:
+    if user.role not in allowed:
+        raise AppError("FORBIDDEN", "คุณไม่มีสิทธิ์ทำรายการนี้", 403)
+    return user
+
+
 def require_roles(*roles: str) -> Callable[..., CurrentUser]:
     """Dependency factory: allow only the given roles, else 403."""
     allowed = frozenset(roles)
@@ -142,8 +160,6 @@ def require_roles(*roles: str) -> Callable[..., CurrentUser]:
     def dependency(
         user: Annotated[CurrentUser, Depends(get_current_user)],
     ) -> CurrentUser:
-        if user.role not in allowed:
-            raise AppError("FORBIDDEN", "คุณไม่มีสิทธิ์ทำรายการนี้", 403)
-        return user
+        return check_role(user, allowed)
 
     return dependency

@@ -13,6 +13,11 @@ Verified against the real Storage API before this was written (D67):
 
 Errors say which step failed and the HTTP status. Never the key, never the
 response body (it can echo the path back, and paths carry scan ids).
+
+One HTTP client for the whole app (Chat A, after the 2.1 s measurement): a
+fresh connection per call paid the TLS handshake every time (measured 220 ms
+fresh against 177 ms on a kept connection, for 264 KB). It is opened and
+closed with the app (main.lifespan); every wait has a stated limit.
 """
 
 from dataclasses import dataclass
@@ -27,6 +32,39 @@ from app.errors import AppError
 
 BUCKET = "invoice-scans"
 TIMEOUT_SECONDS = 30
+CONNECT_TIMEOUT_SECONDS = 10
+# How long an unused connection is kept for the next call. Measured on the
+# test project (21 Nov): reused after 5, 20 and 45 s idle. Should the bucket
+# close one sooner, httpcore checks a kept connection before reusing it
+# (has_expired) and opens a new one instead.
+KEEPALIVE_SECONDS = 60
+
+_client: httpx.Client | None = None
+
+
+def open_http() -> None:
+    """Open the shared client (main.lifespan). Opening twice keeps the first."""
+    global _client
+    if _client is None:
+        _client = httpx.Client(
+            timeout=httpx.Timeout(TIMEOUT_SECONDS, connect=CONNECT_TIMEOUT_SECONDS),
+            limits=httpx.Limits(max_connections=10, max_keepalive_connections=4,
+                                keepalive_expiry=KEEPALIVE_SECONDS),
+        )
+
+
+def close_http() -> None:
+    global _client
+    if _client is not None:
+        _client.close()
+        _client = None
+
+
+def _http() -> httpx.Client:
+    if _client is None:
+        # Not a user-facing state: the app opens it before taking requests.
+        raise RuntimeError("storage HTTP client is not open (main.lifespan opens it)")
+    return _client
 
 
 def _unavailable(step: str, status: int | None = None) -> AppError:
@@ -51,11 +89,10 @@ class Storage:
 
     def upload(self, path: str, data: bytes, content_type: str) -> None:
         try:
-            response = httpx.post(
+            response = _http().post(
                 self._object_url(path),
                 headers={**self._headers(), "Content-Type": content_type, "x-upsert": "false"},
                 content=data,
-                timeout=TIMEOUT_SECONDS,
             )
         except httpx.HTTPError:
             raise _unavailable("upload") from None
@@ -66,12 +103,11 @@ class Storage:
         if not paths:
             return
         try:
-            response = httpx.request(
+            response = _http().request(
                 "DELETE",
                 f"{self.base_url}/storage/v1/object/{BUCKET}",
                 headers=self._headers(),
                 json={"prefixes": paths},
-                timeout=TIMEOUT_SECONDS,
             )
         except httpx.HTTPError:
             raise _unavailable("remove") from None
@@ -80,11 +116,10 @@ class Storage:
 
     def signed_url(self, path: str, ttl_seconds: int) -> str:
         try:
-            response = httpx.post(
+            response = _http().post(
                 f"{self.base_url}/storage/v1/object/sign/{BUCKET}/{quote(path)}",
                 headers=self._headers(),
                 json={"expiresIn": ttl_seconds},
-                timeout=TIMEOUT_SECONDS,
             )
         except httpx.HTTPError:
             raise _unavailable("sign") from None

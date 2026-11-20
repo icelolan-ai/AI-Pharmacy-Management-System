@@ -16,6 +16,7 @@ from fastapi.testclient import TestClient
 from pydantic import SecretStr
 
 from app import auth, db
+from app.scan import storage as storage_http
 from app.business_date import fetch_business_today
 from app.config import get_settings
 from app.main import app
@@ -85,7 +86,10 @@ def test_database():
     db.open_pool(SimpleNamespace(database_url=SecretStr(TEST_CONFIG["database_url"])))
     if not db.check_database(timeout=15):
         pytest.exit("DB test guard: cannot reach the test database", returncode=2)
+    # TestClient(app) without `with` skips the app's lifespan; open what it opens.
+    storage_http.open_http()
     yield settings
+    storage_http.close_http()
     db.close_pool()
     patch.undo()
 

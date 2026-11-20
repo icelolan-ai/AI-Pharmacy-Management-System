@@ -13,6 +13,7 @@ from app import db
 from app.business_date import ensure_store_timezone
 from app.config import Settings, get_settings
 from app.errors import register_error_handlers
+from app.scan import storage
 from app.routers import (
     audit_logs,
     health,
@@ -78,6 +79,7 @@ _configure_logging(settings)
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     db.open_pool(settings)
+    storage.open_http()
     if db.check_database(timeout=5.0):
         logger.info("Database reachable at startup")
         # Unknown STORE_TIMEZONE stops startup (ConfigError propagates).
@@ -85,6 +87,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             ensure_store_timezone()
         except Exception:
             db.close_pool()
+            storage.close_http()
             raise
         logger.info("STORE_TIMEZONE verified: %s", settings.store_timezone)
     else:
@@ -94,6 +97,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         yield
     finally:
         db.close_pool()
+        storage.close_http()
 
 
 app = FastAPI(

@@ -13,8 +13,10 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.security import HTTPAuthorizationCredentials
 from fastapi.concurrency import run_in_threadpool
 
+from app import auth
 from app.auth import CurrentUser, require_roles
 from app.config import get_settings
 from app.errors import AppError
@@ -23,7 +25,24 @@ from app.services import invoice_scans as service
 
 router = APIRouter(prefix="/api/v1/invoice-scans", tags=["invoice-scans"])
 
-Manager = Annotated[CurrentUser, Depends(require_roles("owner", "pharmacist"))]
+MANAGER_ROLES = frozenset({"owner", "pharmacist"})
+Manager = Annotated[CurrentUser, Depends(require_roles(*MANAGER_ROLES))]
+
+
+def manager_of_open_scan(
+    scan_id: UUID,
+    credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(auth.bearer)],
+) -> CurrentUser:
+    """For a new page: who is asking AND whether the scan is open, in one
+    database question (Chat A, after the 2.1 s measurement: two questions
+    cost ~128 ms each). The gates and their order are the same as before:
+    401 · 403 (no profile / closed account / not a manager) · 404 · 409 —
+    and all of them before the body is read or anything is shrunk or stored."""
+    claims = auth.claims_from(credentials)
+    profile, scan = service.profile_and_scan(auth.user_id_of(claims), scan_id)
+    user = auth.check_role(auth.user_from_profile(claims, profile), MANAGER_ROLES)
+    service.ensure_open(scan)
+    return user
 
 
 async def read_limited_body(request: Request, limit: int) -> bytes:
@@ -58,7 +77,12 @@ def get_scan(scan_id: UUID, user: Manager):
 
 
 @router.post("/{scan_id}/pages", response_model=PageOut, status_code=status.HTTP_201_CREATED)
-async def post_page(scan_id: UUID, request: Request, user: Manager, resized_on_device: bool = False):
+async def post_page(
+    scan_id: UUID,
+    request: Request,
+    user: Annotated[CurrentUser, Depends(manager_of_open_scan)],
+    resized_on_device: bool = False,
+):
     """`resized_on_device` is the phone saying it shrank the photo first
     (D75). It is recorded as said and checked against nothing (D69)."""
     data = await read_limited_body(request, get_settings().max_upload_bytes)
