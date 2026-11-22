@@ -73,7 +73,7 @@ check.eq(
 // --- the capture screen after the HEIC test (D69) ---------------------------
 // The finding is in: a real iPhone sends JPEG both ways. The temporary panel
 // that showed the browser's label beside the real type has done its job.
-const page = source("app/(app)/scan/page.tsx");
+const page = source("app/(app)/scan/new/page.tsx");  // moved from /scan in 6.4
 
 check.eq(
   "ถอดแผงทดสอบ HEIC ออกแล้ว — ไม่มีคำเทคนิคบนหน้าจอ",

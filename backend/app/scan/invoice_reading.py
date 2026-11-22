@@ -15,6 +15,11 @@ Rules, with where they come from:
   dates       D64: header year 4 digits >= 2400 is พ.ศ.; line years of 2
               digits are ค.ศ. 20yy; day/month settled from unambiguous dates
               of the same field in the same document, else a person decides.
+              D87: never across kinds. The header date is printed by the
+              supplier's system, MFG/EXP come from the maker's lot code: one
+              never settles the other. A header date nothing settles gets a
+              suggestion — the candidate closest to the upload day and not
+              after it — which a person must confirm once.
               D16: month/year only -> last day of the month, and it says the
               day was filled in by the system, not read.
   quantity    a count; "5 กล่อง" in one column is count 5, unit กล่อง when
@@ -38,8 +43,11 @@ from app.scan.invoice_answer import FieldValue, InvoiceAnswer, Line
 
 # D72: guessed, not measured. Review after real invoices (Chat A, 6.3).
 TOLERANCE_SATANG = 1
-# D72: guessed. D85 — confidence may only add a flag, never remove one.
-LOW_CONFIDENCE = 0.8
+# D57 (D72: guessed, review in 6.7). D85 — confidence may only add a flag,
+# never remove one. Quantities, money and expiry need more certainty.
+LOW_CONFIDENCE = 0.80
+LOW_CONFIDENCE_STRICT = 0.90
+STRICT_FIELDS = frozenset({"quantity", "unit_price", "line_discount", "amount", "exp", "total_amount"})
 VAT_RATE = Decimal("1.07")
 
 _MONEY = re.compile(r"^(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d{1,2})?$")
@@ -210,10 +218,28 @@ def _flag(flags: list[dict[str, str]], field: str, why: str) -> None:
         flags.append({"field": field, "why": why})
 
 
+def threshold(name: str) -> float:
+    """D57: below this, a person must touch the field before going on."""
+    return LOW_CONFIDENCE_STRICT if name in STRICT_FIELDS else LOW_CONFIDENCE
+
+
+def _suggest(doc_date: dict[str, Any], uploaded_on: date | None) -> None:
+    """D87: for a header date nothing settles, pre-select the candidate
+    closest to the upload day that is not after it. Never chosen silently:
+    it is marked as a suggestion and the date stays a field to confirm."""
+    doc_date["suggested"] = None
+    if not doc_date["ambiguous"] or uploaded_on is None:
+        return
+    past = [c for c in doc_date["candidates"] if date.fromisoformat(c) <= uploaded_on]
+    if past:
+        doc_date["suggested"] = max(past)
+        doc_date["suggested_why"] = "closest_to_upload_day_not_after_it"
+
+
 def _field_flags(flags: list[dict[str, str]], name: str, field: FieldValue) -> None:
     if field.state == "unreadable":
         _flag(flags, name, "unreadable")
-    elif field.state == "read" and field.confidence is not None and field.confidence < LOW_CONFIDENCE:
+    elif field.state == "read" and field.confidence is not None and field.confidence < threshold(name):
         _flag(flags, name, "low_confidence")
 
 
@@ -223,6 +249,9 @@ def _name(line: Line, by_no: dict[int, Line], flags: list[dict[str, str]]) -> tu
         source = by_no.get(repeat.from_line) if repeat.from_line is not None else None
         verified = source is not None and source.line_no < line.line_no and source.name.state == "read"
         if repeat.sure and repeat.derived_name and verified:
+            # Chat A 6.4: a carried name is shown as carried and confirmed
+            # by a person, however sure the AI was.
+            _flag(flags, "name", "carried_from_line")
             return repeat.derived_name, repeat.from_line
         _flag(flags, "name", "repeat_not_sure" if not repeat.sure else "repeat_not_verified")
         return None, repeat.from_line
@@ -233,14 +262,17 @@ def _name(line: Line, by_no: dict[int, Line], flags: list[dict[str, str]]) -> tu
     return (line.name.text if line.name.state == "read" else None), None
 
 
-def interpret(answer: InvoiceAnswer, page_count: int) -> dict[str, Any]:
+def interpret(answer: InvoiceAnswer, page_count: int, uploaded_on: date | None = None) -> dict[str, Any]:
     by_no = {line.line_no: line for line in answer.lines}
     mfg_texts = [(line.line_no, _DateText(line.mfg, in_header=False)) for line in answer.lines]
     exp_texts = [(line.line_no, _DateText(line.exp, in_header=False)) for line in answer.lines]
     mfg_order = _settle(mfg_texts)
     exp_order = _settle(exp_texts)
-    header_order = _settle(mfg_texts + exp_texts)
+    # D87: header dates settle only from other header dates. The answer
+    # holds one (doc_date), so there is nothing to settle it from yet.
+    header_order = _settle([])
     doc_date = _decide(_DateText(answer.doc_date, in_header=True), *header_order)
+    _suggest(doc_date, uploaded_on)
     header_flags: list[dict[str, str]] = []
     for name in ("supplier_name", "supplier_tax_id", "invoice_no", "doc_date"):
         _field_flags(header_flags, name, getattr(answer, name))
@@ -324,8 +356,20 @@ def interpret(answer: InvoiceAnswer, page_count: int) -> dict[str, Any]:
         "skipped_checks": skipped,
         "warnings": warnings,
         "tolerance_satang": TOLERANCE_SATANG,
-        "guessed_values": {"tolerance_satang": TOLERANCE_SATANG, "low_confidence": LOW_CONFIDENCE},
+        "guessed_values": {"tolerance_satang": TOLERANCE_SATANG, "low_confidence": LOW_CONFIDENCE,
+                           "low_confidence_strict": LOW_CONFIDENCE_STRICT},
+        "must_check": must_check(header_flags, lines, totals),
     }
+
+
+def must_check(header_flags, lines, totals) -> list[str]:
+    """Every field a person must touch before going on (D57 · D85 · D87):
+    each flag of each field, as a path the review page and the server share."""
+    paths = [f"header.{flag['field']}" for flag in header_flags]
+    for entry in lines:
+        paths.extend(f"lines.{entry['line_no']}.{flag['field']}" for flag in entry["flags"])
+    paths.extend(f"totals.boxes.{flag['box']}" for flag in totals["flags"])
+    return sorted(set(paths), key=paths.index)
 
 
 def _role(label: str) -> str | None:
@@ -392,5 +436,13 @@ def _check_totals(answer: InvoiceAnswer, lines: list[dict[str, Any]]):
     if needs("base_plus_vat_is_net", "base_before_vat", "vat", "net"):
         compare("base_plus_vat_is_net", known["base_before_vat"] + known["vat"], known["net"])
 
-    totals = {"roles": known, "unknown_labels": unknown, "labels_used_twice": sorted(set(doubled))}
+    box_flags: list[dict[str, str]] = []
+    for index, box in enumerate(answer.totals.boxes):
+        mine: list[dict[str, str]] = []
+        _field_flags(mine, "total_amount", box.amount)
+        if box.amount.state == "read" and money_satang(box.amount.text) is None:
+            _flag(mine, "total_amount", "not_money")
+        box_flags.extend({"box": index, "why": flag["why"]} for flag in mine)
+    totals = {"roles": known, "unknown_labels": unknown, "labels_used_twice": sorted(set(doubled)),
+              "flags": box_flags}
     return checks, skipped, totals

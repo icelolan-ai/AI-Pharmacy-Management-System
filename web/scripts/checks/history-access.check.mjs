@@ -148,15 +148,15 @@ check.eq(
 //   /receiving/[id]   loads the draft in a plain effect with no `allowed`
 //                     check, so a staff URL does fire one request that the
 //                     backend then rejects. Recorded, not fixed here.
-//   /scan             (6.2) loads nothing when it opens. Its only requests —
-//                     create the scan, send a page, delete a page — start
-//                     from buttons, and those buttons are rendered only past
-//                     the gate. If it ever starts loading on open (say, a
-//                     list of earlier scans), that load belongs in useSection.
+//   /scan/new         (6.2, moved from /scan in 6.4) loads nothing when it
+//                     opens. Its only requests — create the scan, send a page,
+//                     delete a page, read it — start from buttons rendered
+//                     only past the gate. The list of earlier scans is /scan,
+//                     and that one loads through useSection.
 check.eq(
   "รายชื่อหน้าที่มีด่านแต่ไม่ได้ใช้ useSection ตรงกับที่รู้จัก",
   gated.filter((page) => !/useSection\(/.test(page.text)).map((page) => page.route).sort(),
-  ["/receiving/[id]", "/scan", "/settings/store"],
+  ["/receiving/[id]", "/scan/new", "/settings/store"],
 );
 
 // --- 4. GROUP 2 — the flags that really work must stay ---------------------

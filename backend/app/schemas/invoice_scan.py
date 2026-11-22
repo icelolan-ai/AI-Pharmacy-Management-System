@@ -46,6 +46,11 @@ class DeviceResizeOut(BaseModel):
 class ScanDetailOut(BaseModel):
     id: UUID
     status: str
+    # 6.4: what the reading came to, for the review page (ExtractOut has the
+    # same three). Null until the scan has been read.
+    failed_reason: str | None
+    doc_kind: str | None
+    extracted: dict[str, Any] | None
     created_at: datetime
     created_by: UUID | None
     created_by_name: str | None
@@ -79,3 +84,11 @@ class ExtractOut(BaseModel):
     thinking_tokens: int | None
     cost_estimate_satang: int | None
     extracted: dict[str, Any] | None
+
+
+class DeletedScanOut(BaseModel):
+    """6.4: a whole scan gone. files_removed is false when the rows went but
+    the bucket refused: the files are then wasted space, logged, never a hole."""
+    id: UUID
+    page_count: int
+    files_removed: bool

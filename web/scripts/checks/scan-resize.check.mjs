@@ -154,11 +154,11 @@ const run = async (name, m, settings = SETTINGS, timeout) => {
 }
 
 // --- 4. one source for the numbers -----------------------------------------
-const page = source("app/(app)/scan/page.tsx");
+const page = source("app/(app)/scan/new/page.tsx");  // moved from /scan in 6.4
 const code = (text) => text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
 check.eq(
   "ไม่มีเลข 3000 หรือ 88 เขียนตายในโค้ดฝั่งเว็บ (อ่านจาก backend ที่เดียว)",
-  [["device-resize.ts", tsSource], ["scan/page.tsx", page]]
+  [["device-resize.ts", tsSource], ["scan/new/page.tsx", page]]
     .filter(([, text]) => /\b(3000|88|0\.88)\b/.test(code(text)))
     .map(([name]) => name),
   [],

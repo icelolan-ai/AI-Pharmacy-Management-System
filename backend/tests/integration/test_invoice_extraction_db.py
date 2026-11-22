@@ -17,11 +17,12 @@ from app.ai.base import AIResult, ImagePart
 from app.config import get_settings
 from app.errors import AppError
 from app.scan.invoice_prompt import PROMPT, PROMPT_VERSION
-from app.schemas.invoice_scan import ExtractOut
+from app.schemas.invoice_scan import DeletedScanOut, ExtractOut, ScanDetailOut
 from app.services import invoice_extraction
+from app.services import invoice_scans as scans_service
 from tests.fake_invoice_answers import answer_for, as_text, changed, read
 from tests.integration.conftest import api, insert_lot, insert_medicine, insert_supplier
-from tests.integration.test_invoice_scans_db import _new_scan, _rows, _upload, storage  # noqa: F401
+from tests.integration.test_invoice_scans_db import _new_scan, _objects, _rows, _upload, storage  # noqa: F401
 from tests.integration.test_inventory_db import purchase_body
 
 pytestmark = pytest.mark.db
@@ -309,3 +310,78 @@ def test_a_confirmed_purchase_still_cannot_be_deleted_and_the_scan_stays(client,
            (purchase_id, scan_id))
     assert api(client, "delete", f"/api/v1/purchases/{purchase_id}", "owner").status_code == 409
     assert scan_row(scan_id)["status"] == "converted"
+
+
+
+# --- 6.4: the scan detail carries the reading --------------------------------
+
+def test_the_detail_carries_the_reading_for_the_review_page(client, storage, ai):
+    ai(FakeAI(as_text(answer_for("fake-a"))))
+    scan_id = scan_with(client)
+    before = api(client, "get", f"{BASE}/{scan_id}").json()
+    assert before["extracted"] is None and before["failed_reason"] is None
+    extract(client, scan_id)
+    body = api(client, "get", f"{BASE}/{scan_id}").json()
+    assert set(ScanDetailOut.model_fields) <= set(body)   # D36
+    assert body["status"] == "needs_review" and body["doc_kind"] == "tax_invoice"
+    assert body["extracted"]["ai"] == answer_for("fake-a")
+    assert "header.doc_date" in body["extracted"]["derived"]["must_check"]
+
+
+# --- 6.4: deleting a whole scan ----------------------------------------------
+
+def _set_status(scan_id, status, **extra):
+    sets = ", ".join(["status = %s", *(f"{key} = %s" for key in extra)])
+    _write(f"UPDATE public.invoice_scans SET {sets} WHERE id = %s", (status, *extra.values(), scan_id))
+
+
+@pytest.mark.parametrize("status,extra", [("uploaded", {}), ("needs_review", {}),
+                                          ("failed", {"failed_reason": "ai_not_json"})])
+def test_a_whole_scan_goes_with_every_file_and_row(client, storage, status, extra):
+    scan_id = scan_with(client)
+    _set_status(scan_id, status, **extra)
+    response = api(client, "delete", f"{BASE}/{scan_id}")
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert set(DeletedScanOut.model_fields) <= set(body)
+    assert (body["page_count"], body["files_removed"]) == (2, True)
+    assert _objects() == [], "a file is left in the bucket"
+    assert _rows(scan_id) == [] and scan_row(scan_id) is None
+    with db.get_transaction() as cur:
+        cur.execute("SELECT action, changed_by, reason, old_value FROM public.audit_logs"
+                    " WHERE table_name = 'invoice_scans' AND record_id = %s AND action = 'delete'", (scan_id,))
+        audit = cur.fetchone()
+    assert audit["reason"] == "ลบทั้งใบ 2 หน้า" and audit["changed_by"] is not None
+    assert audit["old_value"]["page_count"] == 2 and audit["old_value"]["file_count"] == 4
+
+
+@pytest.mark.parametrize("status,words", [
+    ("converted", "สร้างใบรับสินค้าแล้ว"), ("rejected", "เก็บไว้เป็นหลักฐาน"), ("extracting", "กำลังอ่าน")])
+def test_a_scan_that_is_evidence_or_busy_is_not_deleted(client, storage, today, status, words):
+    scan_id = scan_with(client)
+    if status == "converted":
+        _set_status(scan_id, "converted", purchase_id=_draft_purchase(client, today))
+    else:
+        _set_status(scan_id, status)
+    files_before = _objects()
+    response = api(client, "delete", f"{BASE}/{scan_id}")
+    assert response.status_code == 409 and words in response.json()["error"]["message"]
+    assert scan_row(scan_id) is not None and _objects() == files_before
+
+
+def test_when_the_bucket_refuses_no_row_is_left_behind(client, storage, monkeypatch):
+    scan_id = scan_with(client)
+
+    class Refusing:
+        def remove(self, paths):
+            raise AppError("STORAGE_UNAVAILABLE", "x", 503)
+
+    monkeypatch.setattr(scans_service, "get_storage", lambda: Refusing())
+    body = api(client, "delete", f"{BASE}/{scan_id}").json()
+    assert body["files_removed"] is False
+    assert scan_row(scan_id) is None and _rows(scan_id) == []
+
+
+def test_deleting_needs_rights_and_a_scan(client, storage):
+    assert api(client, "delete", f"{BASE}/{scan_with(client)}", "staff").status_code == 403
+    assert api(client, "delete", f"{BASE}/00000000-0000-4000-8000-000000000000").status_code == 404

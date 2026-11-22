@@ -27,6 +27,8 @@ const DECLARED: readonly Declared[] = [
   { pattern: "/receiving", parent: "/" },
   { pattern: "/receiving/[id]", parent: "/receiving", title: "ใบรับสินค้า" },
   { pattern: "/scan", parent: "/" },
+  { pattern: "/scan/new", parent: "/scan", title: "ถ่ายใบใหม่" },
+  { pattern: "/scan/[id]", parent: "/scan", title: "ตรวจใบส่งของ" },
   { pattern: "/reports/low-stock", parent: "/" },
   { pattern: "/expiry", parent: "/" },
   { pattern: "/reports/expired", parent: "/" },

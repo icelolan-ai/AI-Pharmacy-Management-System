@@ -130,3 +130,85 @@ export type ScanListItem = {
 export function listScans(signal?: AbortSignal): Promise<ScanListItem[]> {
   return apiFetch<ScanListItem[]>("/api/v1/invoice-scans", { signal, cache: "no-store" });
 }
+
+/** 6.3/6.4: what the reading came to. The AI's copy (`ai`) and what our
+ *  backend made of it (`derived`) — docs/06-ai-design.md 2.4. Kept loose on
+ *  purpose: the page reads it, never writes it. */
+export type AiField = { state: "read" | "absent" | "unreadable"; text: string | null; confidence: number | null };
+export type DecidedDate = {
+  text: string | null;
+  state: string;
+  value: string | null;
+  ambiguous: boolean;
+  candidates: string[];
+  how: string;
+  day_filled_by_system: boolean;
+  suggested?: string | null;
+};
+export type Flag = { field: string; why: string };
+export type DerivedLine = {
+  line_no: number;
+  page_no: number;
+  name: string | null;
+  name_from_line: number | null;
+  free_goods: boolean;
+  quantity: number | null;
+  unit: string | null;
+  unit_price_satang: number | null;
+  line_discount_satang: number | null;
+  amount_satang: number | null;
+  lot: string | null;
+  lot_state: string;
+  mfg: DecidedDate;
+  exp: DecidedDate;
+  flags: Flag[];
+};
+export type TotalCheck = {
+  rule: string;
+  ok: boolean;
+  expected_satang: number;
+  printed_satang: number;
+  line_no?: number;
+};
+export type Extracted = {
+  schema_version: number;
+  ai: {
+    doc_kind: string;
+    supplier_name: AiField;
+    supplier_tax_id: AiField;
+    invoice_no: AiField;
+    doc_date: AiField;
+    lines: Array<{ line_no: number; page_no: number; name: AiField; [field: string]: unknown }>;
+    totals: { page_no: number | null; boxes: Array<{ label: string; amount: AiField }> };
+  };
+  derived: {
+    doc_date: DecidedDate;
+    header_flags: Flag[];
+    lines: DerivedLine[];
+    totals: { roles: Record<string, number>; unknown_labels: string[]; flags: Array<{ box: number; why: string }> };
+    checks: TotalCheck[];
+    warnings: Array<{ why: string; page_no?: number }>;
+    must_check: string[];
+  };
+};
+
+export type ScanDetail = Scan & {
+  failed_reason: string | null;
+  doc_kind: string | null;
+  extracted: Extracted | null;
+};
+
+export function getScan(scanId: string, signal?: AbortSignal): Promise<ScanDetail> {
+  return apiFetch<ScanDetail>(`/api/v1/invoice-scans/${scanId}`, { signal, cache: "no-store" });
+}
+
+export type ExtractResult = { id: string; status: string; failed_reason: string | null };
+
+/** Reads the scan with AI. Ends needs_review or failed — both are answers. */
+export function extractScan(scanId: string): Promise<ExtractResult> {
+  return apiFetch<ExtractResult>(`/api/v1/invoice-scans/${scanId}/extract`, { method: "POST" });
+}
+
+export function deleteScan(scanId: string): Promise<{ id: string; page_count: number; files_removed: boolean }> {
+  return apiFetch(`/api/v1/invoice-scans/${scanId}`, { method: "DELETE" });
+}

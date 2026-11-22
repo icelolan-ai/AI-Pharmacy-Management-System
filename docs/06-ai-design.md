@@ -442,3 +442,63 @@ D:\work\claude-design\pharmacy-private\
 - ⚠️ ใบ B ใช้ฟอนต์ลายมือ ไม่ใช่ลายมือคนจริง — ยังไม่ใช่หลักฐานความแม่นของใบเขียนมือจริง (D65)
 - ผู้ให้บริการตอบ 503 (ไม่ว่าง) 3 ครั้งระหว่างทดสอบ — นี่คือกรณี `ai_unavailable` ที่ต้องมีปุ่มลองใหม่ให้คน
 
+---
+
+## 9. 6.4 — ข้อเสนอ schema (รออนุมัติ ยังไม่ลง migration)
+
+Chat A 6.4 ข้อ 2: ห้ามเขียนทับคำตอบของ AI · เก็บแยกค่าที่ AI อ่าน · ค่าที่คนยืนยันหรือแก้ · ใครแก้ เมื่อไหร่ (กฎข้อ 42) · 6.7 ใช้คู่นี้วัดความแม่น · ถ้าต้องแก้ schema ให้เสนอก่อน
+
+### 9.1 Migration 015 (ร่าง)
+
+```sql
+-- ทุกครั้งที่คนแตะหนึ่งช่อง = หนึ่งแถว · เพิ่มอย่างเดียว ไม่แก้ ไม่ลบ (ยกเว้นตามใบที่ถูกลบทั้งใบ)
+create table public.invoice_scan_corrections (
+  id           uuid primary key default gen_random_uuid(),
+  scan_id      uuid not null references public.invoice_scans (id) on delete cascade,
+  field_path   text not null check (field_path ~ '^(header\.[a-z_]+|lines\.[0-9]+\.[a-z_]+|totals\.boxes\.[0-9]+)$'),
+  ai_value     jsonb not null,  -- ช่องของ AI ตามที่อ่าน {state, text, confidence} — คัดลอกมาจาก extracted.ai
+  shown_value  text,            -- ค่าที่หน้าแสดงให้คนเห็น (ที่โค้ดเราตีความ) · null = ไม่มีค่า
+  person_value text,            -- ค่าที่คนยืนยันหรือแก้ · null = คนยืนยันว่าไม่มี
+  action       text not null check (action in ('confirmed', 'changed')),
+  changed_by   uuid not null references auth.users (id),
+  changed_at   timestamptz not null default now(),
+  -- confirmed = รับค่าที่แสดง · changed = ใส่ค่าอื่น (D76: is distinct from กัน NULL ทั้งสองฝั่ง)
+  constraint corrections_action_matches check (
+    (action = 'confirmed') = (person_value is not distinct from shown_value))
+);
+create index invoice_scan_corrections_scan on public.invoice_scan_corrections (scan_id, field_path, changed_at desc);
+alter table public.invoice_scan_corrections enable row level security;  -- ไม่มี Policy
+
+alter table public.invoice_scans
+  add column rejected_reason text,
+  add column rejected_by     uuid references auth.users (id),
+  add column rejected_at     timestamptz,
+  add column reviewed_by     uuid references auth.users (id),
+  add column reviewed_at     timestamptz;
+-- ปฏิเสธต้องมีเหตุผล ใคร เมื่อไหร่ · และมีได้เฉพาะตอน rejected
+alter table public.invoice_scans add constraint invoice_scans_rejected_has_reason check (
+  (status = 'rejected') = (rejected_reason is not null and btrim(rejected_reason) <> ''
+                           and rejected_by is not null and rejected_at is not null));
+-- "ตรวจเสร็จ" มีได้เฉพาะใบที่อ่านแล้ว · ทั้งคู่มาด้วยกัน
+alter table public.invoice_scans add constraint invoice_scans_reviewed_pair check (
+  (reviewed_at is null) = (reviewed_by is null));
+alter table public.invoice_scans add constraint invoice_scans_reviewed_only_after_reading check (
+  reviewed_at is null or status in ('needs_review', 'converted'));
+```
+
+### 9.2 Endpoint (ร่าง)
+
+| endpoint | ทำอะไร | ด่าน |
+|---|---|---|
+| `POST /invoice-scans/{id}/fields` `{field_path, person_value, action}` | เพิ่มแถวแก้ไข 1 แถว + audit | เฉพาะ `needs_review` ที่ยังไม่ตรวจเสร็จ · `field_path` ต้องมีอยู่ในคำตอบจริง · backend ใส่ `ai_value` และ `shown_value` เอง ไม่เชื่อจากเว็บ |
+| `POST /invoice-scans/{id}/review-done` | ตั้ง `reviewed_at/by` = "ไปต่อ" | 🔴 ทุกช่องใน `derived.must_check` ต้องมีแถวแก้ไขอย่างน้อย 1 แถว ไม่งั้น 409 พร้อมรายชื่อช่องที่ยังไม่แตะ (D57 · D85 · D87) |
+| `POST /invoice-scans/{id}/reject` `{reason}` | สถานะ `rejected` + เหตุผล ใคร เมื่อไหร่ + audit | จาก `uploaded` · `needs_review` · `failed` · ใบและรูปเก็บไว้ ลบไม่ได้ (D58) |
+
+- ค่าปัจจุบันของแต่ละช่อง = แถวล่าสุดของ `field_path` นั้น · คำตอบของ AI ใน `extracted.ai` ไม่ถูกแตะเลย
+- 6.7 วัดได้ 2 อย่างจากตารางเดียว: AI อ่านถูกไหม (`ai_value` กับ `person_value`) และโค้ดเราตีความถูกไหม (`shown_value` กับ `person_value`)
+- ลบทั้งใบ (ใบที่ไม่เคยเป็นหลักฐาน) แถวแก้ไขหายไปด้วย · audit ของการลบยังอยู่
+
+### 9.3 ขออนุมัติเพิ่ม (ไม่ทำจนกว่าอนุมัติ)
+
+- **วันครบกำหนดชำระในคำตอบของ AI** — D87 ให้อนุมานวันที่หัวใบจากวันที่หัวใบอื่น แต่คำตอบตอนนี้มีแค่ `doc_date` · ต้องเพิ่มช่อง `due_date` ใน schema และ prompt = prompt ฉบับใหม่ `invoice-6.4-v2` ต้องแก้ข้อ 1 ของเอกสารนี้ด้วย
+

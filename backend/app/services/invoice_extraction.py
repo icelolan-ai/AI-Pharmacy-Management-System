@@ -27,7 +27,7 @@ is no silent retry.
 
 import logging
 import time
-from datetime import timedelta
+from datetime import date, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 from uuid import UUID
@@ -94,13 +94,15 @@ def cost_satang(result: AIResult | None) -> int | None:
     return int((usd * Decimal(str(rate)) * 100).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
 
 
-def _claim(scan_id: UUID, actor_id: UUID) -> list[str]:
-    """Move the scan to extracting, or refuse. Returns the for_ai paths."""
+def _claim(scan_id: UUID, actor_id: UUID) -> tuple[list[str], date]:
+    """Move the scan to extracting, or refuse. Returns the for_ai paths and
+    the shop's date the scan was made (D87 suggests a header date from it)."""
     with db.get_transaction() as cur:
         cur.execute(
-            "SELECT id, status, updated_at, now() - updated_at AS age FROM public.invoice_scans"
+            "SELECT id, status, updated_at, now() - updated_at AS age,"
+            " (created_at AT TIME ZONE %s)::date AS uploaded_on FROM public.invoice_scans"
             " WHERE id = %s FOR UPDATE",
-            (scan_id,),
+            (get_settings().store_timezone, scan_id),
         )
         scan = cur.fetchone()
         if scan is None:
@@ -124,7 +126,7 @@ def _claim(scan_id: UUID, actor_id: UUID) -> list[str]:
         row = cur.fetchone()
         write_audit(cur, SCAN_TABLE, scan_id, "update", {"status": scan["status"]}, _audited(row), actor_id,
                     reason="เริ่มอ่านใบด้วย AI")
-    return paths
+    return paths, scan["uploaded_on"]
 
 
 def _finish(scan_id: UUID, actor_id: UUID, values: dict[str, Any]) -> dict[str, Any]:
@@ -144,7 +146,7 @@ def _finish(scan_id: UUID, actor_id: UUID, values: dict[str, Any]) -> dict[str, 
 
 
 def extract(scan_id: UUID, actor_id: UUID, provider: AIProvider | None = None) -> dict[str, Any]:
-    paths = _claim(scan_id, actor_id)
+    paths, uploaded_on = _claim(scan_id, actor_id)
     settings = get_settings()
     values: dict[str, Any] = {"prompt_version": PROMPT_VERSION}
     result: AIResult | None = None
@@ -171,7 +173,7 @@ def extract(scan_id: UUID, actor_id: UUID, provider: AIProvider | None = None) -
             raw_response=Jsonb(result.raw_body) if result.raw_body is not None else None,
         )
         answer = parse_answer(result.text, len(paths))
-        derived = interpret(answer, len(paths))
+        derived = interpret(answer, len(paths), uploaded_on)
         values.update(
             status="needs_review",
             doc_kind=answer.doc_kind,

@@ -8,12 +8,16 @@ deciding must give different results somewhere, or the test proves nothing).
 import pytest
 
 from app.scan.invoice_answer import InvoiceAnswer
-from app.scan.invoice_reading import LOW_CONFIDENCE, TOLERANCE_SATANG, count, interpret, money_satang
+from datetime import date
+
+from app.scan.invoice_reading import (
+    LOW_CONFIDENCE, LOW_CONFIDENCE_STRICT, TOLERANCE_SATANG, count, interpret, money_satang,
+)
 from tests.fake_invoice_answers import answer_for, changed, read
 
 
-def run(answer: dict, pages: int = 2) -> dict:
-    return interpret(InvoiceAnswer.model_validate(answer), pages)
+def run(answer: dict, pages: int = 2, uploaded_on=None) -> dict:
+    return interpret(InvoiceAnswer.model_validate(answer), pages, uploaded_on)
 
 
 def line(result: dict, line_no: int) -> dict:
@@ -84,8 +88,11 @@ def test_the_word_แถม_alone_does_not_make_a_line_free():
 # --- repeat marks (D63) -------------------------------------------------------
 
 def test_a_sure_repeat_carries_the_name_from_its_line():
-    entry = line(run(answer_for("fake-a")), 4)
+    result = run(answer_for("fake-a"))
+    entry = line(result, 4)
     assert (entry["name"], entry["name_from_line"]) == ("ยาแก้ไอน้ำดำ 180cc", 3)
+    # ...and a person confirms it once (Chat A 6.4).
+    assert ("name", "carried_from_line") in flags(entry) and "lines.4.name" in result["must_check"]
 
 
 def test_an_unsure_repeat_leaves_the_name_to_a_person():
@@ -115,7 +122,7 @@ def test_a_repeat_mark_the_ai_missed_is_caught():
 
 def test_header_year_in_พศ_and_line_years_in_คศ():
     result = run(answer_for("fake-a"))
-    assert result["doc_date"]["value"] == "2026-09-04"
+    assert result["doc_date"]["candidates"] == ["2026-09-04", "2026-04-09"]
     assert line(result, 1)["mfg"]["value"] == "2024-01-15"
     assert line(result, 1)["exp"]["value"] == "2027-01-14"
 
@@ -275,3 +282,59 @@ def test_two_boxes_with_the_same_part_are_both_left_out():
 def test_totals_not_on_the_last_page_are_warned_about():
     answer = changed("fake-a", lambda a: a["totals"].update(page_no=1))
     assert {"why": "totals_not_on_last_page", "page_no": 1} in run(answer)["warnings"]
+
+
+# --- D87: never across kinds of date -------------------------------------------
+
+def test_the_header_date_is_not_settled_by_mfg_or_exp():
+    """Every MFG/EXP on fake A is day-first, and still the header '04/09/2569'
+    stays open: it comes from the supplier's system, they from the maker."""
+    result = run(answer_for("fake-a"))
+    assert result["doc_date"]["value"] is None and result["doc_date"]["ambiguous"] is True
+    assert {"field": "doc_date", "why": "ambiguous_date"} in result["header_flags"]
+
+
+def test_lines_are_still_settled_by_lines_of_the_same_field():
+    assert line(run(answer_for("fake-a")), 3)["exp"]["value"] == "2028-06-05"
+
+
+@pytest.mark.parametrize("uploaded_on,suggested", [
+    (date(2026, 9, 10), "2026-09-04"),   # both before the upload: the nearer one
+    (date(2026, 5, 1), "2026-04-09"),    # 4 Sep is still in the future: not offered
+    (date(2026, 1, 1), None),            # both in the future: nothing offered
+])
+def test_an_open_header_date_suggests_the_closest_day_not_after_the_upload(uploaded_on, suggested):
+    doc_date = run(answer_for("fake-a"), uploaded_on=uploaded_on)["doc_date"]
+    assert doc_date["suggested"] == suggested
+    assert doc_date["value"] is None, "a suggestion is never the value until a person confirms"
+
+
+def test_a_suggested_header_date_still_needs_one_confirmation():
+    result = run(answer_for("fake-a"), uploaded_on=date(2026, 9, 10))
+    assert "header.doc_date" in result["must_check"]
+
+
+def test_an_unambiguous_header_date_needs_no_suggestion():
+    result = run(changed("fake-a", lambda a: a.update(doc_date=read("24/09/2569"))), uploaded_on=date(2026, 9, 30))
+    assert result["doc_date"]["value"] == "2026-09-24" and result["doc_date"]["suggested"] is None
+    assert "header.doc_date" not in result["must_check"]
+
+
+# --- D57: two levels -----------------------------------------------------------
+
+@pytest.mark.parametrize("field,confidence,flagged", [
+    ("quantity", LOW_CONFIDENCE_STRICT - 0.01, True), ("quantity", LOW_CONFIDENCE_STRICT, False),
+    ("unit_price", 0.85, True), ("amount", 0.85, True), ("exp", 0.89, True),
+    ("lot", 0.85, False), ("lot", LOW_CONFIDENCE - 0.01, True), ("unit", 0.85, False), ("name", 0.79, True),
+])
+def test_quantities_money_and_expiry_need_090_the_rest_080(field, confidence, flagged):
+    text = answer_for("fake-a")["lines"][0][field]["text"]
+    answer = changed("fake-a", lambda a: a["lines"][0].update({field: read(text, confidence)}))
+    result = run(answer)
+    assert ((field, "low_confidence") in flags(line(result, 1))) is flagged
+    assert (f"lines.1.{field}" in result["must_check"]) is flagged
+
+
+def test_a_total_box_is_money_and_needs_090():
+    answer = changed("fake-a", lambda a: a["totals"]["boxes"][4].update(amount=read("1,000.00", 0.85)))
+    assert "totals.boxes.4" in run(answer)["must_check"]

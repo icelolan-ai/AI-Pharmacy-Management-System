@@ -26,7 +26,7 @@ import re
 import sys
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
@@ -95,7 +95,7 @@ def read_document(pages: list[Path], settings: Settings) -> dict[str, Any]:
         out["refused"] = {"reason": refused.reason, "where": refused.where}
         return out
     out["ai"] = answer.model_dump(mode="json")
-    out["derived"] = interpret(answer, len(pages))
+    out["derived"] = interpret(answer, len(pages), date.today())
     return out
 
 

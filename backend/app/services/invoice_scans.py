@@ -118,7 +118,8 @@ def get_scan(scan_id: UUID) -> dict[str, Any]:
     with db.get_transaction() as cur:
         cur.execute(
             """
-            SELECT s.id, s.status, s.created_at, s.created_by, p.full_name AS created_by_name
+            SELECT s.id, s.status, s.created_at, s.created_by, p.full_name AS created_by_name,
+                   s.failed_reason, s.doc_kind, s.extracted
             FROM public.invoice_scans s
             LEFT JOIN public.user_profiles p ON p.id = s.created_by
             WHERE s.id = %s
@@ -347,6 +348,57 @@ def delete_page(scan_id: UUID, page_no: int, actor_id: UUID) -> None:
         get_storage().remove([row["storage_path"] for row in removed])
     except AppError:
         logger.warning("Page removed but %d file(s) remain in the bucket", len(removed))
+
+
+# --- the whole scan (6.4, left over from 6.2) --------------------------------
+
+# Chat A 6.4: only a scan that never became a purchase. A rejected scan is
+# kept as evidence (6.4 ข้อ 3), and one being read must finish first.
+DELETABLE = ("uploaded", "needs_review", "failed")
+_KEPT = {
+    "converted": "ใบนี้สร้างใบรับสินค้าแล้ว ลบไม่ได้ เพราะเป็นหลักฐานของการรับสินค้า",
+    "rejected": "ใบที่ปฏิเสธแล้วเก็บไว้เป็นหลักฐาน ลบไม่ได้",
+    "extracting": "กำลังอ่านใบนี้อยู่ รอให้อ่านเสร็จก่อนแล้วค่อยลบ",
+}
+
+
+def delete_scan(scan_id: UUID, actor_id: UUID) -> dict[str, Any]:
+    """Rows first, files after (as delete_page): a file left behind is only
+    wasted space and is logged; a row left pointing at a deleted file would
+    be a hole in the evidence. The audit row says who, when, how many pages."""
+    with db.get_transaction() as cur:
+        cur.execute(
+            "SELECT id, status, created_at, created_by FROM public.invoice_scans WHERE id = %s FOR UPDATE",
+            (scan_id,),
+        )
+        scan = cur.fetchone()
+        if scan is None:
+            raise _not_found()
+        if scan["status"] not in DELETABLE:
+            raise AppError("SCAN_NOT_DELETABLE", _KEPT.get(scan["status"], "ใบนี้ลบไม่ได้"), 409,
+                           {"status": scan["status"]})
+        cur.execute(
+            "SELECT page_no, kind, storage_path FROM public.invoice_scan_images WHERE scan_id = %s",
+            (scan_id,),
+        )
+        files = cur.fetchall()
+        # The images go with the scan (ON DELETE CASCADE).
+        cur.execute("DELETE FROM public.invoice_scans WHERE id = %s", (scan_id,))
+        page_count = len({row["page_no"] for row in files})
+        write_audit(
+            cur, SCAN_TABLE, scan_id, "delete",
+            {**scan, "page_count": page_count, "file_count": len(files)}, None, actor_id,
+            reason=f"ลบทั้งใบ {page_count} หน้า",
+        )
+
+    files_removed = True
+    if files:
+        try:
+            get_storage().remove([row["storage_path"] for row in files])
+        except AppError:
+            files_removed = False
+            logger.warning("Scan removed but %d file(s) remain in the bucket", len(files))
+    return {"id": scan_id, "page_count": page_count, "files_removed": files_removed}
 
 
 # --- the only way an image reaches an AI -------------------------------------

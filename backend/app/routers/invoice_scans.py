@@ -20,7 +20,7 @@ from app import auth
 from app.auth import CurrentUser, require_roles
 from app.config import get_settings
 from app.errors import AppError
-from app.schemas.invoice_scan import ExtractOut, PageOut, ScanDetailOut, ScanListItemOut
+from app.schemas.invoice_scan import DeletedScanOut, ExtractOut, PageOut, ScanDetailOut, ScanListItemOut
 from app.services import invoice_extraction
 from app.services import invoice_scans as service
 
@@ -107,3 +107,10 @@ async def post_extract(scan_id: UUID, user: Manager):
     409 when it is already read or being read; 404 when there is no scan."""
     # Storage, the AI and the database all block; keep them off the loop.
     return await run_in_threadpool(invoice_extraction.extract, scan_id, user.id)
+
+
+@router.delete("/{scan_id}", response_model=DeletedScanOut)
+def delete_scan(scan_id: UUID, user: Manager):
+    """6.4: the whole scan, its pages and its files. 409 for a scan that
+    became a purchase, was rejected, or is being read."""
+    return service.delete_scan(scan_id, user.id)
