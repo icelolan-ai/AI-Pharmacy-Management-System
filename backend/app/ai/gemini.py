@@ -9,13 +9,14 @@ from what `list_models()` reports the provider really offers — not from what
 anyone remembers the names to be.
 """
 
+import base64
 import time
 from typing import Any
 
 import httpx
 from pydantic import SecretStr
 
-from app.ai.base import AIResult, ModelInfo
+from app.ai.base import AIResult, ImagePart, ModelInfo, Part
 from app.errors import AppError
 
 BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
@@ -50,6 +51,38 @@ class GeminiProvider:
         }
 
     def complete(self, prompt: str, *, timeout: float = DEFAULT_TIMEOUT) -> AIResult:
+        return self._generate({"contents": [{"parts": [{"text": prompt}]}]}, timeout)
+
+    def complete_json(
+        self, parts: list[Part], schema: dict[str, Any], *,
+        timeout: float = DEFAULT_TIMEOUT, max_output_tokens: int = 8192,
+    ) -> AIResult:
+        """Field names asked of the real API with a fake invoice before they
+        were written here (D67, 22 Nov 2569, gemini-3.5-flash-lite): pictures
+        as inlineData {mimeType, data}, the shape as generationConfig
+        responseMimeType + responseJsonSchema. HTTP 200, the answer parsed."""
+        body_parts: list[dict[str, Any]] = []
+        for part in parts:
+            if isinstance(part, ImagePart):
+                body_parts.append({"inlineData": {
+                    "mimeType": part.mime_type,
+                    "data": base64.b64encode(part.data).decode("ascii"),
+                }})
+            else:
+                body_parts.append({"text": part})
+        return self._generate(
+            {
+                "contents": [{"parts": body_parts}],
+                "generationConfig": {
+                    "responseMimeType": "application/json",
+                    "responseJsonSchema": schema,
+                    "maxOutputTokens": max_output_tokens,
+                },
+            },
+            timeout,
+        )
+
+    def _generate(self, request_body: dict[str, Any], timeout: float) -> AIResult:
         if not self.model:
             # Checked here as well as when the provider is built, so a caller
             # that constructs one by hand still gets the setting's name.
@@ -64,7 +97,7 @@ class GeminiProvider:
             response = httpx.post(
                 url,
                 headers=self._headers(),
-                json={"contents": [{"parts": [{"text": prompt}]}]},
+                json=request_body,
                 timeout=timeout,
             )
         except httpx.HTTPError as exc:
@@ -101,6 +134,7 @@ class GeminiProvider:
             thinking_tokens=usage.get("thoughtsTokenCount"),
             total_tokens=usage.get("totalTokenCount"),
             latency_ms=latency_ms,
+            raw_body=body,
         )
 
     def list_models(self, *, timeout: float = DEFAULT_TIMEOUT) -> list[ModelInfo]:

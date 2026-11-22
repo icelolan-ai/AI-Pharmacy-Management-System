@@ -20,7 +20,9 @@ from app.scan import storage as storage_http
 from app.business_date import fetch_business_today
 from app.config import get_settings
 from app.main import app
-from tests.db_guard import ensure_test_database
+from dotenv import dotenv_values
+
+from tests.db_guard import ENV_TEST_PATH, TEST_PROJECT_REF, ensure_test_database, ref_from_supabase_url
 
 TEST_CONFIG = ensure_test_database()
 if TEST_CONFIG is None:  # not configured -> skip the whole integration folder
@@ -92,6 +94,24 @@ def test_database():
     storage_http.close_http()
     db.close_pool()
     patch.undo()
+
+
+@pytest.fixture(autouse=True)
+def test_bucket(monkeypatch):
+    """Every module that asks get_storage() reaches the TEST bucket (6.3).
+
+    Before this, a module the `storage` fixture did not patch read the app's
+    own settings — backend/.env, which is PROD. Per test, not per session:
+    a session-wide change leaked into the unit tests that run afterwards."""
+    key = (dotenv_values(ENV_TEST_PATH).get("TEST_SUPABASE_SERVICE_ROLE_KEY") or "").strip()
+    settings = get_settings()
+    monkeypatch.setattr(settings, "supabase_url", TEST_CONFIG["supabase_url"])
+    monkeypatch.setattr(settings, "supabase_service_role_key", SecretStr(key) if key else None)
+    storage_http.get_storage.cache_clear()
+    if key and ref_from_supabase_url(storage_http.get_storage().base_url) != TEST_PROJECT_REF:
+        pytest.exit("DB test guard: the bucket is not the test project's", returncode=2)
+    yield
+    storage_http.get_storage.cache_clear()
 
 
 @pytest.fixture(autouse=True)

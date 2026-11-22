@@ -9,7 +9,7 @@ messages name the setting, never its value.
 """
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Any, Protocol
 
 
 @dataclass(frozen=True)
@@ -31,6 +31,21 @@ class AIResult:
     thinking_tokens: int | None
     total_tokens: int | None
     latency_ms: int
+    # The provider's whole answer as it came back (6.3: invoice_scans.raw_response).
+    # It never holds the key: that goes out in a header and is not echoed.
+    raw_body: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class ImagePart:
+    """One picture sent with a prompt. Only for_ai copies are ever sent (D68)."""
+
+    data: bytes
+    mime_type: str
+
+
+# A prompt is text and pictures, in the order the model should see them.
+Part = str | ImagePart
 
 
 @dataclass(frozen=True)
@@ -56,6 +71,15 @@ class AIProvider(Protocol):
 
     def complete(self, prompt: str, *, timeout: float = ...) -> AIResult:
         """Send `prompt`, return the answer. Raises AppError on failure."""
+        ...
+
+    def complete_json(
+        self, parts: list[Part], schema: dict[str, Any], *,
+        timeout: float = ..., max_output_tokens: int = ...,
+    ) -> AIResult:
+        """Send text and pictures; the answer's text must be JSON shaped by
+        `schema`. The provider is asked to keep to it; the caller still checks
+        everything (docs/06-ai-design.md 3.2). Raises AppError on failure."""
         ...
 
     def list_models(self, *, timeout: float = ...) -> list[ModelInfo]:

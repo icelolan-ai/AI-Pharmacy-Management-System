@@ -20,7 +20,8 @@ from app import auth
 from app.auth import CurrentUser, require_roles
 from app.config import get_settings
 from app.errors import AppError
-from app.schemas.invoice_scan import PageOut, ScanDetailOut, ScanListItemOut
+from app.schemas.invoice_scan import ExtractOut, PageOut, ScanDetailOut, ScanListItemOut
+from app.services import invoice_extraction
 from app.services import invoice_scans as service
 
 router = APIRouter(prefix="/api/v1/invoice-scans", tags=["invoice-scans"])
@@ -97,3 +98,12 @@ async def post_page(
 def delete_page(scan_id: UUID, page_no: int, user: Manager):
     service.delete_page(scan_id, page_no, user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{scan_id}/extract", response_model=ExtractOut)
+async def post_extract(scan_id: UUID, user: Manager):
+    """6.3: read the scan with AI. 200 whether it ended needs_review or
+    failed — failing to read is an answer, not an error; the row says why.
+    409 when it is already read or being read; 404 when there is no scan."""
+    # Storage, the AI and the database all block; keep them off the loop.
+    return await run_in_threadpool(invoice_extraction.extract, scan_id, user.id)

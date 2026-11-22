@@ -1,0 +1,160 @@
+{
+  "fake-a": {
+    "doc_kind": "tax_invoice",
+    "supplier_name": "บริษัท ปลอมเพื่อทดสอบ ฟาร์มา จำกัด (FAKE)",
+    "supplier_tax_id": "0000000000000",
+    "invoice_no": "FAKE-0001",
+    "doc_date": "04/09/2569",
+    "page_count": 2,
+    "lines": [
+      {
+        "page_no": 1,
+        "line_no": 1,
+        "name": "พาราเซตามอล 500 มก. 10x10",
+        "qty": "10",
+        "unit": "กล่อง",
+        "price": "35.00",
+        "amount": "350.00",
+        "lot": "FK2401",
+        "mfg": "15.01.24",
+        "exp": "14.01.27",
+        "remark": ""
+      },
+      {
+        "page_no": 1,
+        "line_no": 2,
+        "name": "พาราเซตามอล 500 มก. 10x10",
+        "qty": "2",
+        "unit": "กล่อง",
+        "price": "",
+        "amount": "",
+        "lot": "FK2401",
+        "mfg": "15.01.24",
+        "exp": "14.01.27",
+        "remark": "แถม"
+      },
+      {
+        "page_no": 1,
+        "line_no": 3,
+        "name": "ยาแก้ไอน้ำดำ 60cc",
+        "qty": "12",
+        "unit": "ขวด",
+        "price": "18.00",
+        "amount": "216.00",
+        "lot": "FK2402",
+        "mfg": "05.06.25",
+        "exp": "05.06.28",
+        "remark": ""
+      },
+      {
+        "page_no": 1,
+        "line_no": 4,
+        "name": "------ 180cc",
+        "qty": "6",
+        "unit": "ขวด",
+        "price": "45.00",
+        "amount": "270.00",
+        "lot": "FK2403",
+        "mfg": "10.03.25",
+        "exp": "10.03.28",
+        "remark": ""
+      },
+      {
+        "page_no": 2,
+        "line_no": 5,
+        "name": "ผงเกลือแร่ ORS รสส้ม",
+        "qty": "50",
+        "unit": "ซอง",
+        "price": "4.00",
+        "amount": "200.00",
+        "lot": "FK2404",
+        "mfg": "20.02.25",
+        "exp": "19.02.27",
+        "remark": ""
+      },
+      {
+        "page_no": 2,
+        "line_no": 6,
+        "name": "ผงเกลือแร่ ORS รสส้ม",
+        "qty": "10",
+        "unit": "ซอง",
+        "price": "",
+        "amount": "",
+        "lot": "FK2404",
+        "mfg": "20.02.25",
+        "exp": "19.02.27",
+        "remark": "แถมพิเศษ"
+      }
+    ],
+    "totals_page": 2,
+    "totals": [
+      [
+        "รวมเงิน",
+        "1,036.00"
+      ],
+      [
+        "ส่วนลด",
+        "36.00"
+      ],
+      [
+        "ยอดเงินหลังหักส่วนลด",
+        "934.58"
+      ],
+      [
+        "ภาษีมูลค่าเพิ่ม 7%",
+        "65.42"
+      ],
+      [
+        "จำนวนเงินรวมทั้งสิ้น",
+        "1,000.00"
+      ]
+    ]
+  },
+  "fake-b": {
+    "doc_kind": "handwritten",
+    "supplier_name": "ร้านส่งยาปลอม (ตัวอย่าง)",
+    "supplier_tax_id": null,
+    "invoice_no": "0042",
+    "doc_date": "12/09/2569",
+    "page_count": 1,
+    "lines": [
+      {
+        "page_no": 1,
+        "line_no": 1,
+        "name": "แอมม็อกซี่ 500",
+        "qty": "5 กล่อง",
+        "unit": null,
+        "price": "120",
+        "amount": "600",
+        "remark": ""
+      },
+      {
+        "page_no": 1,
+        "line_no": 2,
+        "name": "------ 250",
+        "qty": "3 กล่อง",
+        "unit": null,
+        "price": "80",
+        "amount": "240",
+        "remark": ""
+      },
+      {
+        "page_no": 1,
+        "line_no": 3,
+        "name": "ยาธาตุน้ำแดง",
+        "qty": "6 ขวด",
+        "unit": null,
+        "price": null,
+        "amount": "",
+        "remark": "แถม"
+      }
+    ],
+    "totals_page": 1,
+    "totals": [
+      [
+        "รวม",
+        "840"
+      ]
+    ]
+  }
+}

@@ -1,0 +1,16 @@
+# Every picture or PDF git may hold. Each one here is made up for testing.
+# Real invoices carry the shop's name and address and the supplier's bank
+# account: they live outside the repository (docs/06-ai-design.md 4) and
+# never appear here. Read by tests/test_private_files.py and the pre-commit
+# hook (scripts in backend/tests/private_files_hook.py).
+backend/tests/fixtures/device_resized/turned3-le-4000x3000.from-browser.jpg
+backend/tests/fixtures/device_resized/turned6-4000x3000.from-browser.jpg
+backend/tests/fixtures/device_resized/upright-4000x3000.from-browser.jpg
+backend/tests/fixtures/fake_invoices/fake-a-p1.jpg
+backend/tests/fixtures/fake_invoices/fake-a-p2.jpg
+backend/tests/fixtures/fake_invoices/fake-b-p1.jpg
+web/scripts/checks/fixtures/scan/cut-off-4000x3000.jpg
+web/scripts/checks/fixtures/scan/small-1200x900.jpg
+web/scripts/checks/fixtures/scan/turned3-le-4000x3000.jpg
+web/scripts/checks/fixtures/scan/turned6-4000x3000.jpg
+web/scripts/checks/fixtures/scan/upright-4000x3000.jpg

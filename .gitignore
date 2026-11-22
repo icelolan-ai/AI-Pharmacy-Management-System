@@ -43,3 +43,8 @@ Thumbs.db
 
 # Claude Code local settings
 .claude/
+
+# 6.3 — real invoices never enter git (docs/06-ai-design.md 4). They live
+# outside the repository; these catch a folder made inside it by habit.
+private/
+real-invoices/

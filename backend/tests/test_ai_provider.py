@@ -179,3 +179,29 @@ def test_a_model_that_did_not_think_reports_none_not_zero(monkeypatch):
     monkeypatch.setattr(httpx, "post", Recorder([(200, body)]))
     result = GeminiProvider(SecretStr(FAKE_KEY), "some-model").complete("hi")
     assert result.thinking_tokens is None
+
+
+# --- 6.3: pictures + a JSON shape (asked of the real API first, D67) -------
+
+
+def test_a_reading_sends_pictures_and_the_shape_and_caps_the_answer(monkeypatch):
+    from app.ai.base import ImagePart
+
+    body = {"candidates": [{"content": {"parts": [{"text": "{}"}]}}],
+            "usageMetadata": {"promptTokenCount": 10, "candidatesTokenCount": 2}}
+    recorder = Recorder([(200, body)])
+    monkeypatch.setattr(httpx, "post", recorder)
+    schema = {"type": "object"}
+    result = GeminiProvider(SecretStr(FAKE_KEY), "some-model").complete_json(
+        ["อ่าน", ImagePart(b"\xff\xd8jpeg", "image/jpeg")], schema, max_output_tokens=1234)
+
+    sent = recorder.calls[0]["json"]
+    assert sent["contents"][0]["parts"][0] == {"text": "อ่าน"}
+    assert sent["contents"][0]["parts"][1] == {"inlineData": {"mimeType": "image/jpeg", "data": "/9hqcGVn"}}
+    assert sent["generationConfig"] == {
+        "responseMimeType": "application/json", "responseJsonSchema": schema, "maxOutputTokens": 1234}
+    # Layer 4: nothing for the model to call.
+    assert not {"tools", "toolConfig"} & set(sent)
+    assert FAKE_KEY not in recorder.calls[0]["url"]
+    # The whole answer is kept for raw_response, and it holds no key.
+    assert result.raw_body == body and FAKE_KEY not in str(result.raw_body)

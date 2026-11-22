@@ -63,6 +63,27 @@ class Settings(BaseSettings):
     # made on every read.
     signed_url_ttl_seconds: int = 600
 
+    # 6.3: reading an invoice. D72 says for each whether measured or guessed.
+    # Measured once (D67, fake 2-page invoice): 9.6 s and 3,356 answer tokens
+    # for 6 lines. The limits below are margins on that, not measurements.
+    ai_read_timeout_seconds: float = 120.0
+    ai_max_output_tokens: int = 32768
+    # Price per million tokens, in US dollars. 0.30 / 2.50 is what Chat A
+    # looked up for gemini-3.5-flash-lite (25 Sep) — not checked by us.
+    # Thinking tokens are charged at the output price: an assumption still
+    # to be confirmed from the account's usage page after ~10 real invoices.
+    ai_price_input_usd_per_mtok: float | None = 0.30
+    ai_price_output_usd_per_mtok: float | None = 2.50
+    # No default on purpose: a rate nobody chose is a made-up number. While it
+    # is empty, tokens are still kept on every call and the cost is left null.
+    ai_usd_thb_rate: float | None = None
+    # Real invoices for testing live outside the repository (docs/06-ai-design
+    # 4). The script that reads them refuses unless this points outside the
+    # repo AND the owner has said the Gemini account is the paid tier — which
+    # nothing in the API lets code check (Chat A, ก.). Default: not confirmed.
+    real_invoices_dir: str | None = None
+    gemini_paid_tier_confirmed: bool = False
+
     @field_validator("database_url", "supabase_url", "store_timezone", mode="before")
     @classmethod
     def _not_blank(cls, value):

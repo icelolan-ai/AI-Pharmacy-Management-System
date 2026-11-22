@@ -407,6 +407,32 @@ def update_purchase(purchase_id: UUID, data: PurchaseIn, actor_id: UUID) -> dict
         return _fetch_detail(cur, purchase_id)
 
 
+def _hand_scans_back(cur, purchase_id: UUID, actor_id: UUID) -> None:
+    """A draft made from a photographed invoice is about to go: the scan
+    goes back to needs_review and lets go of the purchase, in this same
+    transaction, with an audit row (Chat A, 6.3 ค.). Migration 014 makes the
+    database refuse the delete otherwise (purchase_id ON DELETE RESTRICT)."""
+    cur.execute(
+        """
+        UPDATE public.invoice_scans AS s
+           SET status = 'needs_review', purchase_id = NULL
+          FROM (SELECT id, status, purchase_id FROM public.invoice_scans
+                 WHERE purchase_id = %s FOR UPDATE) AS before
+         WHERE s.id = before.id
+        RETURNING s.id, before.status AS old_status, before.purchase_id AS old_purchase_id
+        """,
+        (purchase_id,),
+    )
+    for row in cur.fetchall():
+        write_audit(
+            cur, "invoice_scans", row["id"], "update",
+            {"status": row["old_status"], "purchase_id": row["old_purchase_id"]},
+            {"status": "needs_review", "purchase_id": None},
+            actor_id,
+            reason="ลบร่างใบรับสินค้าที่สร้างจากใบสแกน ใบสแกนกลับไปรอตรวจ",
+        )
+
+
 def delete_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
     with db.get_transaction() as cur:
         current = _lock_purchase(cur, purchase_id)
@@ -415,6 +441,7 @@ def delete_purchase(purchase_id: UUID, actor_id: UUID) -> dict[str, Any]:
         if current["status"] != "draft":
             raise _invalid_state(current["status"])
         old_items = _load_items(cur, purchase_id)
+        _hand_scans_back(cur, purchase_id, actor_id)
         cur.execute("DELETE FROM public.purchase_items WHERE purchase_id = %s", (purchase_id,))
         cur.execute("DELETE FROM public.purchases WHERE id = %s", (purchase_id,))
         write_audit(

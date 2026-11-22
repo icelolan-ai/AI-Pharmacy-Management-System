@@ -99,6 +99,17 @@ class Storage:
         if response.status_code != 200:
             raise _unavailable("upload", response.status_code)
 
+    def download(self, path: str) -> bytes:
+        """The stored bytes, read with the service key (6.3: the for_ai copy
+        on its way to the AI). Never signed, never handed to a browser."""
+        try:
+            response = _http().get(self._object_url(path), headers=self._headers())
+        except httpx.HTTPError:
+            raise _unavailable("download") from None
+        if response.status_code != 200:
+            raise _unavailable("download", response.status_code)
+        return response.content
+
     def remove(self, paths: list[str]) -> None:
         if not paths:
             return

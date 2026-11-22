@@ -5,6 +5,7 @@ for_ai copy has no link anywhere in the API: nothing in the browser needs it.
 """
 
 from datetime import datetime
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -60,3 +61,21 @@ class ScanListItemOut(BaseModel):
     created_by: UUID | None
     created_by_name: str | None
     page_count: int
+
+
+class ExtractOut(BaseModel):
+    """6.3: how a reading ended. `extracted` is the AI's answer as checked
+    plus what our code made of it (docs/06-ai-design.md 2.4); null when the
+    reading failed — failed_reason says why, never with values from the paper."""
+    id: UUID
+    status: str
+    failed_reason: str | None
+    doc_kind: str | None
+    provider: str | None
+    model: str | None
+    prompt_version: str | None
+    tokens_in: int | None
+    tokens_out: int | None
+    thinking_tokens: int | None
+    cost_estimate_satang: int | None
+    extracted: dict[str, Any] | None
