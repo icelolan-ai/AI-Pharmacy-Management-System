@@ -21,7 +21,7 @@ from app.schemas.invoice_scan import DeletedScanOut, ExtractOut, ScanDetailOut
 from app.services import invoice_extraction
 from app.services import invoice_scans as scans_service
 from tests.fake_invoice_answers import answer_for, as_text, changed, read
-from tests.integration.conftest import api, insert_lot, insert_medicine, insert_supplier
+from tests.integration.conftest import OWNER_ID, api, insert_lot, insert_medicine, insert_supplier
 from tests.integration.test_invoice_scans_db import _new_scan, _objects, _rows, _upload, storage  # noqa: F401
 from tests.integration.test_inventory_db import purchase_body
 
@@ -361,6 +361,10 @@ def test_a_scan_that_is_evidence_or_busy_is_not_deleted(client, storage, today, 
     scan_id = scan_with(client)
     if status == "converted":
         _set_status(scan_id, "converted", purchase_id=_draft_purchase(client, today))
+    elif status == "rejected":
+        # Migration 015: rejected carries a reason, a who and a when.
+        _write("UPDATE public.invoice_scans SET status = 'rejected', rejected_reason = 'ซ้ำ',"
+               " rejected_by = %s, rejected_at = now() WHERE id = %s", (OWNER_ID, scan_id))
     else:
         _set_status(scan_id, status)
     files_before = _objects()

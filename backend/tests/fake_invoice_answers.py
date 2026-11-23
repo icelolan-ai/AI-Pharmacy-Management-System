@@ -40,12 +40,13 @@ def answer_for(doc: str) -> dict[str, Any]:
             "remark": read(line.get("remark")),
         })
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "doc_kind": truth["doc_kind"],
         "supplier_name": read(truth["supplier_name"]),
         "supplier_tax_id": read(truth["supplier_tax_id"]),
         "invoice_no": read(truth["invoice_no"]),
         "doc_date": read(truth["doc_date"]),
+        "due_date": read(truth.get("due_date")),
         "pages": [{"page_no": n, "label": read(f"หน้า {n}/{truth['page_count']}" if truth["page_count"] > 1 else None)}
                   for n in range(1, truth["page_count"] + 1)],
         "lines": lines,

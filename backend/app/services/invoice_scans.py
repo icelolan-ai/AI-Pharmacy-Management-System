@@ -31,6 +31,7 @@ from app.config import get_settings
 from app.errors import AppError
 from app.scan.images import ImageRejected, Limits, Prepared, prepare
 from app.scan.storage import get_storage
+from app.services import invoice_review
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +120,11 @@ def get_scan(scan_id: UUID) -> dict[str, Any]:
         cur.execute(
             """
             SELECT s.id, s.status, s.created_at, s.created_by, p.full_name AS created_by_name,
-                   s.failed_reason, s.doc_kind, s.extracted
+                   s.failed_reason, s.doc_kind, s.extracted, s.reviewed_at, r.full_name AS reviewed_by_name,
+                   s.rejected_reason, s.rejected_at
             FROM public.invoice_scans s
             LEFT JOIN public.user_profiles p ON p.id = s.created_by
+            LEFT JOIN public.user_profiles r ON r.id = s.reviewed_by
             WHERE s.id = %s
             """,
             (scan_id,),
@@ -140,6 +143,7 @@ def get_scan(scan_id: UUID) -> dict[str, Any]:
             (scan_id,),
         )
         rows = cur.fetchall()
+        corrections = invoice_review.current(cur, scan_id)
 
     pages = []
     if rows:
@@ -164,6 +168,8 @@ def get_scan(scan_id: UUID) -> dict[str, Any]:
     settings = get_settings()
     return {
         **scan,
+        "corrections": corrections,
+        "untouched": invoice_review.untouched(scan["extracted"], corrections),
         "pages": pages,
         "url_expires_in_seconds": settings.signed_url_ttl_seconds,
         # D75: the phone shrinks with exactly what the backend would use.

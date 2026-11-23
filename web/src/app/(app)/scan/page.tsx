@@ -53,7 +53,9 @@ export default function ScansPage() {
         primaryAction={{ label: "ถ่ายใบใหม่", onClick: () => router.push("/scan/new") }}
       />
       {scans.error ? <ErrorState message={scans.error} onRetry={scans.reload} retrying={scans.loading} /> : null}
-      {scans.loading && !scans.data ? (
+      {/* Until the role is known nothing has loaded yet: "no scans" would be
+          untrue (seen on the 375px walk-through, 24 Nov). */}
+      {(scans.loading || !me) && !scans.data ? (
         <SkeletonTable rows={5} columns={4} />
       ) : rows.length === 0 ? (
         <EmptyState title="ยังไม่มีใบที่ถ่าย" description="กดถ่ายใบใหม่ แล้วถ่ายใบส่งของทีละหน้า" />

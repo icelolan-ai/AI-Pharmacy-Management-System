@@ -338,3 +338,24 @@ def test_quantities_money_and_expiry_need_090_the_rest_080(field, confidence, fl
 def test_a_total_box_is_money_and_needs_090():
     answer = changed("fake-a", lambda a: a["totals"]["boxes"][4].update(amount=read("1,000.00", 0.85)))
     assert "totals.boxes.4" in run(answer)["must_check"]
+
+
+# --- D87 with prompt v2: the due date is the other header date ----------------
+
+def test_an_unambiguous_due_date_settles_the_document_date():
+    """'04/09/2569' alone is open; a due date '30/09/2569' on the same header
+    shows the supplier writes day first."""
+    result = run(changed("fake-a", lambda a: a.update(due_date=read("30/09/2569"))), uploaded_on=date(2026, 9, 10))
+    assert result["doc_date"]["value"] == "2026-09-04"
+    assert result["due_date"]["value"] == "2026-09-30"
+    assert "header.doc_date" not in result["must_check"]
+
+
+def test_a_due_date_never_settles_line_dates_and_lines_never_settle_it():
+    def change(a):
+        a["due_date"] = read("05/10/2569")
+        for line in a["lines"]:
+            line["exp"] = read("05.06.28")
+    result = run(changed("fake-a", change))
+    assert result["due_date"]["value"] is None and result["due_date"]["ambiguous"] is True
+    assert line(result, 1)["exp"]["value"] is None

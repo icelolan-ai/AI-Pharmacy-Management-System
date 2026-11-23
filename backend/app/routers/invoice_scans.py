@@ -20,8 +20,11 @@ from app import auth
 from app.auth import CurrentUser, require_roles
 from app.config import get_settings
 from app.errors import AppError
-from app.schemas.invoice_scan import DeletedScanOut, ExtractOut, PageOut, ScanDetailOut, ScanListItemOut
-from app.services import invoice_extraction
+from app.schemas.invoice_scan import (
+    DeletedScanOut, ExtractOut, FieldIn, FieldOut, PageOut, RejectedOut, RejectIn, ReviewDoneOut, ScanDetailOut,
+    ScanListItemOut,
+)
+from app.services import invoice_extraction, invoice_review
 from app.services import invoice_scans as service
 
 router = APIRouter(prefix="/api/v1/invoice-scans", tags=["invoice-scans"])
@@ -114,3 +117,22 @@ def delete_scan(scan_id: UUID, user: Manager):
     """6.4: the whole scan, its pages and its files. 409 for a scan that
     became a purchase, was rejected, or is being read."""
     return service.delete_scan(scan_id, user.id)
+
+
+@router.post("/{scan_id}/fields", response_model=FieldOut, status_code=status.HTTP_201_CREATED)
+def post_field(scan_id: UUID, body: FieldIn, user: Manager):
+    """6.4: one touch of one field = one new row. The AI's answer is never
+    changed; touching the field again adds another row."""
+    return invoice_review.touch(scan_id, body.field_path, body.action, body.person_value, user.id)
+
+
+@router.post("/{scan_id}/review-done", response_model=ReviewDoneOut)
+def post_review_done(scan_id: UUID, user: Manager):
+    """6.4: go on. 409 with the fields still to touch (D57 · D85 · D87)."""
+    return invoice_review.review_done(scan_id, user.id)
+
+
+@router.post("/{scan_id}/reject", response_model=RejectedOut)
+def post_reject(scan_id: UUID, body: RejectIn, user: Manager):
+    """6.4: rejected with a reason; the scan and its photos stay (D58)."""
+    return invoice_review.reject(scan_id, body.reason, user.id)

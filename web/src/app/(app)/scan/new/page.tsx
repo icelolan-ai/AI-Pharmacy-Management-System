@@ -381,7 +381,7 @@ export default function ScanPage() {
           </p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" className="min-h-11 px-4" onClick={readNow} disabled={reading}>
-              {reading ? "กำลังอ่าน… (ประมาณ 10 วินาที)" : "อ่านใบนี้"}
+              {reading ? "กำลังอ่าน… อาจใช้เวลาถึงครึ่งนาที" : "อ่านใบนี้"}
             </Button>
             <Button type="button" variant="outline" className="min-h-11 px-4" onClick={startOver} disabled={reading}>
               เริ่มใบใหม่

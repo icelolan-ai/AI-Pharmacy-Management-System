@@ -178,11 +178,13 @@ export type Extracted = {
     supplier_tax_id: AiField;
     invoice_no: AiField;
     doc_date: AiField;
+    due_date?: AiField;
     lines: Array<{ line_no: number; page_no: number; name: AiField; [field: string]: unknown }>;
     totals: { page_no: number | null; boxes: Array<{ label: string; amount: AiField }> };
   };
   derived: {
     doc_date: DecidedDate;
+    due_date?: DecidedDate;
     header_flags: Flag[];
     lines: DerivedLine[];
     totals: { roles: Record<string, number>; unknown_labels: string[]; flags: Array<{ box: number; why: string }> };
@@ -192,11 +194,44 @@ export type Extracted = {
   };
 };
 
+export type Correction = {
+  field_path: string;
+  shown_value: string | null;
+  person_value: string | null;
+  action: "confirmed" | "changed";
+  changed_at: string;
+  changed_by_name: string | null;
+};
+
 export type ScanDetail = Scan & {
   failed_reason: string | null;
   doc_kind: string | null;
   extracted: Extracted | null;
+  /** 6.4: the latest touch of every field; the AI's answer is never changed. */
+  corrections: Correction[];
+  /** Fields a person must still touch before going on (D57 · D85 · D87). */
+  untouched: string[];
+  reviewed_at: string | null;
+  reviewed_by_name: string | null;
+  rejected_reason: string | null;
+  rejected_at: string | null;
 };
+
+/** 6.4: one touch of one field — a new row each time, never an edit. */
+export function touchField(
+  scanId: string,
+  body: { field_path: string; action: "confirmed" | "changed"; person_value?: string | null },
+): Promise<Correction & { untouched: string[] }> {
+  return apiFetch(`/api/v1/invoice-scans/${scanId}/fields`, { method: "POST", body: JSON.stringify(body) });
+}
+
+export function reviewDone(scanId: string): Promise<{ id: string; status: string; reviewed_at: string }> {
+  return apiFetch(`/api/v1/invoice-scans/${scanId}/review-done`, { method: "POST" });
+}
+
+export function rejectScan(scanId: string, reason: string): Promise<{ id: string; status: string }> {
+  return apiFetch(`/api/v1/invoice-scans/${scanId}/reject`, { method: "POST", body: JSON.stringify({ reason }) });
+}
 
 export function getScan(scanId: string, signal?: AbortSignal): Promise<ScanDetail> {
   return apiFetch<ScanDetail>(`/api/v1/invoice-scans/${scanId}`, { signal, cache: "no-store" });

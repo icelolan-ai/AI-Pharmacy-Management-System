@@ -67,4 +67,37 @@ for (const status of ["converted", "rejected", "extracting"]) {
 check.ok("ถามยืนยันก่อนลบ และบอกว่ากู้คืนไม่ได้", /ลบแล้วกู้คืนไม่ได้/.test(page) && /setConfirmDelete\(true\)/.test(page));
 check.ok("ปุ่มลองอ่านใหม่ เมื่ออ่านไม่สำเร็จ", /"ลองอ่านใหม่"/.test(page));
 
+// --- 6.4: touching fields ------------------------------------------------------------
+const reviewPy = readFileSync(join(here, "..", "..", "..", "backend", "app", "services", "invoice_review.py"), "utf8");
+const pySet = (name) => /\{([^}]*)\}/.exec(new RegExp(`${name} = \{[^}]*\}`).exec(reviewPy)?.[0] ?? "")?.[1]
+  .match(/"(\w+)"/g).map((s) => s.slice(1, -1)).sort();
+const kinds = (kind) => ["doc_date", "due_date", "mfg", "exp", "quantity", "unit_price", "line_discount", "amount", "total"]
+  .filter((name) => review.fieldKind(name === "total" ? "totals.boxes.0" : `lines.1.${name}`) === kind).sort();
+check.eq("ช่องวันที่ตรงกับ backend", kinds("date"), pySet("DATE_FIELDS"));
+check.eq("ช่องเงินตรงกับ backend", kinds("money"), pySet("MONEY_FIELDS"));
+check.eq("ช่องจำนวนตรงกับ backend", kinds("count"), pySet("COUNT_FIELDS"));
+check.eq("ชื่อยาเป็นข้อความ", review.fieldKind("lines.3.name"), "text");
+
+check.ok("ยืนยันว่าไม่มีได้ เฉพาะช่องที่ไม่มีบนใบ (D62)", review.canConfirm(null, absent) && !review.canConfirm(null, unreadable)
+  && !review.canConfirm(null, read("05.06.28")) && review.canConfirm("2028-06-05", read("05.06.28")));
+check.eq("บอกจำนวนช่องที่ยังต้องตรวจเป็นคำ", review.untouchedWord(3), "ยังต้องตรวจอีก 3 ช่อง");
+
+const extracted = {
+  ai: { supplier_name: read("ปลอม"), doc_date: read("04/09/2569"), lines: [{ line_no: 1, remark: read("แถม") }],
+        totals: { boxes: [{ label: "รวมเงิน", amount: read("1,036.00") }] } },
+  derived: {
+    doc_date: date({ ambiguous: true, candidates: ["2026-09-04", "2026-04-09"], suggested: "2026-09-04" }),
+    lines: [{ line_no: 1, name: "ยา", quantity: 10, unit: "กล่อง", unit_price_satang: 3500, line_discount_satang: null,
+              amount_satang: 35005, lot: "FK1", mfg: date({ value: "2024-01-15" }), exp: date({ value: null }) }],
+  },
+};
+check.eq("ค่าที่แสดง: วันที่ที่ระบบเลือกไว้ให้", review.shownFor(extracted, "header.doc_date"), "2026-09-04");
+check.eq("ค่าที่แสดง: เงินเป็นรูปเดียวกับ backend", review.shownFor(extracted, "lines.1.amount"), "350.05");
+check.eq("ค่าที่แสดง: จำนวน", review.shownFor(extracted, "lines.1.quantity"), "10");
+check.eq("ค่าที่แสดง: ยอดท้ายใบ ตัดจุลภาค", review.shownFor(extracted, "totals.boxes.0"), "1036.00");
+check.eq("ค่าที่แสดง: ไม่มีส่วนลด", review.shownFor(extracted, "lines.1.line_discount"), null);
+
+check.ok("ปุ่มไปต่อปิดเมื่อยังมีช่องที่ต้องตรวจ", /disabled=\{busy \|\| review\.untouched\.size > 0\}/.test(page));
+check.ok("ปฏิเสธต้องกรอกเหตุผลก่อน", /disabled=\{busy \|\| !reason\.trim\(\)\}/.test(page));
+
 process.exit(check.done() ? 1 : 0);

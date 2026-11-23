@@ -9,9 +9,9 @@ from tests.integration.conftest import BUSINESS_TABLES, api
 
 pytestmark = pytest.mark.db
 
-# 12 from migrations 001–008, the four map tables from 009 (U-8.1), and the
-# two scan tables from 010 (6.1).
-EXPECTED_TABLES = 18
+# 12 from migrations 001–008, the four map tables from 009 (U-8.1), the
+# two scan tables from 010 (6.1), and the corrections table from 015 (6.4).
+EXPECTED_TABLES = 19
 
 # Named rather than only counted: a count says four tables arrived, not which
 # four, and this is the assertion that tells us migration 009 really ran here.
@@ -27,6 +27,7 @@ MAP_TABLES = {
 SCAN_TABLES = {
     "invoice_scans",
     "invoice_scan_images",
+    "invoice_scan_corrections",  # 015
 }
 
 
@@ -58,7 +59,7 @@ def test_test_project_has_every_migration_applied():
         scan_tables = named & SCAN_TABLES
 
     assert map_tables == MAP_TABLES, f"migration 009 missing: {sorted(MAP_TABLES - map_tables)}"
-    assert scan_tables == SCAN_TABLES, f"migration 010 missing: {sorted(SCAN_TABLES - scan_tables)}"
+    assert scan_tables == SCAN_TABLES, f"migration 010/015 missing: {sorted(SCAN_TABLES - scan_tables)}"
     assert tables == EXPECTED_TABLES, f"expected {EXPECTED_TABLES} tables, found {tables}"
     assert policies == 0, f"expected 0 RLS policies, found {policies}"
     assert rls == EXPECTED_TABLES, f"expected RLS on {EXPECTED_TABLES} tables, found {rls}"

@@ -60,7 +60,9 @@ function Viewer({ pages, start, onClose }: { pages: ScanPage[]; start: number; o
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950" role="dialog" aria-modal="true"
+    // Above the phone's tab bar (z-60): seen on the 375px walk-through, the
+    // bar covered "หน้าก่อน / หน้าถัดไป".
+    <div className="fixed inset-0 z-[70] flex flex-col bg-slate-950" role="dialog" aria-modal="true"
          aria-label={`รูปหน้า ${page.page_no} จาก ${pages.length}`}>
       <div className="flex flex-wrap items-center gap-2 p-2 text-white">
         <Button type="button" variant="secondary" className="min-h-11 px-3" onClick={onClose}>
@@ -97,7 +99,7 @@ function Viewer({ pages, start, onClose }: { pages: ScanPage[]; start: number; o
         <img src={page.image_url} alt={`ใบส่งของ หน้า ${page.page_no}`} style={{ width: `${zoom * 100}%`, maxWidth: "none" }} />
       </div>
       {pages.length > 1 ? (
-        <div className="flex justify-between gap-2 p-2">
+        <div className="flex justify-between gap-2 p-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <Button type="button" variant="secondary" className="min-h-11 px-3" onClick={() => go(-1)} disabled={index === 0}>
             <ChevronLeft className="size-5" aria-hidden /> หน้าก่อน
           </Button>

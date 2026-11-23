@@ -5,10 +5,10 @@ for_ai copy has no link anywhere in the API: nothing in the browser needs it.
 """
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class PageOut(BaseModel):
@@ -51,6 +51,15 @@ class ScanDetailOut(BaseModel):
     failed_reason: str | None
     doc_kind: str | None
     extracted: dict[str, Any] | None
+    # 6.4: the review — the latest value of every touched field (the AI's
+    # answer above is never changed), what still has to be touched, and
+    # whether it was finished or rejected.
+    corrections: list["CorrectionOut"]
+    untouched: list[str]
+    reviewed_at: datetime | None
+    reviewed_by_name: str | None
+    rejected_reason: str | None
+    rejected_at: datetime | None
     created_at: datetime
     created_by: UUID | None
     created_by_name: str | None
@@ -92,3 +101,51 @@ class DeletedScanOut(BaseModel):
     id: UUID
     page_count: int
     files_removed: bool
+
+
+class CorrectionOut(BaseModel):
+    field_path: str
+    shown_value: str | None
+    person_value: str | None
+    action: Literal["confirmed", "changed"]
+    changed_at: datetime
+    changed_by_name: str | None = None
+
+
+class FieldIn(BaseModel):
+    """6.4: a person touching one field. For "confirmed" the backend takes
+    what it showed; person_value is only read for "changed"."""
+    model_config = ConfigDict(extra="forbid")
+    field_path: str
+    action: Literal["confirmed", "changed"]
+    person_value: str | None = None
+
+
+class FieldOut(BaseModel):
+    field_path: str
+    shown_value: str | None
+    person_value: str | None
+    action: Literal["confirmed", "changed"]
+    changed_at: datetime
+    untouched: list[str]
+
+
+class ReviewDoneOut(BaseModel):
+    id: UUID
+    status: str
+    reviewed_at: datetime
+
+
+class RejectIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    reason: str = Field(max_length=500)
+
+
+class RejectedOut(BaseModel):
+    id: UUID
+    status: str
+    rejected_reason: str
+    rejected_at: datetime
+
+
+ScanDetailOut.model_rebuild()

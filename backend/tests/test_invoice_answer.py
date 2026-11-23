@@ -45,7 +45,7 @@ def test_text_that_is_not_json_is_refused_as_not_json(text):
         (lambda a: a["lines"][0]["quantity"].update(confidence="0.9"), "lines.0.quantity.confidence"),
         (lambda a: a["lines"][0].update(page_no="1"), "lines.0.page_no"),
         (lambda a: a.update(doc_kind="receipt"), "doc_kind"),
-        (lambda a: a.update(schema_version=2), "schema_version"),
+        (lambda a: a.update(schema_version=1), "schema_version"),  # a v1 answer to the v2 prompt
     ],
 )
 def test_a_wrong_shape_is_refused_and_says_where_not_what(change, where):

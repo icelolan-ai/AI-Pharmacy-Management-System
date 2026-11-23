@@ -268,18 +268,23 @@ def interpret(answer: InvoiceAnswer, page_count: int, uploaded_on: date | None =
     exp_texts = [(line.line_no, _DateText(line.exp, in_header=False)) for line in answer.lines]
     mfg_order = _settle(mfg_texts)
     exp_order = _settle(exp_texts)
-    # D87: header dates settle only from other header dates. The answer
-    # holds one (doc_date), so there is nothing to settle it from yet.
-    header_order = _settle([])
-    doc_date = _decide(_DateText(answer.doc_date, in_header=True), *header_order)
+    # D87: header dates settle only from other header dates — the document
+    # date from the due date and the due date from the document date (both
+    # printed by the supplier's system), never from MFG/EXP.
+    doc_text = _DateText(answer.doc_date, in_header=True)
+    due_text = _DateText(answer.due_date, in_header=True)
+    doc_date = _decide(doc_text, *_settle([(0, due_text)]))
+    due_date = _decide(due_text, *_settle([(0, doc_text)]))
     _suggest(doc_date, uploaded_on)
+    due_date["suggested"] = None
     header_flags: list[dict[str, str]] = []
-    for name in ("supplier_name", "supplier_tax_id", "invoice_no", "doc_date"):
+    for name in ("supplier_name", "supplier_tax_id", "invoice_no", "doc_date", "due_date"):
         _field_flags(header_flags, name, getattr(answer, name))
-    if doc_date["ambiguous"]:
-        _flag(header_flags, "doc_date", "ambiguous_date")
-    elif doc_date["how"] in ("not_a_date", "era_unknown"):
-        _flag(header_flags, "doc_date", doc_date["how"])
+    for name, decided in (("doc_date", doc_date), ("due_date", due_date)):
+        if decided["ambiguous"]:
+            _flag(header_flags, name, "ambiguous_date")
+        elif decided["how"] in ("not_a_date", "era_unknown"):
+            _flag(header_flags, name, decided["how"])
 
     lines: list[dict[str, Any]] = []
     for (line, (_, mfg_text), (_, exp_text)) in zip(answer.lines, mfg_texts, exp_texts):
@@ -349,6 +354,7 @@ def interpret(answer: InvoiceAnswer, page_count: int, uploaded_on: date | None =
 
     return {
         "doc_date": doc_date,
+        "due_date": due_date,
         "header_flags": header_flags,
         "lines": lines,
         "totals": totals,

@@ -6,7 +6,7 @@
  *  D16 · D87: a day the system chose says so.
  */
 
-import type { AiField, DecidedDate, TotalCheck } from "@/lib/api/invoice-scans";
+import type { AiField, DecidedDate, Extracted, TotalCheck } from "@/lib/api/invoice-scans";
 
 export const STATUS_WORDS: Record<string, string> = {
   uploaded: "ยังไม่ได้อ่าน",
@@ -130,4 +130,70 @@ export function checkWarning(check: TotalCheck): string {
     ? `บรรทัด ${check.line_no}: จำนวน × ราคา`
     : RULE_WORDS[check.rule] ?? check.rule;
   return `${subject} ไม่ตรงกัน — คำนวณได้ ${bahtOf(check.expected_satang)} แต่ในใบเขียน ${bahtOf(check.printed_satang)}`;
+}
+
+// --- 6.4: touching fields --------------------------------------------------------
+
+
+export type FieldKind = "text" | "date" | "count" | "money";
+
+/** The input a field takes — the same groups the backend checks. */
+export function fieldKind(path: string): FieldKind {
+  const name = path.startsWith("totals.") ? "total" : path.split(".").pop() ?? "";
+  if (["doc_date", "due_date", "mfg", "exp"].includes(name)) return "date";
+  if (name === "quantity") return "count";
+  if (["unit_price", "line_discount", "amount", "total"].includes(name)) return "money";
+  return "text";
+}
+
+const baht2 = (satang: number | null) => (satang === null ? null : `${Math.floor(satang / 100)}.${String(satang % 100).padStart(2, "0")}`);
+
+/** What the page shows for a field, in the form the backend stores — the
+ *  same rule as invoice_review.locate on the server. Choosing exactly this
+ *  value is "confirmed"; anything else is "changed". */
+export function shownFor(extracted: Extracted, path: string): string | null {
+  const { ai, derived } = extracted;
+  const [head, second, third] = path.split(".");
+  if (head === "header") {
+    if (second === "doc_date" || second === "due_date") {
+      const decided = second === "doc_date" ? derived.doc_date : derived.due_date;
+      return decided?.value ?? decided?.suggested ?? null;
+    }
+    const field = (ai as unknown as Record<string, AiField | undefined>)[second];
+    return field?.state === "read" ? field.text : null;
+  }
+  if (head === "totals") {
+    const field = ai.totals.boxes[Number(third)]?.amount;
+    if (field?.state !== "read" || !field.text) return null;
+    const clean = field.text.replace(/,/g, "");
+    return /^\d+(\.\d{1,2})?$/.test(clean) ? Number(clean).toFixed(2) : null;
+  }
+  const line = derived.lines.find((entry) => entry.line_no === Number(second));
+  const aiLine = ai.lines.find((entry) => entry.line_no === Number(second));
+  if (!line) return null;
+  switch (third) {
+    case "name": return line.name;
+    case "quantity": return line.quantity === null ? null : String(line.quantity);
+    case "unit": return line.unit;
+    case "unit_price": return baht2(line.unit_price_satang);
+    case "line_discount": return baht2(line.line_discount_satang);
+    case "amount": return baht2(line.amount_satang);
+    case "lot": return line.lot;
+    case "mfg": return line.mfg.value;
+    case "exp": return line.exp.value;
+    default: {
+      const field = aiLine?.[third] as AiField | undefined;
+      return field?.state === "read" ? field.text : null;
+    }
+  }
+}
+
+/** Whether "ถูกต้อง" may be pressed: an empty value only for a field that is
+ *  not on the paper (backend refuses the rest). */
+export function canConfirm(shown: string | null, field: AiField | undefined): boolean {
+  return shown !== null || field?.state === "absent";
+}
+
+export function untouchedWord(count: number): string {
+  return count === 0 ? "ตรวจครบทุกช่องที่ต้องตรวจแล้ว" : `ยังต้องตรวจอีก ${count} ช่อง`;
 }

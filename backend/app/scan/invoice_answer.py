@@ -20,7 +20,8 @@ from pydantic import (
     BaseModel, ConfigDict, Field, StrictBool, StrictFloat, StrictInt, StrictStr, ValidationError, model_validator,
 )
 
-SCHEMA_VERSION = 1
+# 1: 6.3 (invoice-6.3-v1) · 2: 6.4 adds due_date (invoice-6.4-v2, D87)
+SCHEMA_VERSION = 2
 LINE_FIELDS = ("quantity", "unit", "unit_price", "line_discount", "amount", "lot", "mfg", "exp", "remark")
 DOC_KINDS = ("tax_invoice", "delivery_note", "handwritten", "unknown")
 
@@ -52,6 +53,7 @@ SCHEMA: dict[str, Any] = _object({
     "supplier_tax_id": _field_schema(),
     "invoice_no": _field_schema(),
     "doc_date": _field_schema(),
+    "due_date": _field_schema(),
     "pages": {"type": "array", "items": _object({
         "page_no": {"type": "integer", "minimum": 1},
         "label": _field_schema(),
@@ -153,12 +155,13 @@ class Totals(_Strict):
 
 
 class InvoiceAnswer(_Strict):
-    schema_version: Literal[1]
+    schema_version: Literal[2]
     doc_kind: Literal["tax_invoice", "delivery_note", "handwritten", "unknown"]
     supplier_name: FieldValue
     supplier_tax_id: FieldValue
     invoice_no: FieldValue
     doc_date: FieldValue
+    due_date: FieldValue
     pages: list[Page]
     lines: list[Line]
     totals: Totals
