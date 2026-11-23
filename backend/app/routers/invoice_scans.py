@@ -21,10 +21,11 @@ from app.auth import CurrentUser, require_roles
 from app.config import get_settings
 from app.errors import AppError
 from app.schemas.invoice_scan import (
-    DeletedScanOut, ExtractOut, FieldIn, FieldOut, PageOut, RejectedOut, RejectIn, ReviewDoneOut, ScanDetailOut,
+    ChooseIn, DeletedScanOut, ExtractOut, FieldIn, FieldOut, MatchesOut, PageOut, RejectedOut, RejectIn,
+    ReviewDoneOut, ScanDetailOut,
     ScanListItemOut,
 )
-from app.services import invoice_extraction, invoice_review
+from app.services import invoice_extraction, invoice_matching, invoice_review
 from app.services import invoice_scans as service
 
 router = APIRouter(prefix="/api/v1/invoice-scans", tags=["invoice-scans"])
@@ -136,3 +137,22 @@ def post_review_done(scan_id: UUID, user: Manager):
 def post_reject(scan_id: UUID, body: RejectIn, user: Manager):
     """6.4: rejected with a reason; the scan and its photos stay (D58)."""
     return invoice_review.reject(scan_id, body.reason, user.id)
+
+
+@router.get("/{scan_id}/matches", response_model=MatchesOut)
+def get_matches(scan_id: UUID, user: Manager):
+    """6.5: up to 3 proposals per line and for the supplier, each with its
+    reasons (D52). 409 until the scan's review is done (6.4)."""
+    return invoice_matching.matches(scan_id)
+
+
+@router.post("/{scan_id}/matches", response_model=MatchesOut)
+def post_match(scan_id: UUID, body: ChooseIn, user: Manager):
+    """6.5: a person's choice — the supplier first, then each line. 409
+    MATCH_CONFLICT with both values when the medicine contradicts the paper,
+    until confirm_conflict (Chat A ข.)."""
+    if body.target == "supplier":
+        return invoice_matching.choose_supplier(scan_id, body.chosen_id, user.id)
+    if body.line_no is None:
+        raise AppError("LINE_REQUIRED", "ต้องบอกเลขบรรทัด", 400)
+    return invoice_matching.choose_medicine(scan_id, body.line_no, body.chosen_id, body.confirm_conflict, user.id)

@@ -152,3 +152,62 @@ class RejectedOut(BaseModel):
 
 
 ScanDetailOut.model_rebuild()
+
+
+# --- 6.5: matching -------------------------------------------------------------
+
+class ProposalOut(BaseModel):
+    """One proposal and why (D52). The person chooses, always."""
+    id: str
+    name: str
+    score: int
+    reasons: list[str]
+    from_memory: bool
+
+
+class ChosenOut(BaseModel):
+    id: str
+    name: str | None
+    action: Literal["confirmed", "changed"]
+    changed_at: datetime
+    changed_by_name: str | None
+
+
+class ConflictOut(BaseModel):
+    what: Literal["strength", "form"]
+    paper: str
+    system: str
+
+
+class SupplierMatchOut(BaseModel):
+    invoice_name: str | None
+    proposals: list[ProposalOut]
+    chosen: ChosenOut | None
+
+
+class LineMatchOut(BaseModel):
+    line_no: int
+    name: str | None
+    unit: str | None
+    free_goods: bool
+    proposals: list[ProposalOut]
+    note: str | None
+    chosen: ChosenOut | None
+    # Where the chosen medicine contradicts the paper — chosen anyway, after
+    # a second confirmation (Chat A ข.).
+    conflicts: list[ConflictOut]
+
+
+class MatchesOut(BaseModel):
+    scan_id: UUID
+    supplier: SupplierMatchOut
+    lines: list[LineMatchOut]
+    ready: bool
+
+
+class ChooseIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    target: Literal["supplier", "line"]
+    chosen_id: UUID
+    line_no: int | None = Field(default=None, ge=1)
+    confirm_conflict: bool = False
