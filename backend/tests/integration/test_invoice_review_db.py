@@ -258,3 +258,19 @@ def test_staff_cannot_review(client, storage, ai, method, path, payload):
     scan_id = read_scan(client, ai, settled())
     kwargs = {"json": payload} if payload else {}
     assert api(client, method, f"{BASE}/{scan_id}{path}", "staff", **kwargs).status_code == 403
+
+
+def test_a_scan_read_by_the_stand_in_says_so(client, storage, monkeypatch):
+    """Chat A: the review page must show it was not read by AI."""
+    from app.ai.stand_in import PROVIDER_NAME, StandInProvider
+    from app.config import Settings
+    from app.services import invoice_extraction
+
+    on = Settings(_env_file=None, database_url="postgresql://unused", supabase_url="https://unused.supabase.co",
+                  app_env="development", ai_stand_in_enabled=True)
+    monkeypatch.setattr(invoice_extraction, "get_provider", lambda: StandInProvider(on))
+    scan_id = scan_with(client)
+    assert extract(client, scan_id).json()["status"] == "needs_review"
+    body = detail(client, scan_id)
+    assert body["provider"] == PROVIDER_NAME
+    assert "lines.1.lot" in body["untouched"]

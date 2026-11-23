@@ -51,6 +51,9 @@ class ScanDetailOut(BaseModel):
     failed_reason: str | None
     doc_kind: str | None
     extracted: dict[str, Any] | None
+    # Who read it: a provider name, or "stand-in" — then the page says it is
+    # a test invoice not read by AI (app/ai/stand_in.py).
+    provider: str | None
     # 6.4: the review — the latest value of every touched field (the AI's
     # answer above is never changed), what still has to be touched, and
     # whether it was finished or rejected.

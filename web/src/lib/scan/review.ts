@@ -8,6 +8,14 @@
 
 import type { AiField, DecidedDate, Extracted, TotalCheck } from "@/lib/api/invoice-scans";
 
+/** Chat A 6.4: a scan read by the stand-in says so, in words, at the top. */
+export const STAND_IN = "stand-in";
+export const STAND_IN_LABEL = "ใบทดสอบ — ข้อมูลนี้ไม่ได้อ่านโดย AI";
+
+export function isStandIn(provider: string | null | undefined): boolean {
+  return provider === STAND_IN;
+}
+
 export const STATUS_WORDS: Record<string, string> = {
   uploaded: "ยังไม่ได้อ่าน",
   extracting: "กำลังอ่าน",

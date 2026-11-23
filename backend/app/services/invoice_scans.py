@@ -120,7 +120,7 @@ def get_scan(scan_id: UUID) -> dict[str, Any]:
         cur.execute(
             """
             SELECT s.id, s.status, s.created_at, s.created_by, p.full_name AS created_by_name,
-                   s.failed_reason, s.doc_kind, s.extracted, s.reviewed_at, r.full_name AS reviewed_by_name,
+                   s.failed_reason, s.doc_kind, s.extracted, s.provider, s.reviewed_at, r.full_name AS reviewed_by_name,
                    s.rejected_reason, s.rejected_at
             FROM public.invoice_scans s
             LEFT JOIN public.user_profiles p ON p.id = s.created_by

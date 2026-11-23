@@ -28,6 +28,7 @@ READING_PATH = [
     "ai/base.py",
     "ai/gemini.py",
     "ai/read_invoices.py",
+    "ai/stand_in.py",
 ]
 # Real table names, from backend/migrations.
 STOCK_TABLES = ("purchases", "purchase_items", "medicine_lots", "inventory_transactions",

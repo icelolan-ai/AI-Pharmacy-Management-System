@@ -100,4 +100,12 @@ check.eq("ค่าที่แสดง: ไม่มีส่วนลด", re
 check.ok("ปุ่มไปต่อปิดเมื่อยังมีช่องที่ต้องตรวจ", /disabled=\{busy \|\| review\.untouched\.size > 0\}/.test(page));
 check.ok("ปฏิเสธต้องกรอกเหตุผลก่อน", /disabled=\{busy \|\| !reason\.trim\(\)\}/.test(page));
 
+// --- the stand-in says so (Chat A, after 6.4) -----------------------------------------
+const standIn = readFileSync(join(here, "..", "..", "..", "backend", "app", "ai", "stand_in.py"), "utf8");
+check.eq("ป้ายใบทดสอบใช้ถ้อยคำที่ Chat A กำหนด", review.STAND_IN_LABEL, "ใบทดสอบ — ข้อมูลนี้ไม่ได้อ่านโดย AI");
+check.ok("ชื่อผู้อ่านของตัวแทนตรงกับ backend", new RegExp(`PROVIDER_NAME = "${review.STAND_IN}"`).test(standIn));
+check.ok("ป้ายของ backend กับหน้าเว็บเป็นคำเดียวกัน", standIn.includes(`TEST_LABEL = "${review.STAND_IN_LABEL}"`));
+check.ok("ใบที่อ่านโดยตัวแทน รู้ได้ · ใบที่ AI อ่าน ไม่ขึ้นป้าย", review.isStandIn("stand-in") && !review.isStandIn("gemini"));
+check.ok("หน้าตรวจขึ้นป้ายเมื่อเป็นตัวแทน", /isStandIn\(detail\.provider\)[\s\S]{0,300}\{STAND_IN_LABEL\}/.test(page));
+
 process.exit(check.done() ? 1 : 0);

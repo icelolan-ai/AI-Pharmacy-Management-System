@@ -207,6 +207,8 @@ export type ScanDetail = Scan & {
   failed_reason: string | null;
   doc_kind: string | null;
   extracted: Extracted | null;
+  /** Who read it. "stand-in" = a test invoice not read by AI (backend app/ai/stand_in.py). */
+  provider: string | null;
   /** 6.4: the latest touch of every field; the AI's answer is never changed. */
   corrections: Correction[];
   /** Fields a person must still touch before going on (D57 · D85 · D87). */

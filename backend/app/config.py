@@ -83,6 +83,9 @@ class Settings(BaseSettings):
     # nothing in the API lets code check (Chat A, ก.). Default: not confirmed.
     real_invoices_dir: str | None = None
     gemini_paid_tier_confirmed: bool = False
+    # 6.4: the stand-in for the AI (app/ai/stand_in.py) — off unless set by
+    # hand, and never when APP_ENV is not development, whatever this says.
+    ai_stand_in_enabled: bool = False
 
     @field_validator("database_url", "supabase_url", "store_timezone", mode="before")
     @classmethod

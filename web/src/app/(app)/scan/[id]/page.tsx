@@ -47,6 +47,8 @@ import {
   emptyWord,
   failedWord,
   FIELD_LABELS,
+  isStandIn,
+  STAND_IN_LABEL,
   fieldKind,
   MUST_CHECK_WORD,
   shownFor,
@@ -202,6 +204,11 @@ export default function ScanReviewPage({ params }: { params: Promise<{ id: strin
 
       {detail ? (
         <>
+          {isStandIn(detail.provider) ? (
+            <p className="rounded-md border-2 border-amber-700 bg-amber-50 p-3 text-base font-semibold text-amber-950" role="note">
+              🧪 {STAND_IN_LABEL}
+            </p>
+          ) : null}
           <ScanImages pages={detail.pages} />
           <StatusPanel detail={detail} reading={reading} onRead={read} />
           {review ? (

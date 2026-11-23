@@ -613,10 +613,16 @@
     font-size: var(--text-base);
   }
 
-  /* The page ends above the tab bar, so nothing — a confirm button least
-   * of all — is ever hidden beneath it. */
+  /* The page ends above the tab bar AND the raised ขายยา disc, so nothing —
+   * a confirm button least of all — is ever hidden beneath them (6.4: the
+   * last button of a long page sat 5px under the disc). Built from the same
+   * variables that draw them: the bar, the home-bar space, and the most the
+   * disc can rise above the bar — half its size plus its lift (it is
+   * centred inside the bar, then lifted). Change any of them and this
+   * follows. --tab-gap-above is the air left between page and disc. */
   .tab-bar-clearance {
-    padding-bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom) + 1.5rem);
+    padding-bottom: calc(var(--tab-bar-height) + env(safe-area-inset-bottom)
+      + var(--tab-center) / 2 + var(--tab-center-lift) + var(--tab-gap-above));
   }
 }
 
@@ -718,6 +724,7 @@
   --hero-radius: 1.5rem;
   --tab-center: 3.5rem;                    /* 56px: the raised ขายยา disc */
   --tab-center-lift: 1.125rem;             /* how far it rises above the bar */
+  --tab-gap-above: 0.75rem;                /* air between a page's last line and the disc */
   --tab-center-bg: var(--color-slate-900);
   --tab-center-ink: #ffffff;
   --back-box: 2.75rem;                     /* 44px: the square behind ← */

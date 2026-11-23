@@ -16,6 +16,9 @@ TRUTH = json.loads(
 )
 
 
+from app.ai.stand_in import answer_from_truth  # noqa: E402  — one builder for tests and the stand-in
+
+
 def read(text: str | None, confidence: float = 0.99) -> dict[str, Any]:
     if text is None or text == "":
         return {"state": "absent", "text": None, "confidence": None}
@@ -23,36 +26,7 @@ def read(text: str | None, confidence: float = 0.99) -> dict[str, Any]:
 
 
 def answer_for(doc: str) -> dict[str, Any]:
-    truth = TRUTH[doc]
-    lines = []
-    for line in truth["lines"]:
-        repeat = {"present": False, "from_line": None, "derived_name": None, "sure": False}
-        if line["name"].startswith("---"):
-            source = lines[-1]
-            size = line["name"].lstrip("- ").strip()
-            base = source["name"]["text"].rsplit(" ", 1)[0]
-            repeat = {"present": True, "from_line": source["line_no"], "derived_name": f"{base} {size}", "sure": True}
-        lines.append({
-            "page_no": line["page_no"], "line_no": line["line_no"], "name": read(line["name"]), "repeat": repeat,
-            "quantity": read(line.get("qty")), "unit": read(line.get("unit")),
-            "unit_price": read(line.get("price")), "line_discount": read(None), "amount": read(line.get("amount")),
-            "lot": read(line.get("lot")), "mfg": read(line.get("mfg")), "exp": read(line.get("exp")),
-            "remark": read(line.get("remark")),
-        })
-    return {
-        "schema_version": 2,
-        "doc_kind": truth["doc_kind"],
-        "supplier_name": read(truth["supplier_name"]),
-        "supplier_tax_id": read(truth["supplier_tax_id"]),
-        "invoice_no": read(truth["invoice_no"]),
-        "doc_date": read(truth["doc_date"]),
-        "due_date": read(truth.get("due_date")),
-        "pages": [{"page_no": n, "label": read(f"หน้า {n}/{truth['page_count']}" if truth["page_count"] > 1 else None)}
-                  for n in range(1, truth["page_count"] + 1)],
-        "lines": lines,
-        "totals": {"page_no": truth["totals_page"],
-                   "boxes": [{"label": label, "amount": read(amount)} for label, amount in truth["totals"]]},
-    }
+    return answer_from_truth(doc)
 
 
 def changed(doc: str, change) -> dict[str, Any]:
